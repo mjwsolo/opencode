@@ -1071,6 +1071,9 @@ const ProviderLimit = Schema.Struct({
   output: Schema.Finite,
 })
 
+/** The provider id localcode's launcher writes into its config; its model list is dynamic. */
+export const LOCALCODE_PROVIDER_ID = ProviderV2.ID.make("localcode")
+
 export const Model = Schema.Struct({
   id: ModelV2.ID,
   providerID: ProviderV2.ID,
@@ -1879,6 +1882,19 @@ const layer = Layer.effect(
       }
 
       const info = provider.models[modelID]
+      if (!info && providerID === LOCALCODE_PROVIDER_ID) {
+        // localcode: the served model is whatever gguf the supervisor loaded
+        // last. Quants are discovered at runtime (HF repo listing), so the
+        // config cannot enumerate every valid alias up front. Any alias under
+        // the localcode provider is valid; clone the first configured model's
+        // wiring (api, limits, capabilities) under the new id.
+        const template = Object.values(provider.models)[0]
+        if (template) {
+          const synthesized: Model = { ...template, id: modelID, name: modelID }
+          provider.models[modelID] = synthesized
+          return synthesized
+        }
+      }
       if (!info) {
         const current = modelSuggestions(provider, modelID, runtimeFlags.enableExperimentalModels)
         const suggestions = current.length

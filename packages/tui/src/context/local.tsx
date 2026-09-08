@@ -63,7 +63,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     function isModelValid(model: { providerID: string; modelID: string }) {
       const provider = sync.data.provider.find((item) => item.id === model.providerID)
-      return !!provider?.models[model.modelID]
+      if (!provider) return false
+      // localcode serves whatever gguf its supervisor loaded last; any alias is valid there.
+      if (provider.id === "localcode") return true
+      return !!provider.models[model.modelID]
     }
 
     function getFirstValidModel(...modelFns: (() => { providerID: string; modelID: string } | undefined)[]) {

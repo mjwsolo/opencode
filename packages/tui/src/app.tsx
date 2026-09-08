@@ -40,6 +40,7 @@ import { LocationProvider } from "./context/location"
 import { LocalProvider, useLocal } from "./context/local"
 import { PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
+import { DialogLocalcodeModel, controlUrl as localcodeControlUrl } from "./component/dialog-localcode-model"
 import { useConnected } from "./component/use-connected"
 import { DialogMcp } from "./component/dialog-mcp"
 import { DialogStatus } from "./component/dialog-status"
@@ -635,7 +636,10 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         // Bias /mo toward /models over /move without changing global fuzzy scoring.
         slashAliases: ["mo"],
         run: () => {
-          dialog.replace(() => <DialogModel />)
+          // localcode: model → quant picker backed by the supervisor; the stock
+          // flat provider list only when no supervisor is running.
+          if (localcodeControlUrl()) dialog.replace(() => <DialogLocalcodeModel />)
+          else dialog.replace(() => <DialogModel />)
         },
       },
       {

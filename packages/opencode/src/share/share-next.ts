@@ -20,7 +20,12 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { EventV2 } from "@opencode-ai/core/event"
 
-const disabled = process.env["OPENCODE_DISABLE_SHARE"] === "true" || process.env["OPENCODE_DISABLE_SHARE"] === "1"
+// localcode is local-only: session sharing is permanently disabled. Every
+// network method below short-circuits on this flag regardless of config or
+// env, so nothing in this module ever opens a connection. The module is kept
+// (with its exported shapes) because the server routes and TUI import its
+// types and the layer graph depends on the Service.
+const disabled = true
 
 export type Api = {
   create: string
@@ -207,7 +212,8 @@ const layer = Layer.effect(
       const headers: Record<string, string> = {}
       const active = yield* account.active()
       if (Option.isNone(active) || !active.value.active_org_id) {
-        const baseUrl = (yield* cfg.get()).enterprise?.url ?? "https://opncd.ai"
+        // localcode never contacts a share host; this URL is informational only.
+        const baseUrl = (yield* cfg.get()).enterprise?.url ?? "http://localhost"
         return { headers, api: legacyApi, baseUrl } satisfies Req
       }
 

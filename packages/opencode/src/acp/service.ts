@@ -94,17 +94,18 @@ export function make(input: {
   const initialize = Effect.fn("ACP.initialize")(function* (params: InitializeRequest) {
     const started = performance.now()
     const authMethod: AuthMethod = {
-      description: "Run `opencode auth login` in the terminal",
-      name: "Login with opencode",
+      description:
+        "localcode is local-only: set a provider API key via environment variables or the provider options in localcode.json, then run `localcode models` to confirm it is configured",
+      name: "Configure a provider",
       id: AuthMethodID,
     }
 
     if (params.clientCapabilities?._meta?.["terminal-auth"] === true) {
       authMethod._meta = {
         "terminal-auth": {
-          command: "opencode",
-          args: ["auth", "login"],
-          label: "OpenCode Login",
+          command: "localcode",
+          args: ["models"],
+          label: "Show configured localcode providers",
         },
       }
     }
@@ -130,7 +131,7 @@ export function make(input: {
       },
       authMethods: [authMethod],
       agentInfo: {
-        name: "OpenCode",
+        name: "localcode",
         version: InstallationVersion,
       },
     }
@@ -874,7 +875,7 @@ const promptResponse = Effect.fn("ACP.promptResponse")(function* (
 
 function promptErrorMessage(error: AssistantError) {
   if ("message" in error.data && typeof error.data.message === "string") return error.data.message
-  return "OpenCode prompt failed"
+  return "localcode prompt failed"
 }
 
 function sendUsageUpdate(
@@ -1067,7 +1068,7 @@ function fromUnknownError(error: unknown, service?: string): Error {
   if (isAuthRequired(error)) {
     return new ACPError.AuthRequiredError({ providerId: findProviderID(error) })
   }
-  return new ACPError.ServiceFailureError({ safeMessage: "OpenCode service failure", service })
+  return new ACPError.ServiceFailureError({ safeMessage: "localcode service failure", service })
 }
 
 function isACPError(error: unknown): error is Error {

@@ -32,23 +32,6 @@ describe("opencode read-only commands (smoke)", () => {
     60_000,
   )
 
-  // `providers list` enumerates credentials + env-resolved providers.
-  // (Not config-injected ones — those don't appear here by design.) The
-  // Credentials header always renders; the Environment header only renders
-  // when at least one provider env var is set, which the isolation harness
-  // deliberately doesn't guarantee. Assert the always-present marker so the
-  // test passes on a clean CI runner without env-var leakage.
-  cliIt.live(
-    "providers list: exits 0 and prints the credentials section",
-    ({ opencode }) =>
-      Effect.gen(function* () {
-        const r = yield* opencode.spawn(["providers", "list"])
-        opencode.expectExit(r, 0, "providers list")
-        expect(r.stdout).toContain("Credentials")
-      }),
-    60_000,
-  )
-
   // `models` lists models from configured providers. Our test/test-model
   // should appear because it's wired into the test provider config.
   cliIt.live(

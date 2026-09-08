@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, spyOn } from "bun:test"
+import { afterAll, afterEach, beforeAll, describe, expect, spyOn } from "bun:test"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { Effect, Layer } from "effect"
 import fs from "fs/promises"
@@ -19,6 +19,18 @@ const { RuntimeFlags } = await import("../../src/effect/runtime-flags")
 
 afterEach(async () => {
   await disposeAllInstances()
+})
+
+// localcode skips npm-sourced plugins by default. The npm cases below exercise
+// the (mocked, offline) registry path, so opt in for this file; the default
+// skip behaviour has its own test.
+const allowNpm = process.env.OPENCODE_ALLOW_NPM_PLUGINS
+beforeAll(() => {
+  process.env.OPENCODE_ALLOW_NPM_PLUGINS = "1"
+})
+afterAll(() => {
+  if (allowNpm === undefined) delete process.env.OPENCODE_ALLOW_NPM_PLUGINS
+  else process.env.OPENCODE_ALLOW_NPM_PLUGINS = allowNpm
 })
 
 const it = testEffect(
@@ -251,6 +263,33 @@ describe("plugin.loader.shared", () => {
           )
 
           expect(called).toBe(false)
+        }),
+    ),
+  )
+
+  it.live("skips npm plugin specs without installing when OPENCODE_ALLOW_NPM_PLUGINS is unset", () =>
+    withTmp(
+      async (dir) => {
+        await Bun.write(
+          path.join(dir, "opencode.json"),
+          JSON.stringify({ plugin: ["acme-plugin", "scope-plugin@2.3.4"] }, null, 2),
+        )
+      },
+      (tmp) =>
+        Effect.gen(function* () {
+          const add = spyOn(Npm, "add").mockImplementation(async () => {
+            throw new Error("npm install must not run")
+          })
+          const prev = process.env.OPENCODE_ALLOW_NPM_PLUGINS
+          delete process.env.OPENCODE_ALLOW_NPM_PLUGINS
+          try {
+            expect(PluginLoader.npmPluginsAllowed()).toBe(false)
+            yield* load(tmp.path)
+            expect(add.mock.calls).toHaveLength(0)
+          } finally {
+            process.env.OPENCODE_ALLOW_NPM_PLUGINS = prev ?? "1"
+            add.mockRestore()
+          }
         }),
     ),
   )

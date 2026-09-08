@@ -755,6 +755,10 @@ async function resolveExternalPlugins(list: ConfigPlugin.Origin[], wait: () => P
       },
       error(candidate, retry, stage, error, resolved) {
         const spec = candidate.plan.spec
+        if (stage === "disabled") {
+          warn("npm tui plugin skipped (localcode is local-only)", { path: spec, error })
+          return
+        }
         if (stage === "install") {
           fail("failed to resolve tui plugin", { path: spec, retry, error })
           return

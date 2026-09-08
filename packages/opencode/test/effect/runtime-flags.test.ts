@@ -65,6 +65,29 @@ describe("RuntimeFlags", () => {
     }),
   )
 
+  it.effect("reads LOCALCODE_* names and prefers them over OPENCODE_* when both are set", () =>
+    Effect.gen(function* () {
+      const flags = yield* readFlags.pipe(
+        Effect.provide(
+          fromConfig({
+            LOCALCODE_PURE: "true",
+            LOCALCODE_CLIENT: "desktop",
+            OPENCODE_CLIENT: "cli",
+            LOCALCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX: "4096",
+            LOCALCODE_EXPERIMENTAL: "true",
+            OPENCODE_EXPERIMENTAL_LSP_TOOL: "false",
+          }),
+        ),
+      )
+
+      expect(flags.pure).toBe(true)
+      expect(flags.client).toBe("desktop")
+      expect(flags.outputTokenMax).toBe(4096)
+      expect(flags.experimentalPlanMode).toBe(true)
+      expect(flags.experimentalLspTool).toBe(false)
+    }),
+  )
+
   it.effect("layer parses OPENCODE_EXPERIMENTAL_LSP_TY", () =>
     Effect.gen(function* () {
       const flags = yield* readFlags.pipe(

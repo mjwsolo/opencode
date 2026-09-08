@@ -31,7 +31,6 @@ import type { SkillTool } from "@/tool/skill"
 import type { TaskTool } from "@/tool/task"
 import type { TodoWriteTool } from "@/tool/todo"
 import type { WebFetchTool } from "@/tool/webfetch"
-import { webSearchProviderLabel, type WebSearchTool } from "@/tool/websearch"
 import type { WriteTool } from "@/tool/write"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import * as Locale from "@/util/locale"
@@ -107,7 +106,6 @@ type ToolDefs = {
   list: Tool.Info
   lsp: typeof LspTool
   webfetch: typeof WebFetchTool
-  websearch: typeof WebSearchTool
   skill: typeof SkillTool
   plan_exit: typeof PlanExitTool
 }
@@ -352,14 +350,6 @@ function runEdit(p: ToolProps<typeof EditTool>): ToolInline {
     title: `Edit ${toolPath(p.input.filePath)}`,
     mode: "block",
     body: p.metadata.diff,
-  }
-}
-
-function runWebSearch(p: ToolProps<typeof WebSearchTool>): ToolInline {
-  const title = webSearchProviderLabel(p.metadata.provider)
-  return {
-    icon: "◈",
-    title: p.input.query ? `${title} "${p.input.query}"` : title,
   }
 }
 
@@ -907,16 +897,6 @@ function scrollWebfetchStart(p: ToolProps<typeof WebFetchTool>): string {
   return `% WebFetch ${url}`
 }
 
-function scrollWebSearchStart(p: ToolProps<typeof WebSearchTool>): string {
-  const title = webSearchProviderLabel(p.metadata.provider)
-  const query = p.input.query ?? ""
-  if (!query) {
-    return `◈ ${title}`
-  }
-
-  return `◈ ${title} "${query}"`
-}
-
 function permEdit(p: ToolPermissionProps<typeof EditTool>): ToolPermissionInfo {
   const input = p.input as { filePath?: string; filepath?: string; diff?: string }
   const file = input.filePath || input.filepath || p.patterns[0] || ""
@@ -990,16 +970,6 @@ function permWebfetch(p: ToolPermissionProps<typeof WebFetchTool>): ToolPermissi
     icon: "%",
     title: `WebFetch ${url}`,
     lines: url ? [`URL: ${url}`] : [],
-  }
-}
-
-function permWebSearch(p: ToolPermissionProps<typeof WebSearchTool>): ToolPermissionInfo {
-  const query = p.input.query || ""
-  const title = webSearchProviderLabel(p.metadata.provider)
-  return {
-    icon: "◈",
-    title: query ? `${title} "${query}"` : title,
-    lines: query ? [`Query: ${query}`] : [],
   }
 }
 
@@ -1197,17 +1167,6 @@ const TOOL_RULES = {
       start: scrollWebfetchStart,
     },
     permission: permWebfetch,
-  },
-  websearch: {
-    view: {
-      output: false,
-      final: false,
-    },
-    run: runWebSearch,
-    scroll: {
-      start: scrollWebSearchStart,
-    },
-    permission: permWebSearch,
   },
   skill: {
     view: {

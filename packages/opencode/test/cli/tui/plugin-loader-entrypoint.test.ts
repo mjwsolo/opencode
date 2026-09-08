@@ -1,4 +1,4 @@
-import { expect, spyOn, test } from "bun:test"
+import { afterAll, beforeAll, expect, spyOn, test } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import { pathToFileURL } from "url"
@@ -9,6 +9,17 @@ import { TuiConfig } from "../../../src/config/tui"
 import { Npm } from "@opencode-ai/core/npm"
 
 const { TuiPluginRuntime } = await import("../../../src/plugin/tui/runtime")
+
+// localcode skips npm-sourced plugins by default; these cases exercise the
+// (mocked, offline) npm path, so opt in for this file.
+const allowNpm = process.env.OPENCODE_ALLOW_NPM_PLUGINS
+beforeAll(() => {
+  process.env.OPENCODE_ALLOW_NPM_PLUGINS = "1"
+})
+afterAll(() => {
+  if (allowNpm === undefined) delete process.env.OPENCODE_ALLOW_NPM_PLUGINS
+  else process.env.OPENCODE_ALLOW_NPM_PLUGINS = allowNpm
+})
 
 test("loads npm tui plugin from package ./tui export", async () => {
   await using tmp = await tmpdir({

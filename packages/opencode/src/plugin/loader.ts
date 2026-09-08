@@ -51,7 +51,7 @@ export namespace PluginLoader {
     error?: (
       candidate: Candidate,
       retry: boolean,
-      stage: "install" | "entry" | "compatibility" | "load",
+      stage: "install" | "entry" | "compatibility" | "load" | "disabled",
       error: unknown,
       resolved?: Resolved,
     ) => void
@@ -205,8 +205,30 @@ export namespace PluginLoader {
   // If `wait` is provided, file-based plugins with retryable pre-import setup failures are retried
   // once after the caller finishes preparing dependencies. Once dynamic import runs, failures are
   // treated as permanent for this process because Bun caches failed module resolution.
+  // localcode is local-only: plugins are never fetched from the npm registry at
+  // runtime. Only file-based plugins (paths / file:// URLs, e.g. .opencode/plugins/*.ts)
+  // are loaded. A configured package-name / `npm:` plugin is reported via
+  // `report.error(..., "disabled", ...)` and skipped. Opt in to registry installs
+  // with OPENCODE_ALLOW_NPM_PLUGINS=1.
+  export const npmPluginsAllowed = () =>
+    process.env["OPENCODE_ALLOW_NPM_PLUGINS"] === "1" || process.env["OPENCODE_ALLOW_NPM_PLUGINS"] === "true"
+
   export async function loadExternal<R = Loaded>(input: Input<R>): Promise<R[]> {
-    const candidates = input.items.map((origin) => ({ origin, plan: plan(origin.spec) }))
+    const allowNpm = npmPluginsAllowed()
+    const candidates = input.items
+      .map((origin) => ({ origin, plan: plan(origin.spec) }))
+      .filter((candidate) => {
+        if (allowNpm || pluginSource(candidate.plan.spec) === "file") return true
+        input.report?.error?.(
+          candidate,
+          false,
+          "disabled",
+          new Error(
+            `npm plugins are not installed by localcode (local-only); skipped. Use a file plugin (e.g. .opencode/plugins/*.ts) or set OPENCODE_ALLOW_NPM_PLUGINS=1 to opt in.`,
+          ),
+        )
+        return false
+      })
     const list: Array<Promise<AttemptResult<R>>> = []
     for (const candidate of candidates) {
       list.push(attempt(candidate, input.kind, false, input.finish, input.missing, input.report))

@@ -25,7 +25,6 @@ const AVAILABLE_PERMISSIONS = [
   "webfetch",
   "task",
   "todowrite",
-  "websearch",
   "lsp",
   "skill",
 ]
@@ -108,7 +107,7 @@ const AgentCreateCommand = effectCmd({
           if (prompts.isCancel(scopeResult)) throw new UI.CancelledError()
           scope = scopeResult
         }
-        targetPath = path.join(scope === "global" ? Global.Path.config : path.join(ctx.worktree, ".opencode"), "agents")
+        targetPath = path.join(scope === "global" ? Global.Path.config : path.join(ctx.worktree, ".localcode-agent"), "agents")
       }
 
       // Get description

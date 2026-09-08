@@ -86,33 +86,12 @@ export const globalHandlers = HttpApiBuilder.group(RootHttpApi, "global", (handl
       return true
     })
 
-    const upgrade = Effect.fn("GlobalHttpApi.upgrade")(function* (ctx: { payload: typeof GlobalUpgradeInput.Type }) {
-      const method = yield* installation.method()
-      if (method === "unknown") {
-        return HttpServerResponse.jsonUnsafe(
-          { success: false as const, error: "Unknown installation method" },
-          { status: 400 },
-        )
-      }
-      const target = ctx.payload.target
-      const result = yield* installation.upgrade(method, target).pipe(
-        Effect.as({ success: true as const, version: target }),
-        Effect.catch((err) =>
-          Effect.succeed({
-            success: false as const,
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        ),
+    const upgrade = Effect.fn("GlobalHttpApi.upgrade")(function* (_ctx: { payload: typeof GlobalUpgradeInput.Type }) {
+      // localcode is local-only: there is no self-update path in this binary.
+      return HttpServerResponse.jsonUnsafe(
+        { success: false as const, error: "Self-update is not available in localcode" },
+        { status: 400 },
       )
-      if (!result.success) return HttpServerResponse.jsonUnsafe(result, { status: 500 })
-      GlobalBus.emit("event", {
-        directory: "global",
-        payload: {
-          type: Installation.Event.Updated.type,
-          properties: { version: target },
-        },
-      })
-      return HttpServerResponse.jsonUnsafe(result)
     })
 
     return handlers

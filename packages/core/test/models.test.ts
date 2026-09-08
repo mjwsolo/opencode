@@ -154,7 +154,7 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("get() recovers from a corrupted cache file by fetching a fresh catalog", () =>
+  it.live("get() does not fetch by default when the cache is corrupted (fetch is opt-in)", () =>
     Effect.gen(function* () {
       yield* writeCacheText("{")
       const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
@@ -167,6 +167,29 @@ describe("ModelsDev Service", () => {
         () =>
           Effect.sync(() => {
             Flag.OPENCODE_DISABLE_MODELS_FETCH = true
+          }),
+      )
+      expect(result).toEqual({})
+      const final = yield* Ref.get(state)
+      expect(final.calls.length).toBe(0)
+    }),
+  )
+
+  it.live("get() recovers from a corrupted cache file by fetching a fresh catalog", () =>
+    Effect.gen(function* () {
+      yield* writeCacheText("{")
+      const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
+      const context = yield* Layer.build(buildLayer(state))
+      const result = yield* Effect.acquireUseRelease(
+        Effect.sync(() => {
+          Flag.OPENCODE_DISABLE_MODELS_FETCH = false
+          process.env["LOCALCODE_MODELS_FETCH"] = "1"
+        }),
+        () => ModelsDev.Service.use((s) => s.get()).pipe(Effect.provide(context)),
+        () =>
+          Effect.sync(() => {
+            Flag.OPENCODE_DISABLE_MODELS_FETCH = true
+            delete process.env["LOCALCODE_MODELS_FETCH"]
           }),
       )
       expect(result).toEqual(fixture2)
@@ -250,9 +273,8 @@ describe("ModelsDev Service", () => {
     }),
   )
 
-  it.live("refresh(false) fetches when on-disk file is stale", () =>
+  it.live("refresh(false) does not fetch by default when on-disk file is stale (fetch is opt-in)", () =>
     Effect.gen(function* () {
-      // Stale: mtime 10 minutes ago, beyond the 5-minute TTL.
       yield* writeCache(fixture, Date.now() - 10 * 60 * 1000)
       const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
       const after = yield* provided(
@@ -262,6 +284,37 @@ describe("ModelsDev Service", () => {
           yield* svc.refresh(false)
           return yield* svc.get()
         }),
+      )
+      const final = yield* Ref.get(state)
+      expect(final.calls.length).toBe(0)
+      expect(after).toEqual(fixture)
+    }),
+  )
+
+  it.live("refresh(false) fetches when on-disk file is stale and fetching is opted in", () =>
+    Effect.gen(function* () {
+      // Stale: mtime 10 minutes ago, beyond the 5-minute TTL.
+      yield* writeCache(fixture, Date.now() - 10 * 60 * 1000)
+      const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture2) })
+      const after = yield* Effect.acquireUseRelease(
+        Effect.sync(() => {
+          Flag.OPENCODE_DISABLE_MODELS_FETCH = false
+          process.env["OPENCODE_MODELS_FETCH"] = "1"
+        }),
+        () =>
+          provided(
+            state,
+            Effect.gen(function* () {
+              const svc = yield* ModelsDev.Service
+              yield* svc.refresh(false)
+              return yield* svc.get()
+            }),
+          ),
+        () =>
+          Effect.sync(() => {
+            Flag.OPENCODE_DISABLE_MODELS_FETCH = true
+            delete process.env["OPENCODE_MODELS_FETCH"]
+          }),
       )
       const final = yield* Ref.get(state)
       expect(final.calls.length).toBe(1)

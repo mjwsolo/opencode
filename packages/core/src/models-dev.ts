@@ -4,6 +4,7 @@ import { FetchHttpClient, HttpClient, HttpClientRequest } from "effect/unstable/
 import { ModelsDev } from "@opencode-ai/schema/models-dev"
 import { Global } from "./global"
 import { Flag } from "./flag/flag"
+import * as FlagUtil from "./flag/flag"
 import { Flock } from "./util/flock"
 import { Hash } from "./util/hash"
 import { FSUtil } from "./fs-util"
@@ -140,6 +141,15 @@ export interface Interface {
   readonly refresh: (force?: boolean) => Effect.Effect<void>
 }
 
+// localcode is local-only: the models.dev catalog fetch and its 60-minute
+// background refresh are OFF by default. Models come from the on-disk cache
+// (OPENCODE_MODELS_PATH / ~/.cache/.../models.json), the bundled snapshot, or
+// the user's provider config. To opt in to fetching the public catalog set
+// LOCALCODE_MODELS_FETCH=1 (or the legacy OPENCODE_MODELS_FETCH=1).
+// OPENCODE_DISABLE_MODELS_FETCH=1 always wins. Read at call time so the
+// disable flag (which is mutable) is honoured.
+const fetchEnabled = () => !Flag.OPENCODE_DISABLE_MODELS_FETCH && FlagUtil.truthy("OPENCODE_MODELS_FETCH")
+
 export class Service extends Context.Service<Service, Interface>()("@opencode/ModelsDev") {}
 
 const layer = Layer.effect(
@@ -219,7 +229,7 @@ const layer = Layer.effect(
       if (fromDisk) return fromDisk
       const snapshot = yield* loadSnapshot
       if (snapshot) return snapshot
-      if (Flag.OPENCODE_DISABLE_MODELS_FETCH) return {}
+      if (!fetchEnabled()) return {}
       // Flock is cross-process: concurrent opencode CLIs can race on this cache file.
       const text = yield* Effect.scoped(
         Effect.gen(function* () {
@@ -235,6 +245,9 @@ const layer = Layer.effect(
     const get = (): Effect.Effect<Record<string, Provider>> => cachedGet
 
     const refresh = Effect.fn("ModelsDev.refresh")(function* (force = false) {
+      // Only an explicit, user-initiated `--refresh` (force=true) may reach the
+      // network without the opt-in; implicit refreshes are off by default.
+      if (!force && !fetchEnabled()) return
       if (!force && (yield* fresh())) return
       yield* Effect.scoped(
         Effect.gen(function* () {
@@ -252,7 +265,7 @@ const layer = Layer.effect(
       )
     })
 
-    if (!Flag.OPENCODE_DISABLE_MODELS_FETCH && !process.argv.includes("--get-yargs-completions")) {
+    if (fetchEnabled() && !process.argv.includes("--get-yargs-completions")) {
       // Schedule.spaced runs the effect once, then waits between completions.
       yield* Effect.forkScoped(refresh().pipe(Effect.repeat(Schedule.spaced("60 minutes")), Effect.ignore))
     }

@@ -7,7 +7,9 @@ import { Flock } from "./util/flock"
 import { Flag } from "./flag/flag"
 import { makeGlobalNode } from "./effect/app-node"
 
-const app = "opencode"
+// "localcode-agent", not "localcode": ~/.local/share/localcode belongs to a
+// different localcode component and must not be shared with this CLI.
+const app = "localcode-agent"
 const data = path.join(xdgData!, app)
 const cache = path.join(xdgCache!, app)
 const config = path.join(xdgConfig!, app)
@@ -16,7 +18,7 @@ const tmp = path.join(os.tmpdir(), app)
 
 const paths = {
   get home() {
-    return process.env.OPENCODE_TEST_HOME ?? os.homedir()
+    return process.env.LOCALCODE_TEST_HOME ?? process.env.OPENCODE_TEST_HOME ?? os.homedir()
   },
   data,
   bin: path.join(cache, "bin"),

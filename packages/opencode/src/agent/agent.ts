@@ -170,8 +170,8 @@ const layer = Layer.effect(
                 },
                 edit: {
                   "*": "deny",
-                  [path.join(".localcode-agent", "plans", "*.md")]: "allow",
                   [path.join(".opencode", "plans", "*.md")]: "allow",
+                  [path.join(".localcode-agent", "plans", "*.md")]: "allow",
                   [path.relative(ctx.worktree, path.join(Global.Path.data, path.join("plans", "*.md")))]: "allow",
                 },
               }),
@@ -205,6 +205,7 @@ const layer = Layer.effect(
                 list: "allow",
                 bash: "allow",
                 webfetch: "allow",
+                websearch: "allow",
                 read: "allow",
                 external_directory: readonlyExternalDirectory,
               }),

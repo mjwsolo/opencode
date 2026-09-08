@@ -25,6 +25,7 @@ const AVAILABLE_PERMISSIONS = [
   "webfetch",
   "task",
   "todowrite",
+  "websearch",
   "lsp",
   "skill",
 ]

@@ -34,11 +34,21 @@ export type ThemeSource = Readonly<{
   subscribeRefresh?(refresh: () => void): () => void
 }>
 
+export const DEFAULT_THEME = "localcode"
+
+// Configs and saved state written before the rename still say "opencode"; that
+// theme is now called "localcode".
+function normalizeThemeName(value: unknown) {
+  if (typeof value !== "string") return DEFAULT_THEME
+  if (value === "opencode") return DEFAULT_THEME
+  return value
+}
+
 const themeSource: ThemeSource = {
   async discover() {
     const directories = [Global.Path.config]
     for (let current = process.cwd(); ; current = path.dirname(current)) {
-      directories.push(path.join(current, ".opencode"))
+      directories.push(path.join(current, ".localcode-agent"))
       if (path.dirname(current) === current) break
     }
     return discoverThemes(directories)
@@ -93,7 +103,7 @@ const [store, setStore] = createStore<State>({
   themes: allThemes(),
   mode: "dark",
   lock: undefined,
-  active: "opencode",
+  active: DEFAULT_THEME,
   ready: false,
 })
 
@@ -118,8 +128,8 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         if (!lock && pick(kv.get("theme_mode")) !== undefined) kv.set("theme_mode", undefined)
         draft.mode = mode
         draft.lock = lock
-        const active = config.theme ?? kv.get("theme", "opencode")
-        draft.active = typeof active === "string" ? active : "opencode"
+        const active = config.theme ?? kv.get("theme", DEFAULT_THEME)
+        draft.active = normalizeThemeName(active)
         draft.ready = false
       }),
     )
@@ -140,7 +150,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
             }, {}),
           )
         })
-        .catch(() => setStore("active", "opencode"))
+        .catch(() => setStore("active", DEFAULT_THEME))
     }
 
     onMount(() => {
@@ -159,7 +169,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
           if (!colors.palette[0]) {
             if (hasResolvedSystemTheme) return
             setSystemTheme(undefined)
-            if (store.active === "system") setStore("active", "opencode")
+            if (store.active === "system") setStore("active", DEFAULT_THEME)
             return
           }
           const next = store.lock ?? terminalMode(colors) ?? mode
@@ -174,7 +184,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         .catch(() => {
           if (hasResolvedSystemTheme) return
           setSystemTheme(undefined)
-          if (store.active === "system") setStore("active", "opencode")
+          if (store.active === "system") setStore("active", DEFAULT_THEME)
         })
     }
 
@@ -263,7 +273,7 @@ export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
         if (theme) return resolveTheme(theme, store.mode)
       }
 
-      return resolveTheme(store.themes.opencode, store.mode)
+      return resolveTheme(store.themes[DEFAULT_THEME], store.mode)
     })
 
     createEffect(() => renderer.setBackgroundColor(values().background))

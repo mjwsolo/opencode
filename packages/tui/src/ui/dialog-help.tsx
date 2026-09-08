@@ -7,6 +7,9 @@ export function DialogHelp() {
   const dialog = useDialog()
   const { theme } = useTheme()
   const commandShortcut = useCommandShortcut("command.palette.show")
+  const modelShortcut = useCommandShortcut("model.list")
+  const statusShortcut = useCommandShortcut("localcode.status")
+  const sessionShortcut = useCommandShortcut("session.list")
 
   useBindings(() => ({
     bindings: [
@@ -19,15 +22,39 @@ export function DialogHelp() {
     <box paddingLeft={2} paddingRight={2} gap={1}>
       <box flexDirection="row" justifyContent="space-between">
         <text attributes={TextAttributes.BOLD} fg={theme.text}>
-          Help
+          localcode help
         </text>
         <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
           esc/enter
         </text>
       </box>
-      <box paddingBottom={1}>
+      <box paddingBottom={1} gap={1}>
         <text fg={theme.textMuted}>
-          Press {commandShortcut()} to see all available actions and commands in any context.
+          localcode is a local-only coding agent. Models run on this machine and nothing leaves your computer.
+        </text>
+        <box>
+          <text fg={theme.textMuted}>
+            <span style={{ fg: theme.text }}>/models</span>
+            {modelShortcut() ? ` or ${modelShortcut()}` : ""} picks a model, then the quant to download and load
+          </text>
+          <text fg={theme.textMuted}>
+            <span style={{ fg: theme.text }}>/status</span>
+            {statusShortcut() ? ` or ${statusShortcut()}` : ""} shows the loaded model, MCP servers, and LSPs
+          </text>
+          <text fg={theme.textMuted}>
+            <span style={{ fg: theme.text }}>/sessions</span>
+            {sessionShortcut() ? ` or ${sessionShortcut()}` : ""} lists sessions; resume one later with{" "}
+            <span style={{ fg: theme.text }}>localcode -s &lt;id&gt;</span>
+          </text>
+          <text fg={theme.textMuted}>
+            <span style={{ fg: theme.text }}>{commandShortcut()}</span> opens the command palette with every action
+            available in the current context
+          </text>
+        </box>
+        <text fg={theme.textMuted}>
+          Configure the agent in <span style={{ fg: theme.text }}>localcode.json</span> and the TUI in{" "}
+          <span style={{ fg: theme.text }}>tui.json</span>; project-local settings live in{" "}
+          <span style={{ fg: theme.text }}>.localcode-agent/</span>.
         </text>
       </box>
       <box flexDirection="row" justifyContent="flex-end" paddingBottom={1}>

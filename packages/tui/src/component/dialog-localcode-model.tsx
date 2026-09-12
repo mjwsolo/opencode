@@ -9,8 +9,9 @@
  * is switched once the server reports ready. Curation is families-only; quants
  * are never curated.
  */
-import { createResource, createSignal, onCleanup, Show } from "solid-js"
+import { createResource, onCleanup, onMount, Show } from "solid-js"
 import { DialogSelect } from "../ui/dialog-select"
+import { DialogPrompt } from "../ui/dialog-prompt"
 import { useDialog } from "../ui/dialog"
 import { useLocal } from "../context/local"
 import { useToast } from "../ui/toast"
@@ -26,6 +27,8 @@ type Group = {
   hf_repo: string
   recommended: boolean
   current: boolean
+  downloading?: boolean
+  pct?: number | null
 }
 type Quant = {
   filename: string
@@ -37,6 +40,8 @@ type Quant = {
   recommended: boolean
   downloaded: boolean
   current: boolean
+  downloading?: boolean
+  pct?: number | null
 }
 type Status = { state: "idle" | "downloading" | "loading" | "ready" | "error"; model?: string; detail?: string; pct?: number | null }
 
@@ -48,19 +53,83 @@ async function getJSON<T>(path: string): Promise<T> {
   return (await r.json()) as T
 }
 
+async function postJSON<T>(path: string, body: unknown): Promise<T> {
+  const r = await fetch(controlUrl() + path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
+  })
+  const res = (await r.json()) as T & { error?: string }
+  if (!r.ok || res.error) throw new Error(res.error ?? `HTTP ${r.status}`)
+  return res
+}
+
+const pctLabel = (pct: number | null | undefined) => (pct != null ? `${Math.round(pct)}%` : "…")
+
+/** Re-fetch a resource every second while a download runs, so rows show live progress. */
+function pollWhileDownloading(refetch: () => void) {
+  onMount(() => {
+    const timer = setInterval(async () => {
+      try {
+        const st = await getJSON<Status>("/status")
+        if (st.state === "downloading" || st.state === "loading") refetch()
+      } catch {}
+    }, 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+}
+
+export function DialogModelsDir(props: { current: string; onDone: () => void }) {
+  const dialog = useDialog()
+  const toast = useToast()
+  return (
+    <DialogPrompt
+      title="Models folder"
+      description={() => <text>Where downloaded GGUFs live. Existing files are not moved.</text>}
+      value={props.current}
+      placeholder="~/.local/share/localcode/models"
+      onConfirm={async (value) => {
+        try {
+          const res = await postJSON<{ path: string; free_gb: number | null }>("/models_dir", { path: value })
+          toast.show({ variant: "success", title: "Models folder", message: `${res.path}${res.free_gb != null ? `  (${res.free_gb} GB free)` : ""}` })
+        } catch (e) {
+          toast.show({ variant: "error", title: "Models folder", message: String(e) })
+        }
+        props.onDone()
+      }}
+      onCancel={() => props.onDone()}
+    />
+  )
+}
+
 export function DialogLocalcodeModel() {
   const dialog = useDialog()
   const toast = useToast()
-  const [catalog] = createResource(() => getJSON<{ ram_gb: number; current: string | null; groups: Group[] }>("/catalog"))
+  const [catalog, { refetch }] = createResource(() =>
+    getJSON<{ ram_gb: number; current: string | null; groups: Group[]; models_dir?: string }>("/catalog"),
+  )
+  pollWhileDownloading(() => void refetch())
 
-  const options = () =>
-    (catalog()?.groups ?? []).map((g) => ({
+  const options = () => [
+    ...(catalog()?.groups ?? []).map((g) => ({
       value: g.key,
-      title: `${g.display_name} · ${g.maker}${g.recommended ? "  ★" : ""}`,
-      description: g.current ? "current" : undefined,
-      details: [g.license],
+      title: `${g.display_name} · ${g.maker}${g.recommended ? "  ★" : ""}${g.downloading ? `  ⇣ ${pctLabel(g.pct)}` : ""}`,
+      description: g.downloading ? `downloading ${pctLabel(g.pct)}` : g.current ? "current" : undefined,
+      details: [g.license, `huggingface.co/${g.hf_repo}`],
       onSelect: () => dialog.replace(() => <DialogLocalcodeQuant group={g} />),
-    }))
+    })),
+    {
+      value: "__models_dir__",
+      title: "Models folder",
+      description: catalog()?.models_dir ?? "",
+      category: "Settings",
+      onSelect: () =>
+        dialog.replace(() => (
+          <DialogModelsDir current={catalog()?.models_dir ?? ""} onDone={() => dialog.replace(() => <DialogLocalcodeModel />)} />
+        )),
+    },
+  ]
 
   return (
     <Show
@@ -81,26 +150,37 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
   const dialog = useDialog()
   const toast = useToast()
   const local = useLocal()
-  const [data] = createResource(() =>
+  const [data, { refetch }] = createResource(() =>
     getJSON<{ group: string; display_name: string; maker: string; ram_gb: number; quants: Quant[]; error?: string }>(
       `/quants?group=${encodeURIComponent(props.group.key)}`,
     ),
   )
+  pollWhileDownloading(() => void refetch())
+
+  async function cancel(q: Quant) {
+    try {
+      await postJSON("/cancel", {})
+      toast.show({ variant: "info", title: `${props.group.display_name} · ${q.label}`, message: "Download cancelled" })
+    } catch (e) {
+      toast.show({ variant: "error", title: "Cancel failed", message: String(e) })
+    }
+  }
 
   const options = () =>
     (data()?.quants ?? []).map((q) => ({
       value: q.alias,
-      title: `${q.label}${q.recommended ? "  ★" : ""}`,
+      title: `${q.label}${q.recommended ? "  ★" : ""}${q.downloading ? `  ⇣ ${pctLabel(q.pct)}` : ""}`,
       description: [
         `${q.size_gb} GB`,
         `${FIT_GLYPH[q.fit]} ${q.fit}`,
         q.tok_s ? `~${q.tok_s} tok/s` : "",
-        q.current ? "current" : q.downloaded ? "downloaded" : "download",
+        q.downloading ? `downloading ${pctLabel(q.pct)}  (enter cancels)` : q.current ? "current" : q.downloaded ? "downloaded" : "download",
       ]
         .filter(Boolean)
         .join("   "),
       disabled: q.fit === "too big",
-      onSelect: () => void select(q),
+      category: `from huggingface.co/${props.group.hf_repo}`,
+      onSelect: () => void (q.downloading ? cancel(q) : select(q)),
     }))
 
   async function select(q: Quant) {
@@ -118,7 +198,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       return
     }
     const label = `${props.group.display_name} · ${q.label}`
-    toast.show({ variant: "info", title: label, message: q.downloaded ? "Loading…" : "Downloading…" })
+    toast.show({ variant: "info", title: label, message: q.downloaded ? "Loading…" : `Downloading from huggingface.co/${props.group.hf_repo}…` })
     // Poll the supervisor until the server is serving the new gguf.
     let last = ""
     const started = Date.now()
@@ -162,7 +242,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       <DialogSelect<string>
         title={data.loading ? `${props.group.display_name} — fetching quants…` : `${props.group.display_name} · ${props.group.maker}  (✓ fits  ~ tight  ✗ too big)`}
         options={options()}
-        footerHints={[{ title: "enter", label: "download / switch" }, { title: "esc", label: "back" }]}
+        footerHints={[{ title: "enter", label: "download / switch / cancel" }, { title: "esc", label: "back" }]}
         current={(data()?.quants ?? []).find((q) => q.current)?.alias}
       />
     </Show>

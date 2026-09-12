@@ -65,6 +65,30 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
   return res
 }
 
+// Supervisor readiness, cached so the synchronous prompt-submit path can read it.
+// Without a control URL (plain opencode.json setups) the answer is always "loaded".
+let lastStatus: Status & { current?: string | null } | undefined
+let watching = false
+export function watchSupervisor() {
+  if (watching || !controlUrl()) return
+  watching = true
+  const tick = async () => {
+    try {
+      lastStatus = await getJSON<Status & { current?: string | null }>("/status")
+    } catch {}
+  }
+  void tick()
+  setInterval(tick, 2000)
+}
+export const modelLoaded = () => !controlUrl() || (lastStatus !== undefined && !!lastStatus.current && lastStatus.state !== "loading")
+export const supervisorKnown = () => !controlUrl() || lastStatus !== undefined
+export async function refreshSupervisor() {
+  if (!controlUrl()) return
+  try {
+    lastStatus = await getJSON<Status & { current?: string | null }>("/status")
+  } catch {}
+}
+
 const pctLabel = (pct: number | null | undefined) => (pct != null ? `${Math.round(pct)}%` : "…")
 
 /** Re-fetch a resource every second while a download runs, so rows show live progress. */

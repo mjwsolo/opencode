@@ -43,6 +43,7 @@ import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
+import { DialogLocalcodeModel, controlUrl, modelLoaded } from "../dialog-localcode-model"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
@@ -962,8 +963,9 @@ export function Prompt(props: PromptProps) {
       return true
     }
     const selectedModel = local.model.current()
-    if (!selectedModel) {
+    if (!selectedModel || !modelLoaded()) {
       void promptModelWarning()
+      if (controlUrl()) dialog.replace(() => <DialogLocalcodeModel />)
       return false
     }
 

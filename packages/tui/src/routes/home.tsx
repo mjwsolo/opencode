@@ -12,6 +12,8 @@ import { useEditorContext } from "../context/editor"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTuiConfig } from "../config"
 import { HomeSessionDestinationProvider } from "./home/session-destination"
+import { useDialog } from "../ui/dialog"
+import { DialogLocalcodeModel, controlUrl, modelLoaded, refreshSupervisor, watchSupervisor } from "../component/dialog-localcode-model"
 
 let once = false
 const placeholder = {
@@ -37,8 +39,16 @@ export function Home() {
   })
   let sent = false
 
+  const dialog = useDialog()
   onMount(() => {
     editor.clearSelection()
+    // localcode first-run journey: the TUI opens first; if the supervisor has no
+    // model loaded yet, open the model → quant picker straight away.
+    if (!controlUrl()) return
+    watchSupervisor()
+    void refreshSupervisor().then(() => {
+      if (!modelLoaded()) dialog.replace(() => <DialogLocalcodeModel />)
+    })
   })
 
   const bind = (r: PromptRef | undefined) => {

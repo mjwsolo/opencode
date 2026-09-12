@@ -227,7 +227,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         const provider = sync.data.provider[0]
         if (!provider) return undefined
         const defaultModel = sync.data.provider_default[provider.id]
-        const firstModel = Object.values(provider.models)[0]
+        // localcode: "__pending__" is the launcher's placeholder before a model is loaded
+        const firstModel = Object.values(provider.models).find((m) => !m.id.startsWith("__"))
         const model = defaultModel ?? firstModel?.id
         if (!model) return undefined
         return {

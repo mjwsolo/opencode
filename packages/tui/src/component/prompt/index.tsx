@@ -215,6 +215,33 @@ export function Prompt(props: PromptProps) {
   const currentProviderLabel = createMemo(() => local.model.parsed().provider)
   const hasRightContent = createMemo(() => Boolean(props.right))
 
+  // Prompt-fill progress from the local server (via the supervisor's /progress), so a
+  // long context read shows "reading context 40%" instead of a bare spinner.
+  const [fill, setFill] = createSignal<string>("")
+  createEffect(() => {
+    if (!controlUrl() || status().type === "idle") {
+      setFill("")
+      return
+    }
+    const timer = setInterval(async () => {
+      try {
+        const r = await fetch(controlUrl() + "/progress", { signal: AbortSignal.timeout(900) })
+        const p = (await r.json()) as { phase?: string; pct?: number; todo?: number; cached?: number; decoded?: number }
+        if (p.phase === "reading" && (p.todo ?? 0) > 0) {
+          // llama-server grows the prompt total while it tokenises in batches, so a
+          // percentage drifts; tokens read so far is honest and only goes up.
+          const k = (p.done ?? 0) / 1000
+          setFill(`reading context · ${k >= 1 ? `${k.toFixed(k >= 10 ? 0 : 1)}k` : `${p.done ?? 0}`} tokens read`)
+        } else if (p.phase === "generating" && (p.decoded ?? 0) > 0) {
+          setFill(`writing · ${p.decoded} tokens`)
+        } else setFill("")
+      } catch {
+        setFill("")
+      }
+    }, 500)
+    onCleanup(() => clearInterval(timer))
+  })
+
   // Hold-space voice state (see onKeyDown). 450 ms without a repeat = released.
   const voiceHold = {
     active: false,
@@ -1664,6 +1691,9 @@ export function Prompt(props: PromptProps) {
                     })()}
                   </box>
                 </box>
+                <Show when={fill()}>
+                  <text fg={theme.textMuted}>{fill()}</text>
+                </Show>
                 <text fg={store.interrupt > 0 ? theme.primary : theme.text}>
                   esc{" "}
                   <span style={{ fg: store.interrupt > 0 ? theme.primary : theme.textMuted }}>

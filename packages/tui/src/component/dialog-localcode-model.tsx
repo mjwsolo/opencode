@@ -15,6 +15,7 @@ import { DialogPrompt } from "../ui/dialog-prompt"
 import { useDialog } from "../ui/dialog"
 import { useLocal } from "../context/local"
 import { useToast } from "../ui/toast"
+import { useTheme } from "../context/theme"
 
 export const LOCALCODE_PROVIDER_ID = "localcode"
 export const controlUrl = () => (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
@@ -174,6 +175,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
   const dialog = useDialog()
   const toast = useToast()
   const local = useLocal()
+  const { theme } = useTheme()
   const [data, { refetch }] = createResource(() =>
     getJSON<{ group: string; display_name: string; maker: string; ram_gb: number; quants: Quant[]; vision_size_gb?: number; error?: string }>(
       `/quants?group=${encodeURIComponent(props.group.key)}`,
@@ -194,14 +196,23 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
     (data()?.quants ?? []).map((q) => ({
       value: q.alias,
       title: `${q.label}${q.recommended ? "  ★" : ""}${q.downloading ? `  ⇣ ${pctLabel(q.pct)}` : ""}`,
-      description: [
-        `${q.size_gb} GB`,
-        `${FIT_GLYPH[q.fit]} ${q.fit}`,
-        q.tok_s ? `~${q.tok_s} tok/s` : "",
-        q.downloading ? `downloading ${pctLabel(q.pct)}  (enter cancels)` : q.current ? "current" : q.downloaded ? "downloaded" : "download",
-      ]
-        .filter(Boolean)
-        .join("   "),
+      // Status word gets a colour: green = on disk, blue = loaded now, muted = not yet.
+      titleView: (
+        <text>
+          {q.label}
+          {q.recommended ? "  ★" : ""}
+          {q.downloading ? `  ⇣ ${pctLabel(q.pct)}` : ""}
+          {"   "}
+          <span
+            style={{
+              fg: q.downloading ? theme.warning : q.current ? theme.primary : q.downloaded ? theme.success : theme.textMuted,
+            }}
+          >
+            {q.downloading ? `downloading ${pctLabel(q.pct)} (enter cancels)` : q.current ? "loaded" : q.downloaded ? "downloaded" : "download"}
+          </span>
+        </text>
+      ),
+      description: [`${q.size_gb} GB`, `${FIT_GLYPH[q.fit]} ${q.fit}`, q.tok_s ? `~${q.tok_s} tok/s` : ""].filter(Boolean).join("   "),
       disabled: q.fit === "too big",
       category: `from huggingface.co/${props.group.hf_repo}`,
       onSelect: () => void (q.downloading ? cancel(q) : select(q)),

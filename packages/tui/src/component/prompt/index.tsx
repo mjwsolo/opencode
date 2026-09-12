@@ -226,7 +226,7 @@ export function Prompt(props: PromptProps) {
     const timer = setInterval(async () => {
       try {
         const r = await fetch(controlUrl() + "/progress", { signal: AbortSignal.timeout(900) })
-        const p = (await r.json()) as { phase?: string; pct?: number; todo?: number; cached?: number; decoded?: number }
+        const p = (await r.json()) as { phase?: string; pct?: number; done?: number; todo?: number; cached?: number; decoded?: number }
         if (p.phase === "reading" && (p.todo ?? 0) > 0) {
           // llama-server grows the prompt total while it tokenises in batches, so a
           // percentage drifts; tokens read so far is honest and only goes up.
@@ -1771,20 +1771,16 @@ export function Prompt(props: PromptProps) {
               </Show>
               <Switch>
                 <Match when={store.mode === "normal"}>
-                  <Switch>
-                    <Match when={usage()}>
-                      {(item) => (
-                        <text fg={theme.textMuted} wrapMode="none">
-                          {[item().context, item().cost].filter(Boolean).join(" · ")}
-                        </text>
-                      )}
-                    </Match>
-                    <Match when={true}>
-                      <text fg={theme.text}>
-                        {agentShortcut()} <span style={{ fg: theme.textMuted }}>build / plan</span>
+                  <Show when={usage()}>
+                    {(item) => (
+                      <text fg={theme.textMuted} wrapMode="none">
+                        {[item().context, item().cost].filter(Boolean).join(" · ")}
                       </text>
-                    </Match>
-                  </Switch>
+                    )}
+                  </Show>
+                  <text fg={theme.text}>
+                    {agentShortcut()} <span style={{ fg: theme.textMuted }}>build / plan</span>
+                  </text>
                   <text fg={theme.text}>
                     / <span style={{ fg: theme.textMuted }}>commands</span>
                   </text>

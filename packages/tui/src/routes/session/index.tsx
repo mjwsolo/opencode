@@ -593,6 +593,12 @@ export function Session() {
     },
     {
       title: (() => {
+        // localcode: when the model offers a thinking variant, /thinking turns the
+        // model's thinking on/off (and shows the blocks when on); otherwise it only
+        // collapses/expands the blocks, as upstream.
+        if (local.model.variant.list().includes("thinking")) {
+          return local.model.variant.current() === "thinking" ? "Turn thinking off" : "Turn thinking on"
+        }
         const next = nextThinkingMode(thinkingMode())
         if (next === "hide") return "Collapse thinking"
         return "Expand thinking"
@@ -604,6 +610,14 @@ export function Session() {
         aliases: ["toggle-thinking"],
       },
       run: () => {
+        if (local.model.variant.list().includes("thinking")) {
+          const on = local.model.variant.current() === "thinking"
+          local.model.variant.set(on ? "none" : "thinking")
+          thinking.set(on ? "hide" : "show")
+          toast.show({ variant: "info", message: on ? "Thinking off" : "Thinking on — slower, shows reasoning", duration: 2500 })
+          dialog.clear()
+          return
+        }
         thinking.set(nextThinkingMode(thinkingMode()))
         dialog.clear()
       },

@@ -15,7 +15,12 @@ export function DialogStatus() {
   const enabledFormatters = createMemo(() => sync.data.formatter.filter((f) => f.enabled))
 
   const plugins = createMemo(() => {
-    const list = sync.data.config.plugin ?? []
+    // localcode: the completion-discipline plugin the launcher installs is part of
+    // the product, not something the user added — keep it out of the list.
+    const list = (sync.data.config.plugin ?? []).filter((item) => {
+      const value = typeof item === "string" ? item : item[0]
+      return !/(^|\/)localcode\.(ts|js)$/.test(value)
+    })
     const result = list.map((item) => {
       const value = typeof item === "string" ? item : item[0]
       if (value.startsWith("file://")) {

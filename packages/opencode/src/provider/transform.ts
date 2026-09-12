@@ -775,6 +775,15 @@ function googleThinkingVariants(model: Provider.Model): Record<string, Record<st
 }
 
 export function variants(model: Provider.Model): Record<string, Record<string, any>> {
+  // localcode: the local llama-server runs with reasoning off by default; a
+  // per-request chat_template_kwargs.enable_thinking overrides that, so the
+  // TUI's /thinking toggle can switch the model's thinking on and off.
+  if (model.providerID === "localcode") {
+    return {
+      none: { chat_template_kwargs: { enable_thinking: false } },
+      thinking: { chat_template_kwargs: { enable_thinking: true } },
+    }
+  }
   if (!model.capabilities.reasoning) return {}
 
   const id = model.id.toLowerCase()

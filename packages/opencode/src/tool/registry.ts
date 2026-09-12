@@ -295,6 +295,11 @@ const layer = Layer.effect(
           input.modelID.includes("gpt-") && !input.modelID.includes("oss") && !input.modelID.includes("gpt-4")
         if (tool.id === ApplyPatchTool.id) return usePatch
         if (tool.id === EditTool.id || tool.id === WriteTool.id) return !usePatch
+        // localcode: `"tools": { "task": false }` in the config removes subagents from
+        // the model's tool surface entirely (a single-slot local server runs them
+        // serially, each with a fresh prompt fill), instead of leaving a tool that
+        // is refused when called.
+        if (tool.id === TaskTool.id) return Permission.evaluate("task", "*", input.agent.permission).action !== "deny"
 
         return true
       })

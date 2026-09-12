@@ -59,16 +59,18 @@ function View(props: { api: TuiPluginApi; sessionID: string }) {
         </box>
       </Show>
       <text>
+        <span style={{ fg: theme().success }}>•</span>{" "}
+        <span style={{ fg: theme().textMuted }}>
+          <b>local</b>
+        </span>
+        <span style={{ fg: theme().text }}>
+          <b>code</b>
+        </span>
+        {"  "}
         <span style={{ fg: theme().textMuted }}>{path().parent}/</span>
         <span style={{ fg: theme().text }}>{path().name}</span>
       </text>
-      <text fg={theme().textMuted}>
-        <span style={{ fg: theme().success }}>•</span> <b>local</b>
-        <span style={{ fg: theme().text }}>
-          <b>code</b>
-        </span>{" "}
-        <span>{props.api.app.version}</span>
-      </text>
+      <text fg={theme().textMuted}>{props.api.app.version}</text>
     </box>
   )
 }

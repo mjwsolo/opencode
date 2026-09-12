@@ -203,7 +203,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         .filter(Boolean)
         .join("   "),
       disabled: q.fit === "too big",
-      category: `from huggingface.co/${props.group.hf_repo}${(data()?.vision_size_gb ?? 0) > 0 ? `  ·  images: +${data()!.vision_size_gb} GB projector via /vision` : ""}`,
+      category: `from huggingface.co/${props.group.hf_repo}`,
       onSelect: () => void (q.downloading ? cancel(q) : select(q)),
     }))
 

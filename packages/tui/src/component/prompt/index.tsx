@@ -245,6 +245,8 @@ export function Prompt(props: PromptProps) {
   // Hold-space voice state (see onKeyDown). 450 ms without a repeat = released.
   const voiceHold = {
     active: false,
+    streak: 0,
+    lastSpace: 0,
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
     press() {
       if (this.timer) clearTimeout(this.timer)
@@ -283,8 +285,8 @@ export function Prompt(props: PromptProps) {
           toast.show({ variant: "warning", title: "Voice", message: "Nothing heard", duration: 3000 })
           return
         }
-        const current = input.plainText
-        input.setText(current ? `${current.replace(/\s+$/, "")} ${text}` : text)
+        const current = input.plainText.replace(/ +$/, "")
+        input.setText(current ? `${current} ${text}` : text)
         toast.show({ variant: "success", title: "Voice", message: "Transcript inserted — enter to send", duration: 3000 })
       })
     },
@@ -1509,17 +1511,30 @@ export function Prompt(props: PromptProps) {
                   e.preventDefault()
                   return
                 }
-                // localcode: hold space on an empty prompt to talk (like Claude Code).
-                // Terminals rarely send key-release, so the hold is inferred from key
-                // repeat: the first space starts recording, repeats keep it alive, and a
-                // gap (or a real release event) stops it and inserts the transcript.
-                if (e.name === "space" && controlUrl() && (voiceHold.active || input.plainText.length === 0)) {
-                  e.preventDefault()
-                  if (e.eventType === "release") {
-                    voiceHold.stop()
+                // localcode: hold space to talk (like Claude Code), with or without text in
+                // the prompt. A single space types a space. Terminals rarely send key-release,
+                // so a hold is inferred from key repeat: the 3rd space inside 700 ms means the
+                // key is held — the spaces it typed are removed, recording starts, repeats keep
+                // it alive, and a gap (or a real release event) stops it and inserts the text.
+                if (e.name === "space" && controlUrl()) {
+                  if (voiceHold.active) {
+                    e.preventDefault()
+                    if (e.eventType === "release") voiceHold.stop()
+                    else voiceHold.press()
                     return
                   }
-                  voiceHold.press()
+                  const now = Date.now()
+                  voiceHold.streak = now - voiceHold.lastSpace < 700 ? voiceHold.streak + 1 : 1
+                  voiceHold.lastSpace = now
+                  if (voiceHold.streak >= 3) {
+                    e.preventDefault()
+                    const text = input.plainText
+                    if (/ +$/.test(text)) input.setText(text.replace(/ {1,2}$/, ""))
+                    voiceHold.streak = 0
+                    voiceHold.press()
+                  }
+                } else if (e.name !== "space") {
+                  voiceHold.streak = 0
                 }
               }}
               onSubmit={() => {

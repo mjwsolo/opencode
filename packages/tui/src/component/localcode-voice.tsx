@@ -83,13 +83,26 @@ const [recording, setRecording] = createSignal(false)
 export const voiceRecording = recording
 
 async function post<T>(path: string, body: unknown = {}): Promise<T & { error?: string }> {
-  const r = await fetch(controlUrl() + path, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(20 * 60_000), // first use installs whisper + downloads the speech model
-  })
-  return (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as T & { error?: string }
+  // One retry on a dropped connection: the supervisor answers with Connection: close,
+  // and a stale keep-alive socket surfaces as "socket connection was closed".
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const r = await fetch(controlUrl() + path, {
+        method: "POST",
+        headers: { "content-type": "application/json", connection: "close" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20 * 60_000), // first use installs whisper + downloads the speech model
+      })
+      return (await r.json().catch(() => ({ error: `HTTP ${r.status}` }))) as T & { error?: string }
+    } catch (e) {
+      const msg = String(e)
+      if (attempt === 0 && /socket|ECONNRESET|closed|reset/i.test(msg)) {
+        await new Promise((r) => setTimeout(r, 150))
+        continue
+      }
+      return { error: `voice service unreachable (${msg.replace(/^Error:\s*/, "")}); restart the launcher if it persists` } as T & { error?: string }
+    }
+  }
 }
 
 /** Returns an error message, or undefined when recording started. */

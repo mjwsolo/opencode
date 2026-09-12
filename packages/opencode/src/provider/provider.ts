@@ -1068,6 +1068,22 @@ const ProviderLimit = Schema.Struct({
 /** The provider id localcode's launcher writes into its config; its model list is dynamic. */
 export const LOCALCODE_PROVIDER_ID = ProviderV2.ID.make("localcode")
 
+let localcodeVisionCache: { at: number; value: boolean | undefined } = { at: 0, value: undefined }
+/** True/false when the launcher's supervisor reports the loaded model's vision projector; undefined without a supervisor. */
+async function localcodeVision(): Promise<boolean | undefined> {
+  const base = (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
+  if (!base) return undefined
+  if (Date.now() - localcodeVisionCache.at < 3000) return localcodeVisionCache.value
+  try {
+    const r = await fetch(base + "/status", { signal: AbortSignal.timeout(1500) })
+    const j = (await r.json()) as { vision?: boolean }
+    localcodeVisionCache = { at: Date.now(), value: typeof j.vision === "boolean" ? j.vision : undefined }
+  } catch {
+    localcodeVisionCache = { at: Date.now(), value: undefined }
+  }
+  return localcodeVisionCache.value
+}
+
 export const Model = Schema.Struct({
   id: ModelV2.ID,
   providerID: ProviderV2.ID,
@@ -1876,6 +1892,16 @@ const layer = Layer.effect(
       }
 
       const info = provider.models[modelID]
+      if (providerID === LOCALCODE_PROVIDER_ID) {
+        // localcode: whether the served model can see images depends on the gguf
+        // the supervisor loaded (its mmproj), not on the config template. Ask it.
+        const vision = yield* Effect.promise(() => localcodeVision())
+        const target = info ?? provider.models[modelID]
+        if (target && vision !== undefined) {
+          target.capabilities.attachment = vision
+          target.capabilities.input.image = vision
+        }
+      }
       if (!info && providerID === LOCALCODE_PROVIDER_ID) {
         // localcode: the served model is whatever gguf the supervisor loaded
         // last. Quants are discovered at runtime (HF repo listing), so the

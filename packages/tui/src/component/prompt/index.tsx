@@ -214,6 +214,48 @@ export function Prompt(props: PromptProps) {
   const currentProviderLabel = createMemo(() => local.model.parsed().provider)
   const hasRightContent = createMemo(() => Boolean(props.right))
 
+  // Hold-space voice state (see onKeyDown). 450 ms without a repeat = released.
+  const voiceHold = {
+    active: false,
+    timer: undefined as ReturnType<typeof setTimeout> | undefined,
+    press() {
+      if (this.timer) clearTimeout(this.timer)
+      if (!this.active) {
+        this.active = true
+        void voiceStart().then((err) => {
+          if (err) {
+            this.active = false
+            toast.show({ variant: "error", title: "Voice", message: err, duration: 5000 })
+            return
+          }
+          toast.show({ variant: "info", title: "Voice", message: "Listening… release space when done", duration: 60_000 })
+        })
+      }
+      this.timer = setTimeout(() => this.stop(), 450)
+    },
+    stop() {
+      if (this.timer) clearTimeout(this.timer)
+      this.timer = undefined
+      if (!this.active) return
+      this.active = false
+      toast.show({ variant: "info", title: "Voice", message: "Transcribing…", duration: 60_000 })
+      void voiceStop().then((res) => {
+        if (res.error) {
+          toast.show({ variant: "error", title: "Voice", message: res.error, duration: 6000 })
+          return
+        }
+        const text = (res.text ?? "").trim()
+        if (!text) {
+          toast.show({ variant: "warning", title: "Voice", message: "Nothing heard", duration: 3000 })
+          return
+        }
+        const current = input.plainText
+        input.setText(current ? `${current.replace(/\s+$/, "")} ${text}` : text)
+        toast.show({ variant: "success", title: "Voice", message: "Transcript inserted — enter to send", duration: 3000 })
+      })
+    },
+  }
+
   function promptModelWarning() {
     toast.show({
       variant: "warning",
@@ -1415,10 +1457,22 @@ export function Prompt(props: PromptProps) {
                 setCursorVersion((value) => value + 1)
               }}
               onCursorChange={() => setCursorVersion((value) => value + 1)}
-              onKeyDown={(e: { preventDefault(): void }) => {
+              onKeyDown={(e: { preventDefault(): void; name?: string; eventType?: string }) => {
                 if (props.disabled) {
                   e.preventDefault()
                   return
+                }
+                // localcode: hold space on an empty prompt to talk (like Claude Code).
+                // Terminals rarely send key-release, so the hold is inferred from key
+                // repeat: the first space starts recording, repeats keep it alive, and a
+                // gap (or a real release event) stops it and inserts the transcript.
+                if (e.name === "space" && controlUrl() && (voiceHold.active || input.plainText.length === 0)) {
+                  e.preventDefault()
+                  if (e.eventType === "release") {
+                    voiceHold.stop()
+                    return
+                  }
+                  voiceHold.press()
                 }
               }}
               onSubmit={() => {

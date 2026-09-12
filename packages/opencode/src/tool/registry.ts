@@ -55,12 +55,10 @@ import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import { McpCatalog } from "@/mcp/catalog"
 
-export function webSearchEnabled(_providerID: ProviderV2.ID, flags = { exa: false, parallel: false }) {
-  // localcode: web search is a web tool the user turns on, like webfetch — it is
-  // offered whenever a search backend (Exa or Parallel) has been enabled, for any
-  // provider. Upstream also switched it on for its own cloud providers; localcode
-  // has none, so the gate is the backend flags alone.
-  return flags.exa || flags.parallel
+export function webSearchEnabled(_providerID: ProviderV2.ID, _flags = { exa: false, parallel: false }) {
+  // localcode: web search is always offered. Without an Exa/Parallel key it uses
+  // the keyless DuckDuckGo backend (see websearch.ts); the keys only upgrade it.
+  return true
 }
 
 type TaskDef = Tool.InferDef<typeof TaskTool>

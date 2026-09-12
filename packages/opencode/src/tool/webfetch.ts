@@ -124,6 +124,12 @@ export const WebFetchTool = Tool.define(
           }
 
           const content = new TextDecoder().decode(arrayBuffer)
+          // localcode: a fetched page goes straight into a local model's context,
+          // where 5 MB is minutes of prompt fill. Cap what the model sees (classic
+          // localcode uses the same 20k-char default); LOCALCODE_WEBFETCH_MAX_CHARS overrides.
+          const cap = Number.parseInt(process.env.LOCALCODE_WEBFETCH_MAX_CHARS ?? "", 10) || 20_000
+          const clip = (text: string) =>
+            text.length > cap ? `${text.slice(0, cap)}\n…[truncated at ${cap} characters of ${text.length}]` : text
 
           // Handle content based on requested format and actual content type
           switch (params.format) {
@@ -131,24 +137,24 @@ export const WebFetchTool = Tool.define(
               if (contentType.includes("text/html")) {
                 const markdown = convertHTMLToMarkdown(content)
                 return {
-                  output: markdown,
+                  output: clip(markdown),
                   title,
                   metadata: {},
                 }
               }
-              return { output: content, title, metadata: {} }
+              return { output: clip(content), title, metadata: {} }
 
             case "text":
               if (contentType.includes("text/html")) {
-                return { output: extractTextFromHTML(content), title, metadata: {} }
+                return { output: clip(extractTextFromHTML(content)), title, metadata: {} }
               }
-              return { output: content, title, metadata: {} }
+              return { output: clip(content), title, metadata: {} }
 
             case "html":
-              return { output: content, title, metadata: {} }
+              return { output: clip(content), title, metadata: {} }
 
             default:
-              return { output: content, title, metadata: {} }
+              return { output: clip(content), title, metadata: {} }
           }
         }).pipe(Effect.orDie),
     }

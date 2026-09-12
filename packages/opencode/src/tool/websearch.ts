@@ -24,7 +24,7 @@ export const Parameters = Schema.Struct({
   }),
 })
 
-const WebSearchProviderSchema = Schema.Literals(["exa", "parallel"])
+const WebSearchProviderSchema = Schema.Literals(["exa", "parallel", "local"])
 export type WebSearchProvider = Schema.Schema.Type<typeof WebSearchProviderSchema>
 
 export function selectWebSearchProvider(sessionID: string, flags = { exa: false, parallel: false }): WebSearchProvider {
@@ -32,13 +32,17 @@ export function selectWebSearchProvider(sessionID: string, flags = { exa: false,
   if (override === "exa" || override === "parallel") return override
   if (flags.parallel) return "parallel"
   if (flags.exa) return "exa"
-
-  return Number.parseInt(checksum(sessionID) ?? "0", 36) % 2 === 0 ? "exa" : "parallel"
+  // localcode: no key configured -> keyless DuckDuckGo HTML search (same source
+  // localcode classic and the pi front end use). Never a paid API by surprise.
+  void checksum
+  void sessionID
+  return "local"
 }
 
 export function webSearchProviderLabel(provider: unknown) {
   if (provider === "parallel") return "Parallel Web Search"
   if (provider === "exa") return "Exa Web Search"
+  if (provider === "local") return "Web Search"
   return "Web Search"
 }
 
@@ -57,12 +61,51 @@ function parallelAuthHeaders() {
   return { ...headers, Authorization: `Bearer ${process.env.PARALLEL_API_KEY}` }
 }
 
+const stripHtml = (html: string) =>
+  html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#x27;|&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n\s*\n+/g, "\n\n")
+    .trim()
+
+/** Keyless search: DuckDuckGo's HTML endpoint, top N results as title / url / snippet. */
+function localSearch(query: string, limit: number) {
+  return Effect.tryPromise({
+    try: async () => {
+      const r = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)" },
+        signal: AbortSignal.timeout(25_000),
+      })
+      const html = await r.text()
+      const out: string[] = []
+      const re =
+        /<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g
+      for (let m = re.exec(html); m && out.length < limit; m = re.exec(html)) {
+        const href = decodeURIComponent(m[1].match(/uddg=([^&]+)/)?.[1] ?? m[1])
+        out.push(`${stripHtml(m[2])}\n${href}\n${stripHtml(m[3])}`)
+      }
+      if (!out.length) return undefined
+      return `<UNTRUSTED_DATA source="web_search ${JSON.stringify(query)}">\n${out.join("\n\n")}\n</UNTRUSTED_DATA>`
+    },
+    catch: (e) => new Error(`web search failed: ${e instanceof Error ? e.message : String(e)}`),
+  })
+}
+
 function callProvider(
   http: HttpClient.HttpClient,
   provider: WebSearchProvider,
   params: Schema.Schema.Type<typeof Parameters>,
   ctx: Tool.Context,
 ) {
+  if (provider === "local") return localSearch(params.query, params.numResults || 8)
   if (provider === "parallel") {
     return McpWebSearch.call(
       http,

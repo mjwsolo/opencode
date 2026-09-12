@@ -37,13 +37,16 @@ describe("websearch provider", () => {
     expect(selectWebSearchProvider(SESSION_ID, { exa: false, parallel: true })).toBe("parallel")
   })
 
-  test("is enabled by the search backend flags alone, for any provider", () => {
-    // localcode has no cloud provider that pays for search; the tool is offered
-    // exactly when the user enabled Exa or Parallel.
-    expect(webSearchEnabled(ProviderV2.ID.make("localcode"), { exa: false, parallel: false })).toBe(false)
-    expect(webSearchEnabled(ProviderV2.ID.opencode, { exa: false, parallel: false })).toBe(false)
+  test("falls back to the keyless local backend when no key flag is set", () => {
+    expect(selectWebSearchProvider(SESSION_ID, { exa: false, parallel: false })).toBe("local")
+    expect(webSearchProviderLabel("local")).toBe("Web Search")
+  })
+
+  test("is always offered, for any provider", () => {
+    // localcode: the keyless backend means search never depends on a paid key.
+    expect(webSearchEnabled(ProviderV2.ID.make("localcode"), { exa: false, parallel: false })).toBe(true)
+    expect(webSearchEnabled(ProviderV2.ID.opencode, { exa: false, parallel: false })).toBe(true)
     expect(webSearchEnabled(ProviderV2.ID.make("localcode"), { exa: true, parallel: false })).toBe(true)
-    expect(webSearchEnabled(ProviderV2.ID.openai, { exa: false, parallel: true })).toBe(true)
   })
 
   test("uses branded labels", () => {

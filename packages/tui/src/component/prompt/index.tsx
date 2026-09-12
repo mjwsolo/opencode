@@ -44,7 +44,8 @@ import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogLocalcodeModel, controlUrl, modelLoaded } from "../dialog-localcode-model"
-import { voiceStart, voiceStop, voiceRecording } from "../localcode-voice"
+import { voiceStart, voiceStop, voiceRecording, ensureVoiceReady } from "../localcode-voice"
+import { ensureVision } from "../localcode-vision"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
@@ -222,7 +223,13 @@ export function Prompt(props: PromptProps) {
       if (this.timer) clearTimeout(this.timer)
       if (!this.active) {
         this.active = true
-        void voiceStart().then((err) => {
+        void voiceStart().then(async (err) => {
+          if (err === "setup_needed") {
+            this.active = false
+            if (this.timer) clearTimeout(this.timer)
+            await ensureVoiceReady(dialog, toast) // asks first; next hold records
+            return
+          }
           if (err) {
             this.active = false
             toast.show({ variant: "error", title: "Voice", message: err, duration: 5000 })
@@ -469,6 +476,7 @@ export function Prompt(props: PromptProps) {
         run: async () => {
           dialog.clear()
           if (!voiceRecording()) {
+            if (!(await ensureVoiceReady(dialog, toast))) return
             const err = await voiceStart()
             if (err) {
               toast.show({ variant: "error", title: "Voice", message: err, duration: 5000 })
@@ -491,6 +499,17 @@ export function Prompt(props: PromptProps) {
           const current = input.plainText
           input.setText(current ? `${current.replace(/\s+$/, "")} ${text}` : text)
           toast.show({ variant: "success", title: "Voice", message: "Transcript inserted", duration: 2500 })
+        },
+      },
+      {
+        title: "Vision: download this model's image projector",
+        category: "Session",
+        name: "prompt.vision",
+        slashName: "vision",
+        hidden: !controlUrl(),
+        run: async () => {
+          dialog.clear()
+          await ensureVision(dialog, toast)
         },
       },
       {

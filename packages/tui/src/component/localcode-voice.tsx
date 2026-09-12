@@ -6,6 +6,78 @@
  */
 import { createSignal } from "solid-js"
 import { controlUrl } from "./dialog-localcode-model"
+import { DialogConfirm } from "../ui/dialog-confirm"
+import type { DialogContext } from "../ui/dialog"
+
+type VoiceStatus = {
+  ready: boolean
+  setup_needed?: boolean
+  needs?: { runtime_mb: number; model_mb: number }
+  recording: boolean
+  detail?: string
+}
+
+export async function voiceStatus(): Promise<VoiceStatus | undefined> {
+  if (!controlUrl()) return undefined
+  try {
+    const r = await fetch(controlUrl() + "/voice/status", { signal: AbortSignal.timeout(5000) })
+    return (await r.json()) as VoiceStatus
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Voice needs two one-time downloads (whisper runtime + speech model). Nothing is
+ * fetched until the user confirms here, with the sizes in front of them.
+ * Resolves true when voice is ready to use.
+ */
+export async function ensureVoiceReady(
+  dialog: DialogContext,
+  toast: { show: (t: { variant: "info" | "success" | "error" | "warning"; title?: string; message: string; duration?: number }) => void },
+): Promise<boolean> {
+  const st = await voiceStatus()
+  if (!st) {
+    toast.show({ variant: "error", title: "Voice", message: "Voice needs the localcode launcher (no control URL)", duration: 5000 })
+    return false
+  }
+  if (st.ready) return true
+  const needs = st.needs ?? { runtime_mb: 60, model_mb: 514 }
+  const parts = [
+    needs.runtime_mb ? `whisper.cpp runtime (~${needs.runtime_mb} MB, into the launcher's own folder)` : "",
+    needs.model_mb ? `speech model (~${needs.model_mb} MB, kept for every localcode front end)` : "",
+  ].filter(Boolean)
+  const ok = await new Promise<boolean>((resolve) => {
+    dialog.replace(() => (
+      <DialogConfirm
+        title="Set up voice?"
+        message={`Voice runs entirely on this Mac, but needs a one-time download:\n• ${parts.join("\n• ")}\nRecording uses ffmpeg; read-aloud uses macOS say. Nothing else is fetched.`}
+        label="Download and enable"
+        onConfirm={() => resolve(true)}
+        onCancel={() => resolve(false)}
+      />
+    ))
+  })
+  dialog.clear()
+  if (!ok) return false
+  toast.show({ variant: "info", title: "Voice", message: "Setting up… (see progress here)", duration: 15 * 60_000 })
+  let last = ""
+  const timer = setInterval(async () => {
+    const s = await voiceStatus()
+    if (s?.detail && s.detail !== last) {
+      last = s.detail
+      toast.show({ variant: "info", title: "Voice", message: s.detail, duration: 15 * 60_000 })
+    }
+  }, 2000)
+  const res = await post<{ ok?: boolean }>("/voice/setup").catch((e) => ({ error: String(e) }))
+  clearInterval(timer)
+  if (res.error) {
+    toast.show({ variant: "error", title: "Voice", message: res.error, duration: 8000 })
+    return false
+  }
+  toast.show({ variant: "success", title: "Voice", message: "Voice is ready — hold space or run /voice", duration: 4000 })
+  return true
+}
 
 const [recording, setRecording] = createSignal(false)
 export const voiceRecording = recording

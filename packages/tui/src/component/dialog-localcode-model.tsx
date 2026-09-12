@@ -175,7 +175,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
   const toast = useToast()
   const local = useLocal()
   const [data, { refetch }] = createResource(() =>
-    getJSON<{ group: string; display_name: string; maker: string; ram_gb: number; quants: Quant[]; error?: string }>(
+    getJSON<{ group: string; display_name: string; maker: string; ram_gb: number; quants: Quant[]; vision_size_gb?: number; error?: string }>(
       `/quants?group=${encodeURIComponent(props.group.key)}`,
     ),
   )
@@ -203,7 +203,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         .filter(Boolean)
         .join("   "),
       disabled: q.fit === "too big",
-      category: `from huggingface.co/${props.group.hf_repo}`,
+      category: `from huggingface.co/${props.group.hf_repo}${(data()?.vision_size_gb ?? 0) > 0 ? `  ·  images: +${data()!.vision_size_gb} GB projector via /vision` : ""}`,
       onSelect: () => void (q.downloading ? cancel(q) : select(q)),
     }))
 
@@ -243,6 +243,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         clearInterval(timer)
         local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: q.alias }, { recent: true })
         toast.show({ variant: "success", title: "Model changed", message: label })
+        void import("./localcode-vision").then((m) => m.visionHint(toast))
         return
       }
       if (st.state === "error") {

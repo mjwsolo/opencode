@@ -13,6 +13,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { useTuiConfig } from "../config"
 import { HomeSessionDestinationProvider } from "./home/session-destination"
 import { useDialog } from "../ui/dialog"
+import { useToast } from "../ui/toast"
 import { DialogLocalcodeModel, controlUrl, modelLoaded, refreshSupervisor, watchSupervisor } from "../component/dialog-localcode-model"
 
 let once = false
@@ -40,6 +41,7 @@ export function Home() {
   let sent = false
 
   const dialog = useDialog()
+  const toast = useToast()
   onMount(() => {
     editor.clearSelection()
     // localcode first-run journey: the TUI opens first; if the supervisor has no
@@ -48,6 +50,7 @@ export function Home() {
     watchSupervisor()
     void refreshSupervisor().then(() => {
       if (!modelLoaded()) dialog.replace(() => <DialogLocalcodeModel />)
+      else void import("../component/localcode-vision").then((m) => m.visionHint(toast))
     })
   })
 

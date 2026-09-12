@@ -74,6 +74,7 @@ export const Definitions = {
   diff_help: keybind("?", "Show more diff viewer shortcuts"),
 
   editor_open: keybind("<leader>e", "Open external editor"),
+  prompt_voice: keybind("<leader>v", "Voice: record, then stop and insert the transcript"),
   theme_list: keybind("<leader>t", "List available themes"),
   theme_switch_mode: keybind("none", "Switch between light and dark theme mode"),
   theme_mode_lock: keybind("none", "Lock or unlock theme mode"),
@@ -277,6 +278,7 @@ export const CommandMap = {
   diff_toggle_view: "diff.toggle_view",
   diff_help: "diff.help",
   editor_open: "prompt.editor",
+  prompt_voice: "prompt.voice",
   theme_list: "theme.switch",
   theme_switch_mode: "theme.switch_mode",
   theme_mode_lock: "theme.mode.lock",

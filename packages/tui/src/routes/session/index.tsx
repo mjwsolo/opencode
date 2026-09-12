@@ -79,6 +79,7 @@ import { getRevertDiffFiles } from "../../util/revert-diff"
 import { OPENCODE_BASE_MODE, useBindings, useCommandShortcut, useOpencodeKeymap } from "../../keymap"
 import { usePathFormatter } from "../../context/path-format"
 import { LocationProvider } from "../../context/location"
+import { voiceSpeak } from "../../component/localcode-voice"
 
 addDefaultParsers(parsers.parsers)
 
@@ -773,6 +774,31 @@ export function Session() {
       category: "Session",
       hidden: true,
       run: () => scrollToMessage("prev", dialog),
+    },
+    {
+      title: "Read last assistant message aloud",
+      value: "messages.speak",
+      category: "Session",
+      slash: { name: "speak", aliases: ["say"] },
+      run: () => {
+        const lastAssistantMessage = messagesBeforeRevert().findLast((message) => message.role === "assistant")
+        const parts = lastAssistantMessage ? (sync.data.part[lastAssistantMessage.id] ?? []) : []
+        const text = parts
+          .filter((part) => part.type === "text")
+          .map((part) => part.text)
+          .join("\n")
+          .trim()
+        if (!text) {
+          toast.show({ message: "No assistant message to read", variant: "error" })
+          dialog.clear()
+          return
+        }
+        void voiceSpeak(text).then((err) => {
+          if (err) toast.show({ message: err, variant: "error" })
+          else toast.show({ message: "Reading aloud… (esc does not stop it; run `killall say` if needed)", variant: "info" })
+        })
+        dialog.clear()
+      },
     },
     {
       title: "Copy last assistant message",

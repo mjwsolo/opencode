@@ -450,6 +450,11 @@ const layer = Layer.effect(
 
           yield* ensureGitignore(dir).pipe(Effect.orDie)
 
+          // localcode: the dev build's version is not on npm, so this background
+          // install of @opencode-ai/plugin only produces a failed network request
+          // on every launch. Our discipline plugin is hooks-only and needs no package.
+          if (InstallationVersion.includes("localcode")) continue
+
           const dep = yield* npmSvc
             .install(dir, {
               add: [

@@ -51,7 +51,7 @@ export const Status = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   root: Schema.String,
-  status: Schema.Literals(["connected", "error"]),
+  status: Schema.Literals(["connected", "starting", "error"]),
 }).annotate({ identifier: "LSPStatus" })
 export type Status = typeof Status.Type
 
@@ -274,6 +274,9 @@ const layer = Layer.effect(
 
           const task = schedule(server, root, root + server.id)
           s.spawning.set(root + server.id, task)
+          // localcode: a server that is downloading/starting, or one that failed,
+          // is visible in the sidebar instead of silently absent.
+          updated++
 
           task.finally(() => {
             if (s.spawning.get(root + server.id) === task) {
@@ -282,7 +285,10 @@ const layer = Layer.effect(
           })
 
           const client = await task
-          if (!client) continue
+          if (!client) {
+            updated++
+            continue
+          }
 
           result.push(client)
           updated++
@@ -321,6 +327,18 @@ const layer = Layer.effect(
           root: path.relative(ctx.directory, client.root),
           status: "connected",
         })
+      }
+      for (const server of Object.values(s.servers)) {
+        for (const key of s.spawning.keys()) {
+          if (!key.endsWith(server.id)) continue
+          const root = key.slice(0, -server.id.length)
+          result.push({ id: server.id, name: server.id, root: path.relative(ctx.directory, root), status: "starting" })
+        }
+        for (const key of s.broken) {
+          if (!key.endsWith(server.id)) continue
+          const root = key.slice(0, -server.id.length)
+          result.push({ id: server.id, name: server.id, root: path.relative(ctx.directory, root), status: "error" })
+        }
       }
       return result
     })

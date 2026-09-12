@@ -30,7 +30,7 @@ function View(props: { api: TuiPluginApi }) {
               <text
                 flexShrink={0}
                 style={{
-                  fg: item.status === "connected" ? theme().success : theme().error,
+                  fg: item.status === "connected" ? theme().success : (item.status as string) === "starting" ? theme().warning : theme().error,
                 }}
               >
                 •

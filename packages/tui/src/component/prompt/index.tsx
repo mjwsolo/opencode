@@ -1350,7 +1350,8 @@ export function Prompt(props: PromptProps) {
           borderColor={borderHighlight()}
           customBorderChars={{
             ...SplitBorder.customBorderChars,
-            bottomLeft: "╹",
+            vertical: "▎",
+            bottomLeft: "▎",
           }}
         >
           <box
@@ -1479,32 +1480,6 @@ export function Prompt(props: PromptProps) {
               </Show>
             </box>
           </box>
-        </box>
-        <box
-          height={1}
-          border={["left"]}
-          borderColor={borderHighlight()}
-          customBorderChars={{
-            ...EmptyBorder,
-            vertical: theme.backgroundElement.a !== 0 ? "╹" : " ",
-          }}
-        >
-          <box
-            height={1}
-            border={["bottom"]}
-            borderColor={theme.backgroundElement}
-            customBorderChars={
-              theme.backgroundElement.a !== 0
-                ? {
-                    ...EmptyBorder,
-                    horizontal: "▀",
-                  }
-                : {
-                    ...EmptyBorder,
-                    horizontal: " ",
-                  }
-            }
-          />
         </box>
         <box width="100%" flexDirection="row" justifyContent="space-between">
           <Switch>
@@ -1667,12 +1642,12 @@ export function Prompt(props: PromptProps) {
                     </Match>
                     <Match when={true}>
                       <text fg={theme.text}>
-                        {agentShortcut()} <span style={{ fg: theme.textMuted }}>agents</span>
+                        {agentShortcut()} <span style={{ fg: theme.textMuted }}>build / plan</span>
                       </text>
                     </Match>
                   </Switch>
                   <text fg={theme.text}>
-                    {paletteShortcut()} <span style={{ fg: theme.textMuted }}>commands</span>
+                    / <span style={{ fg: theme.textMuted }}>commands</span>
                   </text>
                 </Match>
                 <Match when={store.mode === "shell"}>

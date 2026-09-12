@@ -269,8 +269,15 @@ export function useCommandSlashes(): Accessor<readonly CommandSlashEntry[]> {
 
   return createMemo<CommandSlashEntry[]>(() =>
     entries().flatMap((entry) => {
-      const slashName = entry.command.slashName
-      if (typeof slashName !== "string" || !slashName) return []
+      // localcode: one menu. Commands without a slash name get one from their
+      // title ("Switch agent" -> /switch-agent) so "/" lists everything ctrl+p does.
+      const slashName =
+        typeof entry.command.slashName === "string" && entry.command.slashName
+          ? entry.command.slashName
+          : typeof entry.command.title === "string"
+            ? entry.command.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
+            : ""
+      if (!slashName) return []
       const slashAliases = entry.command.slashAliases
       return {
         display: `/${slashName}`,

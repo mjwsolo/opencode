@@ -24,8 +24,13 @@ export function normalizePromptContent(content: string) {
 }
 
 export async function openEditor(input: { value: string; renderer: CliRenderer; cwd?: string; stdin?: EditorStdio }) {
-  const editor = process.env.VISUAL || process.env.EDITOR
-  if (!editor) return
+  // localcode: most Mac users have neither VISUAL nor EDITOR set; a silent
+  // no-op made /editor look broken. Fall back to nano, then vi.
+  const editor =
+    process.env.VISUAL ||
+    process.env.EDITOR ||
+    ["/usr/bin/nano", "/opt/homebrew/bin/nano", "/usr/local/bin/nano"].find((p) => existsSync(p)) ||
+    "vi"
   const file = path.join(os.tmpdir(), `${Date.now()}.md`)
   await writeFile(file, input.value)
   input.renderer.suspend()

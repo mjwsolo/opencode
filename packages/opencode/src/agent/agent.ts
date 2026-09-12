@@ -152,6 +152,7 @@ const layer = Layer.effect(
             ),
             mode: "primary",
             native: true,
+            color: "primary",
           },
           plan: {
             name: "plan",
@@ -179,6 +180,7 @@ const layer = Layer.effect(
             ),
             mode: "primary",
             native: true,
+            color: "accent",
           },
           general: {
             name: "general",

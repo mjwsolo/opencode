@@ -1,18 +1,16 @@
-// LOCALCODE wordmark. Four rows per block: an ascender row and three body rows.
-// Glyph marks: "_" shadow-bg space, "^" top-half on shadow bg, "~" shadow top-half, "," shadow bottom-half.
+// localcode mark: a chip glyph (drawn in the brand colour) next to the wordmark
+// and the promise. Three rows; row 0 of the right side is intentionally empty.
 export const logo = {
   left: [
-    "                        ",
-    "█    █▀▀█ █▀▀▀ █▀▀█ █   ",
-    "█    █__█ █___ █^^█ █   ",
-    "▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀__▀ ▀▀▀▀",
+    "▗▄▄▄▖",
+    "▐ ▪ ▌",
+    "▝▀▀▀▘",
   ],
   right: [
-    "             ▄     ",
-    "█▀▀▀ █▀▀█ █▀▀█ █▀▀▀",
-    "█___ █__█ █__█ █^^^",
-    "▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
+    "",
+    "localcode",
+    "local models · your machine · nothing leaves",
   ],
 }
 
-export const marks = "_^~,"
+export const marks = ""

@@ -43,7 +43,7 @@ import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogLocalcodeModel, controlUrl, modelLoaded } from "../dialog-localcode-model"
-import { voiceStart, voiceStop, voiceRecording, ensureVoiceReady } from "../localcode-voice"
+import { voiceStart, voiceStop, ensureVoiceReady } from "../localcode-voice"
 import { ensureVision } from "../localcode-vision"
 import { DialogLsp } from "../dialog-lsp"
 import { DialogAlert } from "../../ui/dialog-alert"
@@ -495,40 +495,6 @@ export function Prompt(props: PromptProps) {
             setStore("interrupt", 0)
           }
           dialog.clear()
-        },
-      },
-      {
-        title: voiceRecording() ? "Voice: stop and insert transcript" : "Voice: start recording",
-        category: "Session",
-        name: "prompt.voice",
-        slashName: "voice",
-        hidden: !controlUrl(),
-        run: async () => {
-          dialog.clear()
-          if (!voiceRecording()) {
-            if (!(await ensureVoiceReady(dialog, toast))) return
-            const err = await voiceStart()
-            if (err) {
-              toast.show({ variant: "error", title: "Voice", message: err, duration: 5000 })
-              return
-            }
-            toast.show({ variant: "info", title: "Voice", message: "Recording… run /voice again (or the same key) to stop and insert", duration: 4000 })
-            return
-          }
-          toast.show({ variant: "info", title: "Voice", message: "Transcribing…", duration: 60000 })
-          const res = await voiceStop()
-          if (res.error) {
-            toast.show({ variant: "error", title: "Voice", message: res.error, duration: 6000 })
-            return
-          }
-          const text = (res.text ?? "").trim()
-          if (!text) {
-            toast.show({ variant: "warning", title: "Voice", message: "Nothing heard", duration: 3000 })
-            return
-          }
-          const current = input.plainText
-          input.setText(current ? `${current.replace(/\s+$/, "")} ${text}` : text)
-          toast.show({ variant: "success", title: "Voice", message: "Transcript inserted", duration: 2500 })
         },
       },
       {

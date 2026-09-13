@@ -75,7 +75,7 @@ export async function ensureVoiceReady(
     toast.show({ variant: "error", title: "Voice", message: res.error, duration: 8000 })
     return false
   }
-  toast.show({ variant: "success", title: "Voice", message: "Voice is ready — hold space or run /voice", duration: 4000 })
+  toast.show({ variant: "success", title: "Voice", message: "Voice is ready — hold space to talk", duration: 4000 })
   return true
 }
 

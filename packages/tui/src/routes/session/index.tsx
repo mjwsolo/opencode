@@ -2042,8 +2042,8 @@ function Write(props: ToolProps) {
           <Diagnostics diagnostics={props.metadata.diagnostics} filePath={stringValue(props.input.filePath) ?? ""} />
         </BlockTool>
       </Match>
-      <Match when={true}>
-        <InlineTool icon="←" pending="Drafting file…" complete={stringValue(props.input.filePath)} part={props.part}>
+      <Match when={stringValue(props.input.filePath) || props.part.state.status === "error"}>
+        <InlineTool icon="←" pending="Write" complete={stringValue(props.input.filePath)} part={props.part}>
           Write {pathFormatter.format(stringValue(props.input.filePath))}
         </InlineTool>
       </Match>
@@ -2348,8 +2348,8 @@ function Edit(props: ToolProps) {
           <Diagnostics diagnostics={props.metadata.diagnostics} filePath={stringValue(props.input.filePath) ?? ""} />
         </BlockTool>
       </Match>
-      <Match when={true}>
-        <InlineTool icon="←" pending="Drafting edit…" complete={stringValue(props.input.filePath)} part={props.part}>
+      <Match when={stringValue(props.input.filePath) || props.part.state.status === "error"}>
+        <InlineTool icon="←" pending="Edit" complete={stringValue(props.input.filePath)} part={props.part}>
           Edit {pathFormatter.format(stringValue(props.input.filePath))} {input({ replaceAll: props.input.replaceAll })}
         </InlineTool>
       </Match>
@@ -2424,8 +2424,8 @@ function ApplyPatch(props: ToolProps) {
           )}
         </For>
       </Match>
-      <Match when={true}>
-        <InlineTool icon="%" pending="Drafting patch…" failure="Patch failed" complete={false} part={props.part}>
+      <Match when={props.part.state.status === "running" || props.part.state.status === "error"}>
+        <InlineTool icon="%" pending="Patch" failure="Patch failed" complete={true} part={props.part}>
           Patch
         </InlineTool>
       </Match>

@@ -4195,6 +4195,11 @@ describe("ProviderTransform.variants", () => {
     ...overrides,
   })
 
+  test("Muse does not advertise a reasoning off switch its backend ignores", () => {
+    const model = createMockModel({ providerID: "localcode", id: "Muse-Glimmer-30B-UD-Q8_K_XL" })
+    expect(ProviderTransform.variants(model)).toEqual({})
+  })
+
   test("returns empty object when model has no reasoning capabilities", () => {
     const model = createMockModel({
       capabilities: { reasoning: false },

@@ -779,6 +779,8 @@ export function variants(model: Provider.Model): Record<string, Record<string, a
   // per-request chat_template_kwargs.enable_thinking overrides that, so the
   // TUI's /thinking toggle can switch the model's thinking on and off.
   if (model.providerID === "localcode") {
+    // Muse's backend permits its self-reasoning channel even with thinking disabled.
+    if (model.id.toLowerCase().includes("muse-glimmer")) return {}
     return {
       none: { chat_template_kwargs: { enable_thinking: false } },
       thinking: { chat_template_kwargs: { enable_thinking: true } },

@@ -554,8 +554,8 @@ export function Session() {
           return local.model.variant.current() === "thinking" ? "Turn thinking off" : "Turn thinking on"
         }
         const next = nextThinkingMode(thinkingMode())
-        if (next === "hide") return "Collapse thinking"
-        return "Expand thinking"
+        if (next === "hide") return "Collapse thinking display"
+        return "Expand thinking display"
       })(),
       value: "session.toggle.thinking",
       category: "Session",

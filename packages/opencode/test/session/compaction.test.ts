@@ -1195,6 +1195,8 @@ describe("session.compaction.process", () => {
       expect(last?.info.role).toBe("user")
       if (last?.parts[0]?.type === "text") {
         expect(last.parts[0].text).toContain("previous request exceeded the provider's size limit")
+        expect(last.parts[0].text).toContain("reread project files")
+        expect(last.parts[0].text).not.toContain("attachments")
       }
     }),
   )

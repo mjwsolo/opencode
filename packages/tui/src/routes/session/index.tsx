@@ -780,7 +780,7 @@ export function Session() {
       run: () => scrollToMessage("prev", dialog),
     },
     {
-      title: "Read last assistant message aloud",
+      title: "Read aloud / stop reading",
       value: "messages.speak",
       category: "Session",
       slash: { name: "speak", aliases: ["say"] },
@@ -797,9 +797,9 @@ export function Session() {
           dialog.clear()
           return
         }
-        void voiceSpeak(text).then((err) => {
-          if (err) toast.show({ message: err, variant: "error" })
-          else toast.show({ message: "Reading aloud… (esc does not stop it; run `killall say` if needed)", variant: "info" })
+        void voiceSpeak(text).then((result) => {
+          if (result.error) toast.show({ message: result.error, variant: "error" })
+          else toast.show({ message: result.speaking === false ? "Reading stopped" : "Reading aloud… /speak to stop", variant: "info" })
         })
         dialog.clear()
       },

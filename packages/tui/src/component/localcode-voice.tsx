@@ -119,8 +119,7 @@ export async function voiceStop(): Promise<{ text?: string; error?: string }> {
   return post<{ text?: string }>("/voice/stop").catch((e) => ({ error: String(e) }))
 }
 
-export async function voiceSpeak(text: string): Promise<string | undefined> {
-  if (!controlUrl()) return "Voice needs the localcode launcher (no control URL)"
-  const res = await post<{ ok?: boolean }>("/voice/speak", { text }).catch((e) => ({ error: String(e) }))
-  return res.error
+export async function voiceSpeak(text: string): Promise<{ error?: string; speaking?: boolean }> {
+  if (!controlUrl()) return { error: "Voice needs the localcode launcher (no control URL)" }
+  return post<{ speaking?: boolean }>("/voice/speak", { text }).catch((e) => ({ error: String(e) }))
 }

@@ -1,48 +1,59 @@
 import { TextAttributes } from "@opentui/core"
-import { For } from "solid-js"
-import { useTheme } from "../context/theme"
-import { logoImage } from "../logo-image"
+import { useTerminalDimensions } from "@opentui/solid"
+import { createEffect, createSignal, For, onCleanup, Show } from "solid-js"
+import { tint, useTheme } from "../context/theme"
+import { useKV } from "../context/kv"
 import { logo } from "../logo"
 
-/**
- * The docs' house icon rendered from its real pixels: every cell is a half-block
- * whose top and bottom colours come from the PNG (see logo-image.ts), with the
- * wordmark and slogan beside it.
- */
 export function Logo() {
   const { theme } = useTheme()
-  const rows = logoImage
-  const mid = Math.floor(rows.length / 2)
+  const kv = useKV()
+  const dimensions = useTerminalDimensions()
+  const [frame, setFrame] = createSignal(0)
+  const animated = () => kv.get("animations_enabled", true)
+  const rows = logo.left.map((line, index) => `${line} ${logo.right[index]}`)
+
+  createEffect(() => {
+    if (!animated()) return
+    const timer = setInterval(() => setFrame((value) => (value + 1) % 64), 140)
+    onCleanup(() => clearInterval(timer))
+  })
+
   return (
-    <box>
-      <For each={rows}>
-        {(row, index) => (
-          <box flexDirection="row" gap={2}>
-            <text selectable={false}>
-              <For each={row}>
-                {([top, bottom]) =>
-                  top && bottom ? (
-                    <span style={{ fg: top, bg: bottom }}>▀</span>
-                  ) : top ? (
-                    <span style={{ fg: top }}>▀</span>
-                  ) : bottom ? (
-                    <span style={{ fg: bottom }}>▄</span>
-                  ) : (
-                    <span> </span>
-                  )
-                }
-              </For>
-            </text>
-            <text
-              fg={index() === mid - 1 ? theme.text : theme.textMuted}
-              attributes={index() === mid - 1 ? TextAttributes.BOLD : undefined}
-              selectable={false}
-            >
-              {index() === mid - 1 ? logo.right[1] : index() === mid ? logo.right[2] : ""}
-            </text>
+    <box alignItems="center" gap={1}>
+      <Show
+        when={dimensions().width >= 54}
+        fallback={<text fg={theme.primary} attributes={TextAttributes.BOLD}>localcode</text>}
+      >
+        <box flexDirection="row" gap={2}>
+          <box>
+            <For each={rows}>
+              {(line) => (
+                <text selectable={false}>
+                  <For each={Array.from(line)}>
+                    {(char, column) => {
+                      const color = () =>
+                        animated() && Math.abs(column() - frame()) < 2
+                          ? tint(theme.primary, theme.text, 0.4)
+                          : theme.primary
+                      const shadow = () => tint(theme.background, color(), 0.2)
+                      return (
+                        <span style={{ fg: "~,".includes(char) ? shadow() : color(), bg: "_^".includes(char) ? shadow() : undefined }}>
+                          {char === "_" ? " " : char === "^" || char === "~" ? "▀" : char === "," ? "▄" : char}
+                        </span>
+                      )
+                    }}
+                  </For>
+                </text>
+              )}
+            </For>
           </box>
-        )}
-      </For>
+          <text fg={theme.primary} selectable={false}>
+            {animated() ? ["·", "✧", "✦", "✧"][Math.floor(frame() / 4) % 4] : "✦"}
+          </text>
+        </box>
+      </Show>
+      <text fg={theme.textMuted}>Agentic coding. Local models. On your Mac.</text>
     </box>
   )
 }

@@ -17,7 +17,7 @@ import { useTuiConfig } from "../../config"
 import { OPENCODE_BASE_MODE, useBindings, useCommandShortcut } from "../../keymap"
 import { usePathFormatter } from "../../context/path-format"
 
-type PermissionStage = "permission" | "always" | "reject"
+type PermissionStage = "permission" | "reject"
 
 function EditBody(props: { request: PermissionRequest }) {
   const themeState = useTheme()
@@ -135,45 +135,6 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
 
   return (
     <Switch>
-      <Match when={store.stage === "always"}>
-        <Prompt
-          title="Always allow"
-          body={
-            <Switch>
-              <Match when={props.request.always.length === 1 && props.request.always[0] === "*"}>
-                <TextBody title={"This will allow " + props.request.permission + " until localcode is restarted."} />
-              </Match>
-              <Match when={true}>
-                <box paddingLeft={1} gap={1}>
-                  <text fg={theme.textMuted}>This will allow the following patterns until localcode is restarted</text>
-                  <box>
-                    <For each={props.request.always}>
-                      {(pattern) => (
-                        <text fg={theme.text}>
-                          {"- "}
-                          {pattern}
-                        </text>
-                      )}
-                    </For>
-                  </box>
-                </box>
-              </Match>
-            </Switch>
-          }
-          options={{ confirm: "Confirm", cancel: "Cancel" }}
-          escapeKey="cancel"
-          onSelect={(option) => {
-            setStore("stage", "permission")
-            if (option === "cancel") return
-            void sdk.client.permission.reply({
-              reply: "always",
-              requestID: props.request.id,
-              directory: props.directory,
-              workspace: project.workspace.current(),
-            })
-          }}
-        />
-      </Match>
       <Match when={store.stage === "reject"}>
         <RejectPrompt
           onConfirm={(message) => {
@@ -401,15 +362,17 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
             <Prompt
               title="Permission required"
               header={header()}
-              body={current.body}
+              body={<box gap={1}>
+                {current.body}
+                <box paddingLeft={1}>
+                  <text fg={theme.textMuted}>Allow always applies until restart:</text>
+                  <For each={props.request.always}>{(pattern) => <text fg={theme.textMuted}>{pattern}</text>}</For>
+                </box>
+              </box>}
               options={{ once: "Allow once", always: "Allow always", reject: "Reject" }}
               escapeKey="reject"
               fullscreen
               onSelect={(option) => {
-                if (option === "always") {
-                  setStore("stage", "always")
-                  return
-                }
                 if (option === "reject") {
                   if (session()?.parentID) {
                     setStore("stage", "reject")
@@ -424,7 +387,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
                   return
                 }
                 void sdk.client.permission.reply({
-                  reply: "once",
+                  reply: option,
                   requestID: props.request.id,
                   directory: props.directory,
                   workspace: project.workspace.current(),

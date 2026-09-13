@@ -1,3 +1,4 @@
+import { useTerminalDimensions } from "@opentui/solid"
 import { TextareaRenderable } from "@opentui/core"
 import { createSignal, onMount } from "solid-js"
 import path from "node:path"
@@ -9,6 +10,7 @@ import { useBindings } from "../keymap"
 import { loadProjectContext, saveProjectContext } from "../util/project-context"
 
 export function DialogProjectContext(props: { document: Awaited<ReturnType<typeof loadProjectContext>> }) {
+  const dimensions = useTerminalDimensions()
   const dialog = useDialog()
   const { theme } = useTheme()
   const toast = useToast()
@@ -51,12 +53,10 @@ export function DialogProjectContext(props: { document: Awaited<ReturnType<typeo
       <text fg={theme.text}>
         <span style={{ bold: true }}>Project context</span>
       </text>
-      <text fg={theme.textMuted}>
-        {path.basename(props.document.file)} · instructions automatically included for this project
-      </text>
+      <text fg={theme.textMuted}>{path.basename(props.document.file)} · saved instructions for this project</text>
       <textarea
         ref={setEditor}
-        height={14}
+        height={Math.max(2, Math.min(14, Math.floor(dimensions().height * 0.75) - 10))}
         initialValue={props.document.content}
         placeholder="Add project conventions, build commands, and useful background…"
         textColor={theme.text}

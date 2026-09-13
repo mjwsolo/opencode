@@ -192,7 +192,9 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
     return { type: "json", value: output as never }
   }
 
+  let cancelled = false
   for (const msg of input) {
+    if (msg.info.role === "assistant" && AbortedError.isInstance(msg.info.error)) cancelled = true
     if (msg.parts.length === 0) continue
 
     if (msg.info.role === "user") {
@@ -200,6 +202,13 @@ export const toModelMessagesEffect = Effect.fnUntraced(function* (
         id: msg.info.id,
         role: "user",
         parts: [],
+      }
+      if (cancelled) {
+        userMessage.parts.push({
+          type: "text",
+          text: "[The previous turn was cancelled. Do not resume its unfinished task, pending tools, or todos unless the user explicitly asks to continue. Respond to the new message below; a greeting is not permission to resume cancelled work.]",
+        })
+        cancelled = false
       }
       for (const part of msg.parts) {
         // User message parts should never be empty

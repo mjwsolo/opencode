@@ -988,6 +988,19 @@ describe("session.message-v2.toModelMessage", () => {
     expect(await MessageV2.toModelMessages(input, model)).toStrictEqual([])
   })
 
+  test("carries cancellation into the next user message even when the aborted turn has no parts", async () => {
+    const input: SessionV1.WithParts[] = [
+      { info: assistantInfo("cancelled", "prior", new SessionV1.AbortedError({ message: "Aborted" }).toObject()), parts: [] },
+      { info: userInfo("greeting"), parts: [{ ...basePart("greeting", "text"), type: "text", text: "yo" }] },
+      { info: userInfo("later"), parts: [{ ...basePart("later", "text"), type: "text", text: "continue the task" }] },
+    ]
+    const result = await MessageV2.toModelMessages(input, model)
+    expect(JSON.stringify(result[0])).toContain("previous turn was cancelled")
+    expect(JSON.stringify(result[0])).toContain("yo")
+    expect(JSON.stringify(result[1])).not.toContain("previous turn was cancelled")
+    expect(JSON.stringify(result[1])).toContain("continue the task")
+  })
+
   test("includes aborted assistant messages only when they have non-step-start/reasoning content", async () => {
     const assistantID1 = "m-assistant-1"
     const assistantID2 = "m-assistant-2"

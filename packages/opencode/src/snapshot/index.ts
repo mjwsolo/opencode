@@ -65,10 +65,13 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
 
     const state = yield* InstanceState.make<State>(
       Effect.fn("Snapshot.state")(function* (ctx) {
+        // A plain folder has no repository root. Keep its private snapshots
+        // scoped to the opened directory so undo also restores its files.
+        const worktree = ctx.project.vcs === "git" ? ctx.worktree : ctx.directory
         const state = {
           directory: ctx.directory,
-          worktree: ctx.worktree,
-          gitdir: path.join(Global.Path.data, "snapshot", ctx.project.id, Hash.fast(ctx.worktree)),
+          worktree,
+          gitdir: path.join(Global.Path.data, "snapshot", ctx.project.id, Hash.fast(worktree)),
           vcs: ctx.project.vcs,
         }
 
@@ -165,7 +168,7 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
         const locked = <A, E, R>(fx: Effect.Effect<A, E, R>) => lock(state.gitdir).withPermits(1)(fx)
 
         const enabled = Effect.fnUntraced(function* () {
-          if (state.vcs !== "git") return false
+          if (state.worktree === path.parse(state.worktree).root) return false
           return (yield* config.get()).snapshot !== false
         })
 

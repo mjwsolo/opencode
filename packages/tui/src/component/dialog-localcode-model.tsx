@@ -14,6 +14,8 @@ import { DialogSelect } from "../ui/dialog-select"
 import { DialogPrompt } from "../ui/dialog-prompt"
 import { useDialog } from "../ui/dialog"
 import { useLocal } from "../context/local"
+import { useSync } from "../context/sync"
+import { ModelChangeQueue } from "../util/model-change-queue"
 import { useToast } from "../ui/toast"
 import { selectedForeground, useTheme } from "../context/theme"
 import { useTerminalDimensions } from "@opentui/solid"
@@ -70,6 +72,10 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 
 // Supervisor readiness, cached so the synchronous prompt-submit path can read it.
 // Without a control URL (plain opencode.json setups) the answer is always "loaded".
+const modelChangeQueue = new ModelChangeQueue()
+const [queuedModel, setQueuedModel] = createSignal<string>()
+export const queuedModelName = queuedModel
+
 const [lastStatus, setLastStatus] = createSignal<Status & { current?: string | null }>()
 let watching = false
 export function watchSupervisor() {
@@ -204,6 +210,7 @@ export function DialogLocalcodeModel() {
 }
 
 export function DialogLocalcodeQuant(props: { group: Group }) {
+  const sync = useSync()
   const dialog = useDialog()
   onMount(() => dialog.setSize("large"))
   const toast = useToast()
@@ -254,9 +261,25 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
     onSelect: () => void (q.downloading ? cancel(q) : select(q)),
   }))
 
-  async function select(q: Quant) {
+  function select(q: Quant) {
     escapeStepsBack = false
     dialog.clear()
+    const label = `${props.group.display_name} · ${q.label}`
+    setQueuedModel(undefined)
+    const queued = modelChangeQueue.request(
+      () => Object.values(sync.data.session_status).some((status) => status.type !== "idle"),
+      () => {
+        setQueuedModel(undefined)
+        void load(q)
+      },
+    )
+    if (queued) {
+      setQueuedModel(label)
+      toast.show({ variant: "info", title: "Model change queued", message: `${label} will load after the current reply and tools finish.`, duration: 60_000 })
+    }
+  }
+
+  async function load(q: Quant) {
     try {
       const r = await fetch(controlUrl() + "/select", {
         method: "POST",

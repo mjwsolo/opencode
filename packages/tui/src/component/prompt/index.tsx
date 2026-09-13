@@ -42,7 +42,7 @@ import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
-import { DialogLocalcodeModel, controlUrl, modelLoaded, modelChanging } from "../dialog-localcode-model"
+import { DialogLocalcodeModel, controlUrl, modelLoaded, modelChanging, queuedModelName } from "../dialog-localcode-model"
 import { voiceStart, voiceStop, ensureVoiceReady } from "../localcode-voice"
 import { ensureVision } from "../localcode-vision"
 import { DialogLsp } from "../dialog-lsp"
@@ -1597,6 +1597,7 @@ export function Prompt(props: PromptProps) {
                             fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
                           >
                             {modelChanging() ? "Model changing…" : modelLoaded() ? local.model.parsed().model : "No model loaded · /models"}
+                            {queuedModelName() ? ` · queued: ${queuedModelName()}` : ""}
                           </text>
                           <Show when={currentProviderLabel() && currentProviderLabel() !== "localcode"}>
                             <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>

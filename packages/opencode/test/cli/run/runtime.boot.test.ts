@@ -133,7 +133,7 @@ describe("run runtime boot", () => {
     expect(result.keybinds.get("leader")?.[0]?.key).toBe("ctrl+x")
     expect(result.leader_timeout).toBe(2000)
     expect(result.diff_style).toBe("auto")
-    expect(result.keybinds.get("command.palette.show")?.[0]?.key).toBe("ctrl+p")
+    expect(result.keybinds.get("command.palette.show")).toEqual([])
     expect(result.keybinds.get("variant.cycle")?.[0]?.key).toBe("ctrl+t")
     expect(result.keybinds.get("session.interrupt")?.[0]?.key).toBe("escape")
     expect(result.keybinds.get("prompt.history.previous")?.[0]?.key).toBe("up")

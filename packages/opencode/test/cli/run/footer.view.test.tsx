@@ -1042,9 +1042,9 @@ test("direct footer shows editable prompts and additional queued work while runn
     expect(frame).toContain("ctrl+b background")
     expect(frame).toContain("ctrl+x q 3 queued")
     expect(frame).toContain("ctrl+x down subagents")
-    expect(frame).toContain("ctrl+p cmd")
+    expect(frame).not.toContain("ctrl+p cmd")
     expect(frame).toContain("a-model-name-long-enough-to-force-responsive-truncation")
-    expect(frame).toContain("subagents · ctrl+p cmd")
+    expect(frame).toContain("ctrl+x down subagents")
     expect(frame).not.toContain("1 agent")
     expect(statusline.backgroundColor.toInts()).toEqual(tinted)
     expect(mode.backgroundColor.toInts()).toEqual(accent)
@@ -1080,7 +1080,8 @@ test("direct footer separates a lone context hint from model and command hint", 
     const frame = app.captureCharFrame()
 
     expect(frame).toContain("GPT-5")
-    expect(frame).toContain("xhigh · ctrl+x down subagents · ctrl+p cmd")
+    expect(frame).toContain("xhigh · ctrl+x down subagents")
+    expect(frame).not.toContain("ctrl+p cmd")
     expect(frame).not.toContain("ctrl+b background")
     expect(frame).not.toContain("queued")
   } finally {
@@ -1108,7 +1109,8 @@ test("direct footer hides the subagent hint when only completed subagents remain
     const frame = app.captureCharFrame()
 
     expect(frame).toContain("GPT-5")
-    expect(frame).toContain("xhigh · ctrl+p cmd")
+    expect(frame).toContain("GPT-5 xhigh")
+    expect(frame).not.toContain("ctrl+p cmd")
     expect(frame).not.toContain("ctrl+x down subagents")
   } finally {
     app.cleanup()
@@ -1155,7 +1157,7 @@ test("direct footer mode label keeps left padding without a status pill", async 
     const statusline = app
       .captureCharFrame()
       .split("\n")
-      .find((line) => line.includes("BUILD") && line.includes("cmd"))
+      .find((line) => line.includes("BUILD"))
 
     expect(statusline).toBeDefined()
     expect(statusline?.startsWith(" BUILD ")).toBe(true)

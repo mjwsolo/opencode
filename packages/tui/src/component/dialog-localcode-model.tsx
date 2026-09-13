@@ -198,7 +198,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       title: `${q.label}${q.recommended ? "  ★" : ""}${q.downloading ? `  ⇣ ${pctLabel(q.pct)}` : ""}`,
       // Status word gets a colour: green = on disk, blue = loaded now, muted = not yet.
       titleView: (
-        <text>
+        <span>
           {q.label}
           {q.recommended ? "  ★" : ""}
           {q.downloading ? `  ⇣ ${pctLabel(q.pct)}` : ""}
@@ -210,7 +210,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
           >
             {q.downloading ? `downloading ${pctLabel(q.pct)} (enter cancels)` : q.current ? "loaded" : q.downloaded ? "downloaded" : "download"}
           </span>
-        </text>
+        </span>
       ),
       description: [`${q.size_gb} GB`, `${FIT_GLYPH[q.fit]} ${q.fit}`, q.tok_s ? `~${q.tok_s} tok/s` : ""].filter(Boolean).join("   "),
       disabled: q.fit === "too big",

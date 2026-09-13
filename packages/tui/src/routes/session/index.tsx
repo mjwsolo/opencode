@@ -80,6 +80,7 @@ import { OPENCODE_BASE_MODE, useBindings, useCommandShortcut, useOpencodeKeymap 
 import { usePathFormatter } from "../../context/path-format"
 import { LocationProvider } from "../../context/location"
 import { voiceSpeak } from "../../component/localcode-voice"
+import { taskDuration } from "../../util/task-duration"
 
 addDefaultParsers(parsers.parsers)
 
@@ -1414,9 +1415,7 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const duration = createMemo(() => {
     if (!final()) return 0
     if (!props.message.time.completed) return 0
-    const user = messages().find((x) => x.role === "user" && x.id === props.message.parentID)
-    if (!user || !user.time) return 0
-    return props.message.time.completed - user.time.created
+    return taskDuration(messages(), sync.data.part, props.message.parentID, props.message.time.completed)
   })
 
   const childShortcut = useCommandShortcut("session.child.first")

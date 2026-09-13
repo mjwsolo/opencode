@@ -42,7 +42,7 @@ import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
-import { DialogLocalcodeModel, controlUrl, modelLoaded } from "../dialog-localcode-model"
+import { DialogLocalcodeModel, controlUrl, modelLoaded, modelChanging } from "../dialog-localcode-model"
 import { voiceStart, voiceStop, ensureVoiceReady } from "../localcode-voice"
 import { ensureVision } from "../localcode-vision"
 import { DialogLsp } from "../dialog-lsp"
@@ -969,6 +969,10 @@ export function Prompt(props: PromptProps) {
       void exit()
       return true
     }
+    if (modelChanging()) {
+      toast.show({ variant: "info", title: "Model changing…", message: "Wait for the model to finish loading, then send your message. Your draft is kept." })
+      return false
+    }
     const selectedModel = local.model.current()
     if (!selectedModel || !modelLoaded()) {
       void promptModelWarning()
@@ -1592,7 +1596,7 @@ export function Prompt(props: PromptProps) {
                             overflow="hidden"
                             fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
                           >
-                            {modelLoaded() ? local.model.parsed().model : "No model loaded · /models"}
+                            {modelChanging() ? "Model changing…" : modelLoaded() ? local.model.parsed().model : "No model loaded · /models"}
                           </text>
                           <Show when={currentProviderLabel() && currentProviderLabel() !== "localcode"}>
                             <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>

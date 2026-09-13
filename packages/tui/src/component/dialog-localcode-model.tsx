@@ -83,7 +83,8 @@ export function watchSupervisor() {
   void tick()
   setInterval(tick, 2000)
 }
-export const modelLoaded = () => !controlUrl() || (!!lastStatus()?.current && lastStatus()?.state !== "loading")
+export const modelChanging = () => !!controlUrl() && (lastStatus()?.state === "loading" || lastStatus()?.state === "downloading")
+export const modelLoaded = () => !controlUrl() || (!!lastStatus()?.current && lastStatus()?.state === "ready")
 export const supervisorKnown = () => !controlUrl() || lastStatus() !== undefined
 export async function refreshSupervisor() {
   if (!controlUrl()) return
@@ -264,6 +265,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       })
       const res = (await r.json()) as { ok?: boolean; error?: string; model?: string }
       if (!r.ok || res.error) throw new Error(res.error ?? `HTTP ${r.status}`)
+      setLastStatus({ ...lastStatus(), state: q.downloaded ? "loading" : "downloading", model: q.alias })
     } catch (e) {
       toast.show({ variant: "error", title: "Model switch failed", message: String(e) })
       return

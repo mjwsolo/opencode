@@ -278,7 +278,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
             if (permission === "websearch") {
               const query = typeof data.query === "string" ? data.query : ""
               return {
-                icon: "◈",
+                icon: "",
                 title: `${webSearchProviderLabel(data.provider)} "${query}"`,
                 body: (
                   <Show when={query}>

@@ -1,7 +1,7 @@
 export function webSearchProviderLabel(provider: unknown) {
-  if (provider === "parallel") return "Parallel Web Search"
-  if (provider === "exa") return "Exa Web Search"
-  return "Web Search"
+  if (provider === "parallel") return "Parallel Web search"
+  if (provider === "exa") return "Exa Web search"
+  return "Web search"
 }
 
 export function toolDisplayMetadata(state: unknown): Record<string, unknown> {

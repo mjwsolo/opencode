@@ -1,3 +1,5 @@
+import { DialogProjectContext } from "../dialog-project-context"
+import { loadProjectContext } from "../../util/project-context"
 import {
   BoxRenderable,
   RGBA,
@@ -495,6 +497,20 @@ export function Prompt(props: PromptProps) {
             setStore("interrupt", 0)
           }
           dialog.clear()
+        },
+      },
+      {
+        title: "Edit project context",
+        category: "Session",
+        name: "prompt.project_context",
+        slashName: "project-context",
+        run: async () => {
+          try {
+            const document = await loadProjectContext(project.instance.directory() || paths.cwd)
+            dialog.replace(() => <DialogProjectContext document={document} />)
+          } catch (error) {
+            toast.show({ variant: "error", title: "Could not open project context", message: String(error) })
+          }
         },
       },
       {

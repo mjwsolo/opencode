@@ -112,12 +112,12 @@ function loaded(filepath: string): SessionV1.WithParts[] {
 }
 
 describe("Instruction.resolve", () => {
-  it.live("returns empty when AGENTS.md is at project root (already in systemPaths)", () =>
-    withFiles({ "AGENTS.md": "# Root Instructions", "src/file.ts": "const x = 1" }, (dir) =>
+  it.live("returns empty when LOCALCODE.md is at project root (already in systemPaths)", () =>
+    withFiles({ "LOCALCODE.md": "# Root Instructions", "src/file.ts": "const x = 1" }, (dir) =>
       Effect.gen(function* () {
         const svc = yield* Instruction.Service
         const system = yield* svc.systemPaths()
-        expect(system.has(path.join(dir, "AGENTS.md"))).toBe(true)
+        expect(system.has(path.join(dir, "LOCALCODE.md"))).toBe(true)
 
         const results = yield* svc.resolve([], path.join(dir, "src", "file.ts"), MessageID.make("msg_message-test-1"))
         expect(results).toEqual([])
@@ -125,12 +125,12 @@ describe("Instruction.resolve", () => {
     ),
   )
 
-  it.live("returns AGENTS.md from subdirectory (not in systemPaths)", () =>
-    withFiles({ "subdir/AGENTS.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
+  it.live("returns LOCALCODE.md from subdirectory (not in systemPaths)", () =>
+    withFiles({ "subdir/LOCALCODE.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
       Effect.gen(function* () {
         const svc = yield* Instruction.Service
         const system = yield* svc.systemPaths()
-        expect(system.has(path.join(dir, "subdir", "AGENTS.md"))).toBe(false)
+        expect(system.has(path.join(dir, "subdir", "LOCALCODE.md"))).toBe(false)
 
         const results = yield* svc.resolve(
           [],
@@ -138,16 +138,16 @@ describe("Instruction.resolve", () => {
           MessageID.make("msg_message-test-2"),
         )
         expect(results.length).toBe(1)
-        expect(results[0].filepath).toBe(path.join(dir, "subdir", "AGENTS.md"))
+        expect(results[0].filepath).toBe(path.join(dir, "subdir", "LOCALCODE.md"))
       }),
     ),
   )
 
-  it.live("doesn't reload AGENTS.md when reading it directly", () =>
-    withFiles({ "subdir/AGENTS.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
+  it.live("doesn't reload LOCALCODE.md when reading it directly", () =>
+    withFiles({ "subdir/LOCALCODE.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
       Effect.gen(function* () {
         const svc = yield* Instruction.Service
-        const filepath = path.join(dir, "subdir", "AGENTS.md")
+        const filepath = path.join(dir, "subdir", "LOCALCODE.md")
         const system = yield* svc.systemPaths()
         expect(system.has(filepath)).toBe(false)
 
@@ -158,7 +158,7 @@ describe("Instruction.resolve", () => {
   )
 
   it.live("does not reattach the same nearby instructions twice for one message", () =>
-    withFiles({ "subdir/AGENTS.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
+    withFiles({ "subdir/LOCALCODE.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
       Effect.gen(function* () {
         const svc = yield* Instruction.Service
         const filepath = path.join(dir, "subdir", "nested", "file.ts")
@@ -168,14 +168,14 @@ describe("Instruction.resolve", () => {
         const second = yield* svc.resolve([], filepath, id)
 
         expect(first).toHaveLength(1)
-        expect(first[0].filepath).toBe(path.join(dir, "subdir", "AGENTS.md"))
+        expect(first[0].filepath).toBe(path.join(dir, "subdir", "LOCALCODE.md"))
         expect(second).toEqual([])
       }),
     ),
   )
 
   it.live("clear allows nearby instructions to be attached again for the same message", () =>
-    withFiles({ "subdir/AGENTS.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
+    withFiles({ "subdir/LOCALCODE.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
       Effect.gen(function* () {
         const svc = yield* Instruction.Service
         const filepath = path.join(dir, "subdir", "nested", "file.ts")
@@ -187,16 +187,16 @@ describe("Instruction.resolve", () => {
 
         expect(first).toHaveLength(1)
         expect(second).toHaveLength(1)
-        expect(second[0].filepath).toBe(path.join(dir, "subdir", "AGENTS.md"))
+        expect(second[0].filepath).toBe(path.join(dir, "subdir", "LOCALCODE.md"))
       }),
     ),
   )
 
   it.live("skips instructions already reported by prior read metadata", () =>
-    withFiles({ "subdir/AGENTS.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
+    withFiles({ "subdir/LOCALCODE.md": "# Subdir Instructions", "subdir/nested/file.ts": "const x = 1" }, (dir) =>
       Effect.gen(function* () {
         const svc = yield* Instruction.Service
-        const agents = path.join(dir, "subdir", "AGENTS.md")
+        const agents = path.join(dir, "subdir", "LOCALCODE.md")
         const filepath = path.join(dir, "subdir", "nested", "file.ts")
         const id = MessageID.make("msg_message-claim-3")
 
@@ -210,21 +210,39 @@ describe("Instruction.resolve", () => {
 })
 
 describe("Instruction.system", () => {
-  it.live("loads both project and global AGENTS.md when both exist", () =>
+  it.live("ignores legacy instruction files and reads saved context on the next call", () =>
+    withFiles({ "AGENTS.md": "old", "CLAUDE.md": "old", "CONTEXT.md": "old", "subdir/AGENTS.md": "old" }, (dir) =>
+      Effect.gen(function* () {
+        const svc = yield* Instruction.Service
+        expect(yield* svc.system()).toEqual([])
+        expect(yield* svc.find(path.join(dir, "subdir"))).toBeUndefined()
+        yield* Effect.promise(() => Bun.write(path.join(dir, "LOCALCODE.md"), "Use pytest"))
+        expect((yield* svc.system()).join("\n")).toContain("Use pytest")
+        yield* Effect.promise(() => Bun.write(path.join(dir, "LOCALCODE.md"), "Use unittest"))
+        expect((yield* svc.system()).join("\n")).toContain("Use unittest")
+      }),
+    ),
+  )
+
+  it.live("loads both project and global LOCALCODE.md when both exist", () =>
     Effect.gen(function* () {
-      const globalTmp = yield* tmpWithFiles({ "AGENTS.md": "# Global Instructions" })
-      const projectTmp = yield* tmpWithFiles({ "AGENTS.md": "# Project Instructions" })
+      const globalTmp = yield* tmpWithFiles({ "LOCALCODE.md": "# Global Instructions" })
+      const projectTmp = yield* tmpWithFiles({ "LOCALCODE.md": "# Project Instructions" })
 
       yield* Effect.gen(function* () {
         const svc = yield* Instruction.Service
         const paths = yield* svc.systemPaths()
-        expect(paths.has(path.join(projectTmp, "AGENTS.md"))).toBe(true)
-        expect(paths.has(path.join(globalTmp, "AGENTS.md"))).toBe(true)
+        expect(paths.has(path.join(projectTmp, "LOCALCODE.md"))).toBe(true)
+        expect(paths.has(path.join(globalTmp, "LOCALCODE.md"))).toBe(true)
 
         const rules = yield* svc.system()
         expect(rules).toHaveLength(2)
-        expect(rules[0]).toBe(`Instructions from: ${path.join(globalTmp, "AGENTS.md")}\n# Global Instructions`)
-        expect(rules[1]).toBe(`Instructions from: ${path.join(projectTmp, "AGENTS.md")}\n# Project Instructions`)
+        expect(rules[0]).toBe(
+          `Instructions from: ${path.join(globalTmp, "LOCALCODE.md")}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\n# Global Instructions`,
+        )
+        expect(rules[1]).toBe(
+          `Instructions from: ${path.join(projectTmp, "LOCALCODE.md")}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\n# Project Instructions`,
+        )
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),
   )
@@ -249,15 +267,15 @@ describe("Instruction.system", () => {
 })
 
 describe("Instruction.systemPaths global config", () => {
-  it.live("uses Global.Service config AGENTS.md", () =>
+  it.live("uses Global.Service config LOCALCODE.md", () =>
     Effect.gen(function* () {
-      const globalTmp = yield* tmpWithFiles({ "AGENTS.md": "# Global Instructions" })
+      const globalTmp = yield* tmpWithFiles({ "LOCALCODE.md": "# Global Instructions" })
       const projectTmp = yield* tmpdirScoped()
 
       yield* Effect.gen(function* () {
         const svc = yield* Instruction.Service
         const paths = yield* svc.systemPaths()
-        expect(paths.has(path.join(globalTmp, "AGENTS.md"))).toBe(true)
+        expect(paths.has(path.join(globalTmp, "LOCALCODE.md"))).toBe(true)
       }).pipe(provideInstance(projectTmp), provideInstruction({ home: globalTmp, config: globalTmp }))
     }),
   )

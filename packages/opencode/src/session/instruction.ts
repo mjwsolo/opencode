@@ -55,17 +55,9 @@ const layer: Layer.Layer<
     const cfg = yield* Config.Service
     const fs = yield* FSUtil.Service
     const global = yield* Global.Service
-    const flags = yield* RuntimeFlags.Service
     const http = HttpClient.filterStatusOk(withTransientReadRetry(yield* HttpClient.HttpClient))
-    const globalFiles = [
-      path.join(global.config, "AGENTS.md"),
-      ...(!flags.disableClaudeCodePrompt ? [path.join(global.home, ".claude", "CLAUDE.md")] : []),
-    ]
-    const instructionFiles = [
-      "AGENTS.md",
-      ...(!flags.disableClaudeCodePrompt ? ["CLAUDE.md"] : []),
-      "CONTEXT.md", // deprecated
-    ]
+    const globalFiles = [path.join(global.config, "LOCALCODE.md")]
+    const instructionFiles = ["LOCALCODE.md"]
 
     const state = yield* InstanceState.make(
       Effect.fn("Instruction.state")(() =>
@@ -119,7 +111,7 @@ const layer: Layer.Layer<
         }
       }
 
-      // The first project-level match wins so we don't stack AGENTS.md/CLAUDE.md from every ancestor.
+      // Use the nearest project instruction file.
       if (!Flag.OPENCODE_DISABLE_PROJECT_CONFIG) {
         for (const file of instructionFiles) {
           const matches = yield* fs
@@ -163,7 +155,13 @@ const layer: Layer.Layer<
       const remote = yield* Effect.forEach(urls, fetch, { concurrency: 4 })
 
       return [
-        ...Array.from(paths).flatMap((item, i) => (files[i] ? [`Instructions from: ${item}\n${files[i]}`] : [])),
+        ...Array.from(paths).flatMap((item, i) =>
+          files[i]
+            ? [
+                `Instructions from: ${item}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\n${files[i]}`,
+              ]
+            : [],
+        ),
         ...urls.flatMap((item, i) => (remote[i] ? [`Instructions from: ${item}\n${remote[i]}`] : [])),
       ]
     })

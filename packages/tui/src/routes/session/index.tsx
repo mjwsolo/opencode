@@ -2426,21 +2426,26 @@ function ApplyPatch(props: ToolProps) {
 
 function TodoWrite(props: ToolProps) {
   const todos = createMemo(() => parseTodos(props.input.todos))
+  const [expanded, setExpanded] = createSignal(false)
+  const completed = () => todos().filter((todo) => todo.status === "completed").length
   return (
-    <Switch>
-      <Match when={parseTodos(props.metadata.todos).length}>
-        <BlockTool title="# Todos" part={props.part}>
-          <box>
-            <For each={todos()}>{(todo) => <TodoItem status={todo.status} content={todo.content} />}</For>
-          </box>
+    <box>
+      <InlineTool
+        icon="✓"
+        pending=""
+        failure="Plan update failed"
+        complete={parseTodos(props.metadata.todos).length}
+        part={props.part}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        Plan updated · {completed()}/{todos().length} completed · {expanded() ? "hide details" : "view details"}
+      </InlineTool>
+      <Show when={expanded()}>
+        <BlockTool title="Plan at this update" part={props.part}>
+          <For each={todos()}>{(todo) => <TodoItem status={todo.status} content={todo.content} />}</For>
         </BlockTool>
-      </Match>
-      <Match when={true}>
-        <InlineTool icon="⚙" pending="Updating todos…" failure="Todo update failed" complete={false} part={props.part}>
-          Updating todos…
-        </InlineTool>
-      </Match>
-    </Switch>
+      </Show>
+    </box>
   )
 }
 

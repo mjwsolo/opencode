@@ -579,9 +579,9 @@ export function Session() {
       title: conceal() ? "Disable code concealment" : "Enable code concealment",
       value: "session.toggle.conceal",
       category: "Session",
+      hidden: true,
       run: () => {
         setConceal((prev) => !prev)
-        dialog.clear()
       },
     },
     {

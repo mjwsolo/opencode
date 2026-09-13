@@ -43,6 +43,7 @@ import { DialogMcp } from "./component/dialog-mcp"
 import { DialogStatus } from "./component/dialog-status"
 import { DialogDebug } from "./component/dialog-debug"
 import { DialogThemeList } from "./component/dialog-theme-list"
+import { DialogSettings } from "./component/dialog-settings"
 import { DialogHelp } from "./ui/dialog-help"
 import { DialogAgent } from "./component/dialog-agent"
 import { DialogSessionList } from "./component/dialog-session-list"
@@ -768,6 +769,13 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         category: "System",
       },
       {
+        name: "app.settings",
+        title: "Settings",
+        slashName: "settings",
+        category: "System",
+        run: () => dialog.replace(() => <DialogSettings />),
+      },
+      {
         name: "help.show",
         title: "Help",
         slashName: "help",
@@ -832,6 +840,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         name: "terminal.title.toggle",
         title: terminalTitleEnabled() ? "Disable terminal title" : "Enable terminal title",
         category: "System",
+        hidden: true,
         run: () => {
           setTerminalTitleEnabled((prev) => {
             const next = !prev
@@ -839,48 +848,47 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
             if (!next) renderer.setTerminalTitle("")
             return next
           })
-          dialog.clear()
         },
       },
       {
         name: "app.toggle.animations",
         title: kv.get("animations_enabled", true) ? "Disable animations" : "Enable animations",
         category: "System",
+        hidden: true,
         run: () => {
           kv.set("animations_enabled", !kv.get("animations_enabled", true))
-          dialog.clear()
         },
       },
       {
         name: "app.toggle.file_context",
         title: kv.get("file_context_enabled", true) ? "Disable file context" : "Enable file context",
         category: "System",
+        hidden: true,
         run: () => {
           kv.set("file_context_enabled", !kv.get("file_context_enabled", true))
-          dialog.clear()
         },
       },
       {
         name: "app.toggle.diffwrap",
         title: kv.get("diff_wrap_mode", "word") === "word" ? "Disable diff wrapping" : "Enable diff wrapping",
         category: "System",
+        hidden: true,
         run: () => {
           const current = kv.get("diff_wrap_mode", "word")
           kv.set("diff_wrap_mode", current === "word" ? "none" : "word")
-          dialog.clear()
         },
       },
       {
         name: "app.toggle.paste_summary",
         title: pasteSummaryEnabled() ? "Disable paste summary" : "Enable paste summary",
         category: "System",
+        hidden: true,
         run: () => {
           setPasteSummaryEnabled((prev) => {
             const next = !prev
             kv.set("paste_summary_enabled", next)
             return next
           })
-          dialog.clear()
         },
       },
       {
@@ -889,10 +897,10 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
           ? "Disable session directory filtering"
           : "Enable session directory filtering",
         category: "System",
+        hidden: true,
         run: async () => {
           kv.set("session_directory_filter_enabled", !kv.get("session_directory_filter_enabled", true))
           await sync.session.refresh()
-          dialog.clear()
         },
       },
       {
@@ -900,9 +908,9 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         title:
           local.permission.mode === "auto" ? "Disable auto-approve permissions" : "Enable auto-approve permissions",
         category: "System",
+        hidden: true,
         run: () => {
           local.permission.toggle()
-          dialog.clear()
         },
       },
     ].map((command) => ({

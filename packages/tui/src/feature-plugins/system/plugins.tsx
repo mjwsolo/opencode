@@ -72,6 +72,14 @@ function Install(props: { api: TuiPluginApi }) {
           return
         }
 
+        if (process.env.LOCALCODE_CONTROL_URL) {
+          props.api.ui.toast({
+            variant: "error",
+            message: "Plugin download blocked: this installer cannot preview the total download size. No packages were installed.",
+          })
+          return
+        }
+
         setBusy(true)
         void props.api.plugins
           .install(mod, { global: global() })

@@ -22,6 +22,15 @@ const pathExists = async (p: string) =>
 const run = (cmd: string[], opts: Process.RunOptions = {}) => Process.run(cmd, { ...opts, nothrow: true })
 const output = (cmd: string[], opts: Process.RunOptions = {}) => Process.text(cmd, { ...opts, nothrow: true })
 
+async function npmServer(pkg: string, bin: string, flags: RuntimeFlags.Info) {
+  const installed = which(bin)
+  if (installed) return installed
+  const cached = path.join(Global.Path.cache, "packages", Npm.sanitize(pkg), "node_modules", ".bin", bin)
+  if (await pathExists(cached)) return cached
+  if (flags.disableLspDownload) return
+  return Npm.which(pkg, bin)
+}
+
 export interface Handle {
   process: ChildProcessWithoutNullStreams
   initialization?: Record<string, any>
@@ -119,10 +128,10 @@ export const Typescript: Info = {
     ["deno.json", "deno.jsonc"],
   ),
   extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"],
-  async spawn(root, ctx) {
+  async spawn(root, ctx, flags) {
     const tsserver = Module.resolve("typescript/lib/tsserver.js", ctx.directory)
     if (!tsserver) return
-    const bin = await Npm.which("typescript-language-server")
+    const bin = await npmServer("typescript-language-server", "typescript-language-server", flags)
     if (!bin) return
     const proc = spawn(bin, ["--stdio"], {
       cwd: root,
@@ -323,7 +332,7 @@ export const Biome: Info = {
     ".gql",
     ".html",
   ],
-  async spawn(root) {
+  async spawn(root, _ctx, flags) {
     const localBin = path.join(root, "node_modules", ".bin", "biome")
     let bin: string | undefined
     if (await Filesystem.exists(localBin)) bin = localBin
@@ -337,7 +346,7 @@ export const Biome: Info = {
     if (!bin) {
       const resolved = Module.resolve("biome", root)
       if (!resolved) return
-      bin = await Npm.which("biome")
+      bin = await npmServer("biome", "biome", flags)
       if (!bin) return
       args = ["lsp-proxy", "--stdio"]
     }

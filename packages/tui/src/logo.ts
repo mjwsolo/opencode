@@ -11,7 +11,7 @@ export const logo = {
   right: [
     "",
     "localcode",
-    "",
+    "Agentic coding. Local models. On your Mac.",
     "",
   ],
 }

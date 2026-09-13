@@ -1406,7 +1406,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
   const { theme } = useTheme()
   const sync = useSync()
   const messages = createMemo(() => sync.data.message[props.message.sessionID] ?? [])
-  const model = createMemo(() => Model.name(ctx.providers(), props.message.providerID, props.message.modelID))
 
   const final = createMemo(() => {
     return props.message.finish && !["tool-calls", "unknown"].includes(props.message.finish)
@@ -1476,34 +1475,15 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           </box>
         </box>
       </Show>
-      <Switch>
-        <Match when={props.last || final() || props.message.error?.name === "MessageAbortedError"}>
-          <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3}>
-            <text marginTop={1}>
-              <span
-                style={{
-                  fg:
-                    props.message.error?.name === "MessageAbortedError"
-                      ? theme.textMuted
-                      : local.agent.color(props.message.agent),
-                }}
-              >
-                ▣{" "}
-              </span>{" "}
-              <Show when={local.agent.list().length > 1} fallback={<span style={{ fg: theme.text }}>{model()}</span>}>
-                <span style={{ fg: theme.text }}>{Locale.titlecase(props.message.mode)}</span>
-                <span style={{ fg: theme.textMuted }}> · {model()}</span>
-              </Show>
-              <Show when={duration()}>
-                <span style={{ fg: theme.textMuted }}> · {Locale.duration(duration())}</span>
-              </Show>
-              <Show when={props.message.error?.name === "MessageAbortedError"}>
-                <span style={{ fg: theme.textMuted }}> · interrupted</span>
-              </Show>
-            </text>
-          </box>
-        </Match>
-      </Switch>
+      <Show when={props.message.error?.name === "MessageAbortedError" || (props.last && final() && duration())}>
+        <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3}>
+          <text marginTop={1} fg={theme.textMuted}>
+            {props.message.error?.name === "MessageAbortedError"
+              ? "Interrupted"
+              : `Completed in ${Locale.duration(duration())}`}
+          </text>
+        </box>
+      </Show>
     </>
   )
 }

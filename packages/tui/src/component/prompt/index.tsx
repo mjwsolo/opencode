@@ -1603,6 +1603,8 @@ export function Prompt(props: PromptProps) {
             />
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between">
               <box flexDirection="row" gap={1}>
+                <text fg={theme.primary}><span style={{ bold: true }}>localcode</span></text>
+                <text fg={theme.textMuted}>·</text>
                 <Show when={local.agent.current()} fallback={<box height={1} />}>
                   {(agent) => (
                     <>
@@ -1650,7 +1652,7 @@ export function Prompt(props: PromptProps) {
             </box>
           </box>
         </box>
-        <box width="100%" flexDirection="row" justifyContent="space-between">
+        <box width="100%" flexDirection="row" justifyContent="space-between" marginTop={1} paddingLeft={3} paddingRight={2} gap={3}>
           <Switch>
             <Match when={status().type !== "idle"}>
               <box
@@ -1788,8 +1790,8 @@ export function Prompt(props: PromptProps) {
             <Match when={true}>
               {props.hint ?? (
                 <Show when={props.sessionID} fallback={<text />}>
-                  <box marginLeft={1}>
-                    <text fg={theme.textMuted}>{location()?.directory ?? paths.cwd}</text>
+                  <box flexShrink={1}>
+                    <text fg={theme.textMuted} wrapMode="none" overflow="hidden">{location()?.directory ?? paths.cwd}</text>
                   </box>
                 </Show>
               )}

@@ -1068,17 +1068,21 @@ const ProviderLimit = Schema.Struct({
 /** The provider id localcode's launcher writes into its config; its model list is dynamic. */
 export const LOCALCODE_PROVIDER_ID = ProviderV2.ID.make("localcode")
 
-/** True/false when the launcher's supervisor reports the loaded model's vision projector; undefined without a supervisor. */
-async function localcodeVision(modelID: string): Promise<boolean | undefined> {
+/** Read capabilities and the actual loaded context size; the startup template may differ. */
+async function localcodeStatus(modelID: string): Promise<{ vision: boolean; context?: number } | undefined> {
   const base = (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
   if (!base) return undefined
   try {
     const r = await fetch(base + "/status", { signal: AbortSignal.timeout(1500) })
-    if (!r.ok) return false
-    const j = (await r.json()) as { current?: string; state?: string; vision?: boolean }
-    return j.current === modelID && j.state !== "loading" && j.vision === true
+    if (!r.ok) return { vision: false }
+    const j = (await r.json()) as { current?: string; state?: string; vision?: boolean; ctx?: number }
+    const loaded = j.current === modelID && j.state === "ready"
+    return {
+      vision: loaded && j.vision === true,
+      context: loaded && typeof j.ctx === "number" && Number.isFinite(j.ctx) && j.ctx > 0 ? j.ctx : undefined,
+    }
   } catch {
-    return false
+    return { vision: false }
   }
 }
 
@@ -1895,13 +1899,20 @@ const layer = Layer.effect(
         // the supervisor loaded (its mmproj), not on the config template. Ask it.
         const target = info ?? Object.values(provider.models)[0]
         if (target) {
-          const vision = yield* Effect.promise(() => localcodeVision(modelID))
+          const status = yield* Effect.promise(() => localcodeStatus(modelID))
+          const vision = status?.vision
           // Each discovered alias owns its capabilities. A shallow clone would
           // inherit or overwrite the previously loaded model's image support.
           const resolved: Model = {
             ...target,
             id: modelID,
             name: info?.name ?? modelID,
+            limit: status?.context
+              ? {
+                  context: status.context,
+                  output: Math.min(target.limit.output || 8192, Math.max(1, Math.floor(status.context / 4))),
+                }
+              : { ...target.limit },
             capabilities: {
               ...target.capabilities,
               attachment: vision ?? target.capabilities.attachment,

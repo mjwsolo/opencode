@@ -1780,12 +1780,14 @@ function BlockTool(props: {
             <Show
               when={props.spinner}
               fallback={
-                <text paddingLeft={4} fg={error() ? theme.error : theme.textMuted}>
-                  {title()}{error() ? " · failed" : ""}
-                </text>
+                <box paddingLeft={2}>
+                  <text fg={error() ? theme.error : theme.textMuted}>
+                    {title()}{error() ? " · failed" : ""}
+                  </text>
+                </box>
               }
             >
-              <box paddingLeft={2}><Spinner color={theme.textMuted}>{title()}</Spinner></box>
+              <Spinner color={theme.textMuted}>{title()}</Spinner>
             </Show>
           )}
         </Show>

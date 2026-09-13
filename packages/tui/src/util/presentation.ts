@@ -1,17 +1,4 @@
-const logo = {
-  left: [
-    "                        ",
-    "█    █▀▀█ █▀▀▀ █▀▀█ █   ",
-    "█    █__█ █___ █^^█ █   ",
-    "▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀__▀ ▀▀▀▀",
-  ],
-  right: [
-    "             ▄     ",
-    "█▀▀▀ █▀▀█ █▀▀█ █▀▀▀",
-    "█___ █__█ █__█ █^^^",
-    "▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀",
-  ],
-}
+import { logo } from "../logo"
 
 const reset = "\x1b[0m"
 const bold = "\x1b[1m"
@@ -30,8 +17,8 @@ function wordmark(pad = "") {
       .join("")
 
   return logo.left.map((line, index) => {
-    const left = draw(line, dim, "\x1b[38;5;235m", "\x1b[48;5;235m")
-    const right = draw(logo.right[index] ?? "", reset, "\x1b[38;5;238m", "\x1b[48;5;238m")
+    const left = draw(line, "\x1b[38;2;95;135;255m", "\x1b[38;2;27;35;59m", "\x1b[48;2;27;35;59m")
+    const right = draw(logo.right[index] ?? "", "\x1b[38;2;95;135;255m", "\x1b[38;2;27;35;59m", "\x1b[48;2;27;35;59m")
     return `${pad}${left} ${right}`
   })
 }

@@ -1780,7 +1780,7 @@ export function Prompt(props: PromptProps) {
               )}
             </Match>
           </Switch>
-          <Show when={status().type !== "retry"}>
+          <Show when={status().type === "idle"}>
             <box gap={2} flexDirection="row">
               <Show when={editorContextLabelState() !== "none" ? editorFileLabelDisplay() : undefined}>
                 {(file) => (

@@ -3,6 +3,8 @@ import { FSUtil } from "@opencode-ai/core/fs-util"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import * as LSPClient from "./client"
 import path from "path"
+import { which } from "@opencode-ai/core/util/which"
+import { Global } from "@opencode-ai/core/global"
 import { pathToFileURL, fileURLToPath } from "url"
 import * as LSPServer from "./server"
 import { Config } from "@/config/config"
@@ -54,6 +56,48 @@ export const Status = Schema.Struct({
   status: Schema.Literals(["connected", "starting", "error"]),
 }).annotate({ identifier: "LSPStatus" })
 export type Status = typeof Status.Type
+
+// localcode: what /lsp shows. Language servers are never downloaded on their own;
+// the user picks one here, sees what it fetches, and confirms.
+export const CatalogEntry = Schema.Struct({
+  id: Schema.String,
+  extensions: Schema.Array(Schema.String),
+  installed: Schema.Boolean,
+  status: Schema.Literals(["connected", "starting", "error", "idle"]),
+  download: Schema.String, // what installing fetches, e.g. "npm: typescript-language-server (~2 MB)"
+}).annotate({ identifier: "LSPCatalogEntry" })
+export type CatalogEntry = typeof CatalogEntry.Type
+
+export const InstallInput = Schema.Struct({ id: Schema.String }).annotate({ identifier: "LSPInstallInput" })
+export type InstallInput = typeof InstallInput.Type
+export const InstallResult = Schema.Struct({ ok: Schema.Boolean, error: Schema.optional(Schema.String) }).annotate({
+  identifier: "LSPInstallResult",
+})
+export type InstallResult = typeof InstallResult.Type
+
+/** Binary on PATH that means "already installed", and what a download would fetch. */
+const CATALOG_HINTS: Record<string, { bin?: string[]; pkg?: string; download: string }> = {
+  typescript: { bin: ["typescript-language-server"], pkg: "typescript-language-server", download: "npm: typescript-language-server (~2 MB); needs `typescript` in the project" },
+  vue: { bin: ["vue-language-server"], pkg: "@vue/language-server", download: "npm: @vue/language-server (~10 MB)" },
+  eslint: { download: "GitHub zip: vscode-eslint server (~3 MB); needs eslint in the project" },
+  oxlint: { bin: ["oxlint"], pkg: "oxlint", download: "npm: oxlint (~15 MB)" },
+  biome: { bin: ["biome"], pkg: "@biomejs/biome", download: "npm: @biomejs/biome (~20 MB)" },
+  pyright: { bin: ["pyright-langserver", "pyright"], pkg: "pyright", download: "npm: pyright (~15 MB)" },
+  ty: { bin: ["ty"], download: "GitHub release: ty (~20 MB)" },
+  gopls: { bin: ["gopls"], download: "go install gopls (needs Go; ~30 MB)" },
+  "ruby-lsp": { bin: ["ruby-lsp"], download: "gem install ruby-lsp (needs Ruby)" },
+  "elixir-ls": { bin: ["elixir-ls", "language_server.sh"], download: "GitHub release: elixir-ls (~10 MB)" },
+  zls: { bin: ["zls"], download: "GitHub release: zls (~5 MB)" },
+  csharp: { download: "NuGet: roslyn language server (~60 MB)" },
+  razor: { download: "NuGet: razor language server (~30 MB)" },
+  fsharp: { download: "dotnet tool: fsautocomplete (~40 MB)" },
+  "sourcekit-lsp": { bin: ["sourcekit-lsp"], download: "ships with Xcode / Swift toolchain; nothing downloaded" },
+  rust: { bin: ["rust-analyzer"], download: "rustup component add rust-analyzer (needs rustup); nothing downloaded here" },
+  clangd: { bin: ["clangd"], download: "GitHub release: clangd (~30 MB)" },
+  svelte: { bin: ["svelteserver"], pkg: "svelte-language-server", download: "npm: svelte-language-server (~10 MB)" },
+  astro: { bin: ["astro-ls"], pkg: "@astrojs/language-server", download: "npm: @astrojs/language-server (~10 MB)" },
+  deno: { bin: ["deno"], download: "needs Deno on PATH; nothing downloaded" },
+}
 
 enum SymbolKind {
   File = 1,
@@ -119,6 +163,8 @@ interface State {
 export interface Interface {
   readonly init: () => Effect.Effect<void>
   readonly status: () => Effect.Effect<Status[]>
+  readonly catalog: () => Effect.Effect<CatalogEntry[]>
+  readonly install: (id: string) => Effect.Effect<InstallResult>
   readonly hasClients: (file: string) => Effect.Effect<boolean>
   readonly touchFile: (input: string, diagnostics?: "document" | "full") => Effect.Effect<void>
   readonly diagnostics: () => Effect.Effect<Record<string, LSPClient.Diagnostic[]>>
@@ -343,6 +389,75 @@ const layer = Layer.effect(
       return result
     })
 
+    const catalog = Effect.fn("LSP.catalog")(function* () {
+      const ctx = yield* InstanceState.context
+      const s = yield* InstanceState.get(state)
+      const current = yield* status()
+      const out: CatalogEntry[] = []
+      for (const server of Object.values(s.servers)) {
+        const hint = CATALOG_HINTS[server.id] ?? { download: "downloaded on install" }
+        const onPath = (hint.bin ?? []).some((b) => !!which(b))
+        const cached = hint.pkg
+          ? yield* Effect.promise(async () => {
+              const dir = path.join(Global.Path.cache, "packages", hint.pkg!.replace(/[^A-Za-z0-9._-]/g, "_"), "node_modules", hint.pkg!)
+              return Bun.file(path.join(dir, "package.json")).exists()
+            })
+          : false
+        const mine = current.filter((c) => c.id === server.id)
+        const st = mine.some((c) => c.status === "connected")
+          ? "connected"
+          : mine.some((c) => c.status === "starting")
+            ? "starting"
+            : mine.some((c) => c.status === "error")
+              ? "error"
+              : "idle"
+        out.push({
+          id: server.id,
+          extensions: server.extensions,
+          installed: onPath || cached || st === "connected",
+          status: st,
+          download: hint.download,
+        })
+      }
+      void ctx
+      return out.toSorted((a, b) => a.id.localeCompare(b.id))
+    })
+
+    /** User-requested install of one language server: the only place downloads are allowed. */
+    const install = Effect.fn("LSP.install")(function* (id: string) {
+      const ctx = yield* InstanceState.context
+      const s = yield* InstanceState.get(state)
+      const server = s.servers[id]
+      if (!server) return { ok: false, error: `unknown language server "${id}"` } satisfies InstallResult
+      const root = ctx.directory
+      for (const key of [...s.broken]) if (key.endsWith(server.id)) s.broken.delete(key)
+      const allow = { ...flags, disableLspDownload: false }
+      const result = yield* Effect.promise(async () => {
+        try {
+          const handle = await server.spawn(root, ctx, allow)
+          if (!handle) return { ok: false, error: `${id}: nothing to start — see /lsp for what it needs` } satisfies InstallResult
+          const existing = s.clients.find((x) => x.root === root && x.serverID === server.id)
+          if (existing) {
+            await Process.stop(handle.process)
+            return { ok: true } satisfies InstallResult
+          }
+          const client = await LSPClient.create({ serverID: server.id, server: handle, root, directory: ctx.directory, instance: ctx }).catch(
+            async () => {
+              await Process.stop(handle.process)
+              return undefined
+            },
+          )
+          if (!client) return { ok: false, error: `${id}: started but did not answer` } satisfies InstallResult
+          s.clients.push(client)
+          return { ok: true } satisfies InstallResult
+        } catch (e) {
+          return { ok: false, error: String(e) } satisfies InstallResult
+        }
+      })
+      yield* events.publish(Event.Updated, {})
+      return result
+    })
+
     const hasClients = Effect.fn("LSP.hasClients")(function* (file: string) {
       const ctx = yield* InstanceState.context
       const s = yield* InstanceState.get(state)
@@ -498,6 +613,8 @@ const layer = Layer.effect(
     return Service.of({
       init,
       status,
+      catalog,
+      install,
       hasClients,
       touchFile,
       diagnostics,

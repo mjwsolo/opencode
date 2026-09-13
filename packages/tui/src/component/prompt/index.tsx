@@ -46,6 +46,7 @@ import { useDialog } from "../../ui/dialog"
 import { DialogLocalcodeModel, controlUrl, modelLoaded } from "../dialog-localcode-model"
 import { voiceStart, voiceStop, voiceRecording, ensureVoiceReady } from "../localcode-voice"
 import { ensureVision } from "../localcode-vision"
+import { DialogLsp } from "../dialog-lsp"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
@@ -529,6 +530,15 @@ export function Prompt(props: PromptProps) {
           const current = input.plainText
           input.setText(current ? `${current.replace(/\s+$/, "")} ${text}` : text)
           toast.show({ variant: "success", title: "Voice", message: "Transcript inserted", duration: 2500 })
+        },
+      },
+      {
+        title: "Language servers: install or start one",
+        category: "Session",
+        name: "prompt.lsp",
+        slashName: "lsp",
+        run: () => {
+          dialog.replace(() => <DialogLsp />)
         },
       },
       {

@@ -1644,7 +1644,7 @@ export type GlobalEvent = {
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 /**
- * Server configuration for opencode serve and web commands
+ * Server configuration for localcode serve and web commands
  */
 export type ServerConfig = {
   port?: number
@@ -2376,7 +2376,24 @@ export type LspStatus = {
   id: string
   name: string
   root: string
-  status: "connected" | "error"
+  status: "connected" | "starting" | "error"
+}
+
+export type LspCatalogEntry = {
+  id: string
+  extensions: Array<string>
+  installed: boolean
+  status: "connected" | "starting" | "error" | "idle"
+  download: string
+}
+
+export type LspInstallInput = {
+  id: string
+}
+
+export type LspInstallResult = {
+  ok: boolean
+  error?: string
 }
 
 export type FormatterStatus = {
@@ -8402,6 +8419,62 @@ export type LspStatusResponses = {
 }
 
 export type LspStatusResponse = LspStatusResponses[keyof LspStatusResponses]
+
+export type LspCatalogData = {
+  body?: never
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/lsp/catalog"
+}
+
+export type LspCatalogErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type LspCatalogError = LspCatalogErrors[keyof LspCatalogErrors]
+
+export type LspCatalogResponses = {
+  /**
+   * Language servers this build knows, with install state
+   */
+  200: Array<LspCatalogEntry>
+}
+
+export type LspCatalogResponse = LspCatalogResponses[keyof LspCatalogResponses]
+
+export type LspInstallData = {
+  body?: LspInstallInput
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/lsp/install"
+}
+
+export type LspInstallErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type LspInstallError = LspInstallErrors[keyof LspInstallErrors]
+
+export type LspInstallResponses = {
+  /**
+   * Install result
+   */
+  200: LspInstallResult
+}
+
+export type LspInstallResponse = LspInstallResponses[keyof LspInstallResponses]
 
 export type FormatterStatusData = {
   body?: never

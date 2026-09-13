@@ -22,7 +22,7 @@ function View(props: { api: TuiPluginApi }) {
       </box>
       <Show when={list().length <= 2 || open()}>
         <Show when={list().length === 0}>
-          <text fg={theme().textMuted}>{off() ? "LSPs are disabled" : "LSPs will activate as files are read"}</text>
+          <text fg={theme().textMuted}>{off() ? "LSPs are disabled" : "installed servers start as files are read · /lsp to add one"}</text>
         </Show>
         <For each={list()}>
           {(item) => (
@@ -37,6 +37,7 @@ function View(props: { api: TuiPluginApi }) {
               </text>
               <text fg={theme().textMuted}>
                 {item.id} {item.root}
+                {(item.status as string) === "starting" ? " · starting…" : (item.status as string) === "error" ? " · not running — /lsp" : ""}
               </text>
             </box>
           )}

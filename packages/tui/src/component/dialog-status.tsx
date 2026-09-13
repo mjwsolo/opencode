@@ -109,6 +109,7 @@ export function DialogStatus() {
                   style={{
                     fg: {
                       connected: theme.success,
+                      starting: theme.warning,
                       error: theme.error,
                     }[item.status],
                   }}

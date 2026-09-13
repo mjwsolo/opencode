@@ -89,6 +89,14 @@ export const instanceHandlers = HttpApiBuilder.group(InstanceHttpApi, "instance"
       return yield* lsp.status()
     })
 
+    const getLspCatalog = Effect.fn("InstanceHttpApi.lspCatalog")(function* () {
+      return yield* lsp.catalog()
+    })
+
+    const installLsp = Effect.fn("InstanceHttpApi.lspInstall")(function* (ctx: { payload: LSP.InstallInput }) {
+      return yield* lsp.install(ctx.payload.id)
+    })
+
     const getFormatter = Effect.fn("InstanceHttpApi.formatter")(function* () {
       return yield* format.status()
     })
@@ -105,6 +113,8 @@ export const instanceHandlers = HttpApiBuilder.group(InstanceHttpApi, "instance"
       .handle("agent", getAgent)
       .handle("skill", getSkill)
       .handle("lsp", getLsp)
+      .handle("lspCatalog", getLspCatalog)
+      .handle("lspInstall", installLsp)
       .handle("formatter", getFormatter)
   }),
 )

@@ -52,6 +52,8 @@ export const InstancePaths = {
   agent: "/agent",
   skill: "/skill",
   lsp: "/lsp",
+  lspCatalog: "/lsp/catalog",
+  lspInstall: "/lsp/install",
   formatter: "/formatter",
 } as const
 
@@ -174,6 +176,27 @@ export const InstanceApi = HttpApi.make("instance")
             identifier: "lsp.status",
             summary: "Get LSP status",
             description: "Get LSP server status",
+          }),
+        ),
+        HttpApiEndpoint.get("lspCatalog", InstancePaths.lspCatalog, {
+          query: WorkspaceRoutingQuery,
+          success: described(Schema.Array(LSP.CatalogEntry), "Language servers this build knows, with install state"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "lsp.catalog",
+            summary: "List language servers",
+            description: "Every language server localcode can run, whether it is installed, and what installing would download.",
+          }),
+        ),
+        HttpApiEndpoint.post("lspInstall", InstancePaths.lspInstall, {
+          query: WorkspaceRoutingQuery,
+          payload: LSP.InstallInput,
+          success: described(LSP.InstallResult, "Install result"),
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "lsp.install",
+            summary: "Install a language server",
+            description: "User-requested: download (if needed) and start one language server for this project.",
           }),
         ),
         HttpApiEndpoint.get("formatter", InstancePaths.formatter, {

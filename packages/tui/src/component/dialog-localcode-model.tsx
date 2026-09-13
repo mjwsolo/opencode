@@ -15,7 +15,8 @@ import { DialogPrompt } from "../ui/dialog-prompt"
 import { useDialog } from "../ui/dialog"
 import { useLocal } from "../context/local"
 import { useToast } from "../ui/toast"
-import { useTheme } from "../context/theme"
+import { selectedForeground, useTheme } from "../context/theme"
+import { useTerminalDimensions } from "@opentui/solid"
 
 export const LOCALCODE_PROVIDER_ID = "localcode"
 export const controlUrl = () => (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
@@ -28,6 +29,7 @@ type Group = {
   hf_repo: string
   recommended: boolean
   current: boolean
+  installed_count?: number
   downloading?: boolean
   pct?: number | null
 }
@@ -138,16 +140,27 @@ export function DialogModelsDir(props: { current: string; onDone: () => void }) 
 export function DialogLocalcodeModel() {
   const dialog = useDialog()
   const toast = useToast()
+  const { theme } = useTheme()
+  const dimensions = useTerminalDimensions()
+  onMount(() => dialog.setSize("large"))
   const [catalog, { refetch }] = createResource(() =>
     getJSON<{ ram_gb: number; current: string | null; groups: Group[]; models_dir?: string }>("/catalog"),
   )
   pollWhileDownloading(() => void refetch())
 
   const options = () => [
-    ...(catalog()?.groups ?? []).map((g) => ({
+    ...[...(catalog()?.groups ?? [])].sort((a, b) => Number(!!(b.installed_count || b.current)) - Number(!!(a.installed_count || a.current))).map((g) => ({
       value: g.key,
-      title: `${g.display_name} · ${g.maker}${g.recommended ? "  ★" : ""}${g.downloading ? `  ⇣ ${pctLabel(g.pct)}` : ""}`,
-      description: g.downloading ? `downloading ${pctLabel(g.pct)}` : g.current ? "current" : undefined,
+      title: `${g.display_name}${g.recommended ? " ★" : ""}`,
+      titleView: (
+        <span>
+          {`${g.display_name}${g.recommended ? " ★" : ""}`.padEnd(dimensions().width >= 80 ? 38 : 32)}
+          {dimensions().width >= 80 ? g.maker.padEnd(12) : ""}
+          {g.downloading ? `⇣ ${pctLabel(g.pct)}` : g.current ? "Loaded" : g.installed_count ? `${g.installed_count} on disk` : "Download"}
+        </span>
+      ),
+      category: g.installed_count || g.current ? "On this Mac" : "Available to download",
+      categoryView: <text fg={theme.primary}>{g.installed_count || g.current ? "On this Mac" : "Available to download"}</text>,
       onSelect: () => {
         escapeStepsBack = true
         dialog.replace(
@@ -164,6 +177,7 @@ export function DialogLocalcodeModel() {
       title: "Models folder",
       description: catalog()?.models_dir ?? "",
       category: "Settings",
+      categoryView: <text fg={theme.primary}>Settings</text>,
       onSelect: () =>
         dialog.replace(() => (
           <DialogModelsDir current={catalog()?.models_dir ?? ""} onDone={() => dialog.replace(() => <DialogLocalcodeModel />)} />
@@ -177,7 +191,9 @@ export function DialogLocalcodeModel() {
       fallback={<DialogSelect title="Select model" options={[]} emptyView={<text>Could not reach the localcode model supervisor: {String(catalog.error)}</text>} />}
     >
       <DialogSelect<string>
-        title={catalog.loading ? "Select model — loading catalog…" : `Select model  (★ recommended for ${catalog()?.ram_gb ?? "?"} GB)`}
+        title={catalog.loading ? "localcode models — loading…" : "localcode models"}
+        placeholder="Search models…"
+        footer={<text fg={theme.textMuted}>★ Recommended for your {catalog()?.ram_gb ?? "?"} GB Mac</text>}
         options={options()}
         footerHints={[{ title: "enter", label: "choose quant" }]}
         current={(catalog()?.groups ?? []).find((g) => g.current)?.key}
@@ -192,6 +208,9 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
   const toast = useToast()
   const local = useLocal()
   const { theme } = useTheme()
+  const dimensions = useTerminalDimensions()
+  const [selected, setSelected] = createSignal<string>()
+  const nameWidth = () => dimensions().width >= 80 ? 24 : 18
   const [data, { refetch }] = createResource(() =>
     getJSON<{ group: string; display_name: string; maker: string; ram_gb: number; quants: Quant[]; vision_size_gb?: number; error?: string }>(
       `/quants?group=${encodeURIComponent(props.group.key)}`,
@@ -208,28 +227,31 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
     }
   }
 
-  const options = () =>
-    (data()?.quants ?? []).map((q) => ({
-      value: q.alias,
-      title: `${q.label}${q.recommended ? "  ★" : ""}${q.downloading ? `  ⇣ ${pctLabel(q.pct)}` : ""}`,
-      // Status word gets a colour: green = on disk, blue = loaded now, muted = not yet.
-      titleView: (
-        <span>
-          {`${q.label}${q.recommended ? " ★" : ""}${q.downloading ? ` ⇣${pctLabel(q.pct)}` : ""}`.padEnd(16)}
-          <span
-            style={{
-              fg: q.downloading ? theme.warning : q.current ? theme.primary : q.downloaded ? theme.success : theme.textMuted,
-            }}
-          >
-            {q.downloading ? "downloading" : q.current ? "loaded" : q.downloaded ? "downloaded" : "download"}
-          </span>
+  const ordered = () => [...(data()?.quants ?? [])].sort((a, b) => Number(b.downloaded || b.current) - Number(a.downloaded || a.current))
+  const active = () => selected() ?? ordered().find((q) => q.current)?.alias ?? ordered()[0]?.alias
+  const options = () => ordered().map((q) => ({
+    value: q.alias,
+    title: `${q.label}${q.recommended ? " ★" : ""}`,
+    titleView: (
+      <span>
+        {`${q.label}${q.recommended ? " ★" : ""}`.padEnd(nameWidth())}
+        {`${q.size_gb.toFixed(1)} GB`.padEnd(10)}
+        {`${FIT_GLYPH[q.fit]} ${q.fit}`.padEnd(12)}
+        <span style={{ fg: active() === q.alias ? selectedForeground(theme) : q.current ? theme.primary : q.downloaded ? theme.success : theme.textMuted }}>
+          {q.downloading ? `⇣ ${pctLabel(q.pct)}` : q.current ? "Loaded" : q.downloaded ? "Ready" : "Download"}
         </span>
-      ),
-      description: [`${q.size_gb} GB`, `${FIT_GLYPH[q.fit]} ${q.fit}`, q.tok_s ? `~${q.tok_s} tok/s` : ""].filter(Boolean).join("   "),
-      disabled: q.fit === "too big",
-      category: `from huggingface.co/${props.group.hf_repo}`,
-      onSelect: () => void (q.downloading ? cancel(q) : select(q)),
-    }))
+      </span>
+    ),
+    disabled: q.fit === "too big" && !q.downloading,
+    category: q.downloaded || q.current ? "On this Mac" : "Available to download",
+    categoryView: (
+      <text fg={theme.textMuted}>
+        <span style={{ fg: theme.primary }}>{(q.downloaded || q.current ? "On this Mac" : dimensions().width >= 80 ? "Available to download" : "Download").padEnd(nameWidth())}</span>
+        {"Size".padEnd(10)}{"Memory".padEnd(12)}State
+      </text>
+    ),
+    onSelect: () => void (q.downloading ? cancel(q) : select(q)),
+  }))
 
   async function select(q: Quant) {
     escapeStepsBack = false
@@ -295,9 +317,20 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       fallback={<DialogSelect title={props.group.display_name} options={[]} emptyView={<text>Could not list quants: {String(data.error ?? data()?.error)}</text>} />}
     >
       <DialogSelect<string>
-        title={data.loading ? `${props.group.display_name} — fetching quants…` : `${props.group.display_name} · ${props.group.maker}`}
+        title={data.loading ? `${props.group.display_name} — loading…` : props.group.display_name}
+        placeholder="Search versions…"
+        onMove={(option) => setSelected(option.value)}
+        onFilter={() => setSelected(undefined)}
+        footer={
+          <box gap={1}>
+            <text fg={theme.textMuted}>★ Recommended · {props.group.hf_repo}</text>
+            <text fg={theme.textMuted}>
+              <span style={{ fg: theme.text, bold: true }}>enter</span> load / download / cancel ⇣
+              {"   "}<span style={{ fg: theme.text, bold: true }}>esc</span> back
+            </text>
+          </box>
+        }
         options={options()}
-        footerHints={[{ title: "enter", label: "download / switch / cancel" }, { title: "esc", label: "back" }]}
         current={(data()?.quants ?? []).find((q) => q.current)?.alias}
       />
     </Show>

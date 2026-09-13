@@ -559,11 +559,11 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
       <box paddingLeft={4} paddingRight={4}>
         <box flexDirection="row" justifyContent="space-between">
           {props.titleView ?? (
-            <text fg={theme.text} attributes={TextAttributes.BOLD}>
+            <text fg={theme.text} attributes={TextAttributes.BOLD} flexShrink={1} overflow="hidden" wrapMode="none">
               {props.title}
             </text>
           )}
-          <text fg={theme.textMuted} onMouseUp={() => dialog.clear()}>
+          <text fg={theme.textMuted} flexShrink={0} marginLeft={1} onMouseUp={() => dialog.clear()}>
             esc
           </text>
         </box>

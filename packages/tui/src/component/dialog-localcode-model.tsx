@@ -284,7 +284,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       fallback={<DialogSelect title={props.group.display_name} options={[]} emptyView={<text>Could not list quants: {String(data.error ?? data()?.error)}</text>} />}
     >
       <DialogSelect<string>
-        title={data.loading ? `${props.group.display_name} — fetching quants…` : `${props.group.display_name} · ${props.group.maker}  (✓ fits  ~ tight  ✗ too big)`}
+        title={data.loading ? `${props.group.display_name} — fetching quants…` : `${props.group.display_name} · ${props.group.maker}`}
         options={options()}
         footerHints={[{ title: "enter", label: "download / switch / cancel" }, { title: "esc", label: "back" }]}
         current={(data()?.quants ?? []).find((q) => q.current)?.alias}

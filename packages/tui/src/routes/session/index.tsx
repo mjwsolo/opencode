@@ -1578,12 +1578,12 @@ function GenericTool(props: ToolProps) {
       when={props.output && ctx.showGenericToolOutput()}
       fallback={
         <InlineTool icon="⚙" pending="Writing command…" complete={true} part={props.part}>
-          {props.tool} {input(props.input)}
+          {Locale.titlecase(props.tool.replaceAll("_", " "))} {input(props.input)}
         </InlineTool>
       }
     >
       <BlockTool
-        title={`# ${props.tool} ${input(props.input)}`}
+        title={`${Locale.titlecase(props.tool.replaceAll("_", " "))} ${input(props.input)}`}
         part={props.part}
         onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
       >
@@ -1719,19 +1719,14 @@ export function InlineToolRow(props: {
         <Match when={true}>
           <Show when={props.complete || props.failed || props.denied}>
             <box flexDirection="row">
-              <text
-                width={INLINE_TOOL_ICON_WIDTH}
-                fg={props.failed ? props.errorColor : (props.iconColor ?? props.color)}
-                attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
-              >
-                {props.icon}
-              </text>
+              <box width={INLINE_TOOL_ICON_WIDTH} />
               <text
                 flexGrow={1}
                 fg={props.failed ? props.errorColor : props.color}
                 attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
               >
                 {props.failed && !props.complete ? (props.failure ?? props.children) : props.children}
+                {props.failed ? " · failed" : props.denied ? " · denied" : ""}
               </text>
             </box>
           </Show>
@@ -1785,12 +1780,12 @@ function BlockTool(props: {
             <Show
               when={props.spinner}
               fallback={
-                <text paddingLeft={3} fg={theme.textMuted}>
-                  {title()}
+                <text paddingLeft={4} fg={error() ? theme.error : theme.textMuted}>
+                  {title()}{error() ? " · failed" : ""}
                 </text>
               }
             >
-              <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+              <box paddingLeft={2}><Spinner color={theme.textMuted}>{title()}</Spinner></box>
             </Show>
           )}
         </Show>
@@ -1828,8 +1823,7 @@ function Shell(props: ToolProps) {
 
   const title = createMemo(() => {
     const wd = workdirDisplay()
-    if (!wd) return
-    return `# Running in ${wd}`
+    return `Run ${stringValue(props.input.command)}${wd ? ` · ${wd}` : ""}`
   })
 
   return (
@@ -1837,13 +1831,11 @@ function Shell(props: ToolProps) {
       <Match when={stringValue(props.metadata.output) !== undefined}>
         <BlockTool
           title={title()}
+          spinner={isRunning()}
           part={props.part}
           onClick={collapsed().overflow ? () => setExpanded((prev) => !prev) : undefined}
         >
           <box gap={1}>
-            <Show when={isRunning()} fallback={<text fg={theme.text}>$ {stringValue(props.input.command)}</text>}>
-              <Spinner color={theme.text}>{stringValue(props.input.command)}</Spinner>
-            </Show>
             <Show when={output()}>
               <text fg={theme.text}>{limited()}</text>
             </Show>
@@ -1855,7 +1847,7 @@ function Shell(props: ToolProps) {
       </Match>
       <Match when={true}>
         <InlineTool icon="$" pending="Writing command…" complete={stringValue(props.input.command)} part={props.part}>
-          {stringValue(props.input.command)}
+          Run {stringValue(props.input.command)}
         </InlineTool>
       </Match>
     </Switch>
@@ -1872,7 +1864,7 @@ function Write(props: ToolProps) {
   return (
     <Switch>
       <Match when={props.metadata.diagnostics !== undefined}>
-        <BlockTool title={"# Wrote " + pathFormatter.format(stringValue(props.input.filePath))} part={props.part}>
+        <BlockTool title={"Write " + pathFormatter.format(stringValue(props.input.filePath))} part={props.part}>
           <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
             <code
               conceal={false}
@@ -1898,7 +1890,7 @@ function Glob(props: ToolProps) {
   const pathFormatter = usePathFormatter()
   return (
     <InlineTool icon="✱" pending="Finding files…" complete={stringValue(props.input.pattern)} part={props.part}>
-      Glob "{stringValue(props.input.pattern)}"{" "}
+      Find files "{stringValue(props.input.pattern)}"{" "}
       <Show when={stringValue(props.input.path)}>in {pathFormatter.format(stringValue(props.input.path))} </Show>
       <Show when={numberValue(props.metadata.count)}>
         ({numberValue(props.metadata.count)} {numberValue(props.metadata.count) === 1 ? "match" : "matches"})
@@ -1946,7 +1938,7 @@ function Grep(props: ToolProps) {
   const pathFormatter = usePathFormatter()
   return (
     <InlineTool icon="✱" pending="Searching content…" complete={stringValue(props.input.pattern)} part={props.part}>
-      Grep "{stringValue(props.input.pattern)}"{" "}
+      Search files "{stringValue(props.input.pattern)}"{" "}
       <Show when={stringValue(props.input.path)}>in {pathFormatter.format(stringValue(props.input.path))} </Show>
       <Show when={numberValue(props.metadata.matches)}>
         ({numberValue(props.metadata.matches)} {numberValue(props.metadata.matches) === 1 ? "match" : "matches"})
@@ -1958,7 +1950,7 @@ function Grep(props: ToolProps) {
 function WebFetch(props: ToolProps) {
   return (
     <InlineTool icon="%" pending="Fetching from the web…" complete={stringValue(props.input.url)} part={props.part}>
-      WebFetch {stringValue(props.input.url)}
+      Web fetch {stringValue(props.input.url)}
     </InlineTool>
   )
 }
@@ -2166,7 +2158,7 @@ function Edit(props: ToolProps) {
   return (
     <Switch>
       <Match when={stringValue(props.metadata.diff) !== undefined}>
-        <BlockTool title={"← Edit " + pathFormatter.format(stringValue(props.input.filePath))} part={props.part}>
+        <BlockTool title={"Edit " + pathFormatter.format(stringValue(props.input.filePath))} part={props.part}>
           <box paddingLeft={1}>
             <diff
               diff={diffContent()}
@@ -2240,10 +2232,10 @@ function ApplyPatch(props: ToolProps) {
   }
 
   function title(file: { type: string; relativePath: string; filePath: string; deletions: number }) {
-    if (file.type === "delete") return "# Deleted " + file.relativePath
-    if (file.type === "add") return "# Created " + file.relativePath
-    if (file.type === "move") return "# Moved " + pathFormatter.format(file.filePath) + " → " + file.relativePath
-    return "← Patched " + file.relativePath
+    if (file.type === "delete") return "Delete " + file.relativePath
+    if (file.type === "add") return "Create " + file.relativePath
+    if (file.type === "move") return "Move " + pathFormatter.format(file.filePath) + " → " + file.relativePath
+    return "Patch " + file.relativePath
   }
 
   return (
@@ -2315,7 +2307,7 @@ function Question(props: ToolProps) {
   return (
     <Switch>
       <Match when={answers()}>
-        <BlockTool title="# Questions" part={props.part}>
+        <BlockTool title="Questions" part={props.part}>
           <box gap={1}>
             <For each={questions()}>
               {(q, i) => (

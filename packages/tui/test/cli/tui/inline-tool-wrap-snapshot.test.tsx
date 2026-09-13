@@ -30,11 +30,11 @@ const tools: readonly ToolFixture[] = [
   {
     icon: "✱",
     label:
-      'Grep "OPENCODE.*DB|database|sqlite|drizzle|dev.*db|data.*dir|xdg|APPDATA" in packages/opencode/src (151 matches)',
+      'Search files "OPENCODE.*DB|database|sqlite|drizzle|dev.*db|data.*dir|xdg|APPDATA" in packages/opencode/src (151 matches)',
   },
   {
     icon: "✱",
-    label: 'Glob "**/*db*" in packages/opencode (6 matches)',
+    label: 'Find files "**/*db*" in packages/opencode (6 matches)',
   },
   {
     icon: "→",
@@ -48,7 +48,7 @@ const tools: readonly ToolFixture[] = [
   {
     icon: "✱",
     label:
-      'Grep "export const OPENCODE_DB|OPENCODE_DB|OPENCODE_DEV|Global\\.Path\\.data|data =" in packages/opencode/src (115 matches)',
+      'Search files "export const OPENCODE_DB|OPENCODE_DB|OPENCODE_DEV|Global\\.Path\\.data|data =" in packages/opencode/src (115 matches)',
   },
 ] as const
 
@@ -63,7 +63,7 @@ function ShellOutput() {
       gap={1}
     >
       <box gap={1}>
-        <text>$ ls</text>
+        <text>Run ls</text>
         <text>file.ts</text>
       </box>
     </box>
@@ -109,7 +109,7 @@ function TaskRowsFixture() {
   return (
     <box flexDirection="column" width={72}>
       <InlineToolRow icon="✱" complete={true} pending="">
-        Grep "Task" (2 matches)
+        Search files "Task" (2 matches)
       </InlineToolRow>
       <InlineToolRow icon="⠙" complete={true} pending="" separate={true}>
         Explore Task — Inspect active task spacing

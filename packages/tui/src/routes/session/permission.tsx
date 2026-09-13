@@ -187,7 +187,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const pattern = typeof data.pattern === "string" ? data.pattern : ""
               return {
                 icon: "✱",
-                title: `Glob "${pattern}"`,
+                title: `Find files "${pattern}"`,
                 body: (
                   <Show when={pattern}>
                     <box paddingLeft={1}>
@@ -202,7 +202,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const pattern = typeof data.pattern === "string" ? data.pattern : ""
               return {
                 icon: "✱",
-                title: `Grep "${pattern}"`,
+                title: `Search files "${pattern}"`,
                 body: (
                   <Show when={pattern}>
                     <box paddingLeft={1}>
@@ -264,7 +264,7 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
               const url = typeof data.url === "string" ? data.url : ""
               return {
                 icon: "%",
-                title: `WebFetch ${url}`,
+                title: `Web fetch ${url}`,
                 body: (
                   <Show when={url}>
                     <box paddingLeft={1}>
@@ -349,9 +349,6 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
                   <text fg={theme.text}>Permission required</text>
               </box>
               <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0}>
-                <text fg={theme.textMuted} flexShrink={0}>
-                  {current.icon}
-                </text>
                 <text fg={theme.text}>{current.title}</text>
               </box>
             </box>

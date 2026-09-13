@@ -95,10 +95,13 @@ const pctLabel = (pct: number | null | undefined) => (pct != null ? `${Math.roun
 /** Re-fetch a resource every second while a download runs, so rows show live progress. */
 function pollWhileDownloading(refetch: () => void) {
   onMount(() => {
+    let active = false
     const timer = setInterval(async () => {
       try {
         const st = await getJSON<Status>("/status")
-        if (st.state === "downloading" || st.state === "loading") refetch()
+        const next = st.state === "downloading" || st.state === "loading"
+        if (next || active) refetch()
+        active = next
       } catch {}
     }, 1000)
     onCleanup(() => clearInterval(timer))
@@ -252,6 +255,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
             : st.state
       if (st.state === "ready") {
         clearInterval(timer)
+        if (st.model !== q.alias) return
         local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: q.alias }, { recent: true })
         toast.show({ variant: "success", title: "Model changed", message: label })
         void import("./localcode-vision").then((m) => m.visionHint(toast))
@@ -260,6 +264,10 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       if (st.state === "error") {
         clearInterval(timer)
         toast.show({ variant: "error", title: "Model switch failed", message: st.detail ?? "unknown error" })
+        return
+      }
+      if (st.state === "idle") {
+        clearInterval(timer)
         return
       }
       if (line !== last && Date.now() - started > 1500) {

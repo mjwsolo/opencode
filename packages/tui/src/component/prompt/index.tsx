@@ -1608,7 +1608,7 @@ export function Prompt(props: PromptProps) {
                             flexShrink={0}
                             fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
                           >
-                            {local.model.parsed().model}
+                            {modelLoaded() ? local.model.parsed().model : "No model loaded · /models"}
                           </text>
                           <Show when={currentProviderLabel() && currentProviderLabel() !== "localcode"}>
                             <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>{currentProviderLabel()}</text>

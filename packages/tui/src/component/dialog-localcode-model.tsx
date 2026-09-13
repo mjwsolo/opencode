@@ -9,7 +9,7 @@
  * is switched once the server reports ready. Curation is families-only; quants
  * are never curated.
  */
-import { createResource, onCleanup, onMount, Show } from "solid-js"
+import { createResource, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { DialogSelect } from "../ui/dialog-select"
 import { DialogPrompt } from "../ui/dialog-prompt"
 import { useDialog } from "../ui/dialog"
@@ -68,26 +68,26 @@ async function postJSON<T>(path: string, body: unknown): Promise<T> {
 
 // Supervisor readiness, cached so the synchronous prompt-submit path can read it.
 // Without a control URL (plain opencode.json setups) the answer is always "loaded".
-let lastStatus: Status & { current?: string | null } | undefined
+const [lastStatus, setLastStatus] = createSignal<Status & { current?: string | null }>()
 let watching = false
 export function watchSupervisor() {
   if (watching || !controlUrl()) return
   watching = true
   const tick = async () => {
     try {
-      lastStatus = await getJSON<Status & { current?: string | null }>("/status")
-    } catch {}
+      setLastStatus(await getJSON<Status & { current?: string | null }>("/status"))
+    } catch { setLastStatus(undefined) }
   }
   void tick()
   setInterval(tick, 2000)
 }
-export const modelLoaded = () => !controlUrl() || (lastStatus !== undefined && !!lastStatus.current && lastStatus.state !== "loading")
-export const supervisorKnown = () => !controlUrl() || lastStatus !== undefined
+export const modelLoaded = () => !controlUrl() || (!!lastStatus()?.current && lastStatus()?.state !== "loading")
+export const supervisorKnown = () => !controlUrl() || lastStatus() !== undefined
 export async function refreshSupervisor() {
   if (!controlUrl()) return
   try {
-    lastStatus = await getJSON<Status & { current?: string | null }>("/status")
-  } catch {}
+    setLastStatus(await getJSON<Status & { current?: string | null }>("/status"))
+  } catch { setLastStatus(undefined) }
 }
 
 const pctLabel = (pct: number | null | undefined) => (pct != null ? `${Math.round(pct)}%` : "…")

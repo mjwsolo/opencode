@@ -48,7 +48,6 @@ import { TodoItem } from "../../component/todo-item"
 import { DialogMessage } from "./dialog-message"
 import type { PromptInfo } from "../../component/prompt/history"
 import { DialogConfirm } from "../../ui/dialog-confirm"
-import { DialogTimeline } from "./dialog-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { SubagentFooter } from "./subagent-footer.tsx"
@@ -87,7 +86,6 @@ export const alwaysSeparate = new WeakSet<BoxRenderable>()
 
 const sessionBindingCommands = [
   "session.rename",
-  "session.timeline",
   "session.compact",
   "session.undo",
   "session.redo",
@@ -422,28 +420,6 @@ export function Session() {
       },
       run: () => {
         dialog.replace(() => <DialogSessionRename session={route.sessionID} />)
-      },
-    },
-    {
-      title: "Jump to message",
-      value: "session.timeline",
-      category: "Session",
-      slash: {
-        name: "timeline",
-      },
-      run: () => {
-        dialog.replace(() => (
-          <DialogTimeline
-            onMove={(messageID) => {
-              const child = scroll.getChildren().find((child) => {
-                return child.id === messageID
-              })
-              if (child) scroll.scrollBy(child.y - scroll.y - 1)
-            }}
-            sessionID={route.sessionID}
-            setPrompt={(promptInfo) => prompt?.set(promptInfo)}
-          />
-        ))
       },
     },
     {

@@ -82,7 +82,7 @@ const layer = Layer.effect(
         yield* flock.acquire(`npm-install:${input.dir}`)
         const { Arborist } = yield* Effect.promise(() => import("@npmcli/arborist"))
         const add = input.add ?? []
-        const npmOptions = yield* NpmConfig.load(input.dir)
+        const npmOptions = { ...(yield* NpmConfig.load(input.dir)), audit: false, fund: false }
         const arborist = new Arborist({
           ...npmOptions,
           path: input.dir,
@@ -130,7 +130,7 @@ const layer = Layer.effect(
       const first = tree.edgesOut.values().next().value?.to
       if (!first) {
         const result = resolveEntryPoint(name, path.join(dir, "node_modules", name))
-        if (result.entrypoint) return result
+        if (result.entrypoint || (yield* afs.existsSafe(path.join(result.directory, "package.json")))) return result
         return yield* new InstallFailedError({ add: [pkg], dir })
       }
       return resolveEntryPoint(first.name, first.path)
@@ -235,7 +235,7 @@ const layer = Layer.effect(
           return Option.some(path.join(binDir, resolved.value))
         }).pipe(
           Effect.scoped,
-          Effect.orElseSucceed(() => Option.none<string>()),
+          Effect.catch((error) => Effect.logWarning("package executable setup failed", { pkg, error }).pipe(Effect.as(Option.none<string>()))),
         ),
       )
     })

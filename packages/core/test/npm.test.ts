@@ -57,6 +57,43 @@ describe("Npm.add", () => {
   })
 })
 
+describe("Npm.which", () => {
+  test("installs a CLI-only package on the first call without a module entrypoint", async () => {
+    await using tmp = await tmpdir()
+    const dir = path.join(tmp.path, "fixture-cli")
+    await fs.mkdir(dir)
+    await writePackage(dir, { name: "fixture-cli", bin: { "fixture-cli": "cli.cjs" } })
+    await Bun.write(path.join(dir, "cli.cjs"), "#!/usr/bin/env node\nprocess.stdout.write('ready')\n")
+    const tar = path.join(tmp.path, "fixture-cli.tar")
+    await Bun.write(tar, await new Bun.Archive({
+      "package/package.json": await Bun.file(path.join(dir, "package.json")).text(),
+      "package/cli.cjs": await Bun.file(path.join(dir, "cli.cjs")).text(),
+    }).bytes())
+    const server = Bun.serve({
+      port: 0,
+      fetch(request) {
+        if (new URL(request.url).pathname.includes("/-/npm/")) return Response.json({})
+        if (new URL(request.url).pathname.endsWith(".tar")) return new Response(Bun.file(tar))
+        return Response.json({ name: "fixture-cli", "dist-tags": { latest: "1.0.0" }, versions: {
+          "1.0.0": { name: "fixture-cli", version: "1.0.0", bin: { "fixture-cli": "cli.cjs" },
+            dist: { tarball: new URL("/fixture-cli.tar", request.url).href } },
+        } })
+      },
+    })
+    try {
+      await Bun.write(path.join(tmp.path, "cache", "packages", "fixture-cli", ".npmrc"), `registry=${server.url}\n`)
+      const bin = await Effect.gen(function* () {
+        const npm = yield* Npm.Service
+        return yield* npm.which("fixture-cli", "fixture-cli")
+      }).pipe(Effect.scoped, Effect.provide(npmLayer(path.join(tmp.path, "cache"))), Effect.runPromise)
+      expect(bin).toBeDefined()
+      expect(await Bun.file(bin!).text()).toContain("ready")
+    } finally {
+      server.stop(true)
+    }
+  })
+})
+
 describe("Npm.install", () => {
   test("respects omit from project .npmrc", async () => {
     await using tmp = await tmpdir()

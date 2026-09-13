@@ -1254,14 +1254,16 @@ const layer = Layer.effect(
 
             yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
+            const workspace = model.providerID !== "localcode" || SystemPrompt.workspaceActive(msgs, lastUser.id)
             const [skills, env, instructions, mcpInstructions, modelMsgs] = yield* Effect.all([
-              sys.skills(agent),
-              sys.environment(model),
-              instruction.system().pipe(Effect.orDie),
+              workspace ? sys.skills(agent) : Effect.succeed(undefined),
+              workspace ? sys.environment(model) : Effect.succeed([`Today's date: ${new Date().toDateString()}`]),
+              workspace ? instruction.system().pipe(Effect.orDie) : Effect.succeed([]),
               sys.mcp(agent, session.permission),
               MessageV2.toModelMessagesEffect(msgs, model),
             ])
             const system = [
+              ...(workspace && model.providerID === "localcode" ? [SystemPrompt.workspacePrompt] : []),
               ...env,
               ...instructions,
               ...(mcpInstructions ? [mcpInstructions] : []),

@@ -1,3 +1,4 @@
+import PROMPT_WORKSPACE from "./prompt/localcode-workspace.txt"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { Context, Effect, Layer } from "effect"
 
@@ -24,6 +25,25 @@ import { LocationServiceMap, locationServiceMapLayer } from "@opencode-ai/core/l
 import { Reference } from "@opencode-ai/core/reference"
 import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
+
+export function workspaceActive(
+  messages: { info: { id: string }; parts: { type: string; tool?: string }[] }[],
+  userID: string,
+) {
+  const start = messages.findIndex((message) => message.info.id === userID)
+  if (start < 0) return false
+  return messages
+    .slice(start)
+    .some((message) =>
+      message.parts.some(
+        (part) =>
+          part.type === "tool" &&
+          ["read", "glob", "grep", "bash", "write", "edit", "multiedit", "apply_patch"].includes(part.tool ?? ""),
+      ),
+    )
+}
+
+export const workspacePrompt = PROMPT_WORKSPACE
 
 export function provider(model: Provider.Model) {
   if (model.providerID === "localcode") return [PROMPT_LOCALCODE]

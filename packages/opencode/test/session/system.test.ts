@@ -84,6 +84,21 @@ const it = testEffect(
 )
 
 describe("session.system", () => {
+  test("workspace context starts with file work in the current turn, not prior tasks or research", () => {
+    const messages = [
+      { info: { id: "old-user" }, parts: [{ type: "text" }] },
+      { info: { id: "old-assistant" }, parts: [{ type: "tool", tool: "read" }] },
+      { info: { id: "new-user" }, parts: [{ type: "text" }] },
+      { info: { id: "research" }, parts: [{ type: "tool", tool: "websearch" }] },
+    ]
+    expect(SystemPrompt.workspaceActive(messages, "new-user")).toBe(false)
+    expect(SystemPrompt.workspaceActive(messages, "missing")).toBe(false)
+    messages.push({ info: { id: "file-work" }, parts: [{ type: "tool", tool: "read" }] })
+    expect(SystemPrompt.workspaceActive(messages, "new-user")).toBe(true)
+    messages.push({ info: { id: "next-topic" }, parts: [{ type: "text" }] })
+    expect(SystemPrompt.workspaceActive(messages, "next-topic")).toBe(false)
+  })
+
   test("all local models use only the localcode instruction convention", () => {
     for (const id of ["muse-glimmer", "kimi", "trinity", "gemma", "North-Mini"]) {
       const prompt = SystemPrompt.provider({ providerID: "localcode", api: { id } } as Provider.Model)[0]

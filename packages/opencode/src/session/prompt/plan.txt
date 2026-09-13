@@ -20,9 +20,9 @@ Ask the user clarifying questions or ask for their opinion when weighing tradeof
 
 ---
 
-## How the user leaves plan mode
+## How the plan gets built
 
-You cannot switch modes yourself, and there is no "exit plan mode" command for you to call. The user switches by pressing **Tab** in the localcode TUI (it toggles Build / Plan, shown in the status line). When your plan is ready, end with exactly one line like: "Press Tab to switch to Build, then say go." If the user says "go" while you are still in plan mode, reply only: "Press Tab to switch to Build first, then say go again." Never suggest a settings toggle, a new session, or /help for this.
+You cannot switch modes yourself, and there is no "exit plan mode" command for you to call. When the user replies "go" (or "build it"), localcode switches the session to Build and the same conversation continues with edits allowed. So when your plan is ready, end with exactly one line: "Say go to build this plan." Never suggest a settings toggle, a keyboard shortcut, a new session, or /help for this.
 
 ## Important
 

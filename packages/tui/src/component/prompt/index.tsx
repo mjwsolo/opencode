@@ -1606,9 +1606,11 @@ export function Prompt(props: PromptProps) {
                 <Show when={local.agent.current()} fallback={<box height={1} />}>
                   {(agent) => (
                     <>
-                      <text fg={fadeColor(highlight(), agentMetaAlpha())}>
-                        {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
-                      </text>
+                      <Show when={store.mode === "shell" || local.agent.list().length > 1}>
+                        <text fg={fadeColor(highlight(), agentMetaAlpha())}>
+                          {store.mode === "shell" ? "Shell" : Locale.titlecase(agent().name)}
+                        </text>
+                      </Show>
                       <Show when={store.mode === "normal" && local.permission.mode === "auto"}>
                         <text fg={fadeColor(theme.textMuted, agentMetaAlpha())}>auto</text>
                       </Show>
@@ -1807,9 +1809,11 @@ export function Prompt(props: PromptProps) {
                       </text>
                     )}
                   </Show>
-                  <text fg={theme.text}>
-                    {agentShortcut()} <span style={{ fg: theme.textMuted }}>build / plan</span>
-                  </text>
+                  <Show when={local.agent.list().length > 1}>
+                    <text fg={theme.text}>
+                      {agentShortcut()} <span style={{ fg: theme.textMuted }}>build / plan</span>
+                    </text>
+                  </Show>
                   <text fg={theme.text}>
                     / <span style={{ fg: theme.textMuted }}>commands</span>
                   </text>

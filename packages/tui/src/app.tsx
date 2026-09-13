@@ -769,6 +769,13 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
         category: "System",
       },
       {
+        name: "app.permissions",
+        title: "Permissions",
+        slashName: "permissions",
+        category: "System",
+        run: () => dialog.replace(() => <DialogSettings permissionsOnly />),
+      },
+      {
         name: "app.settings",
         title: "Settings",
         slashName: "settings",

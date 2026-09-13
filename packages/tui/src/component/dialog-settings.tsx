@@ -7,15 +7,15 @@ const preferences = new Set([
   "permission.mode", "session.toggle.conceal",
 ])
 
-export function DialogSettings() {
+export function DialogSettings(props: { permissionsOnly?: boolean }) {
   const keymap = useOpencodeKeymap()
   const entries = useKeymapSelector((keymap) => keymap.getCommandEntries({
     namespace: "palette",
     visibility: "reachable",
-    filter: (command) => preferences.has(command.name),
+    filter: (command) => props.permissionsOnly ? command.name === "permission.mode" : preferences.has(command.name),
   }))
   return <DialogSelect
-    title="Settings"
+    title={props.permissionsOnly ? "Permissions" : "Settings"}
     placeholder="Search settings"
     footerHints={[{ title: "toggle", label: "enter" }, { title: "close", label: "esc" }]}
     options={entries().map(({ command }) => {

@@ -37,16 +37,16 @@ The package should follow Drizzle's adapter naming and semantics as closely as p
 Use these as implementation references instead of inventing a custom API:
 
 - Drizzle Effect Postgres current RC:
-  - `/Users/kit/code/open-source/drizzle-orm-rc4-pr/drizzle-orm/src/effect-core/query-effect.ts`
-  - `/Users/kit/code/open-source/drizzle-orm-rc4-pr/integration-tests/tests/pg/effect-sql.test.ts`
+  - `../drizzle-orm-rc4-pr/drizzle-orm/src/effect-core/query-effect.ts`
+  - `../drizzle-orm-rc4-pr/integration-tests/tests/pg/effect-sql.test.ts`
 - SQLite Effect branch/reference:
-  - `/Users/kit/code/open-source/drizzle-orm-beta16/drizzle-orm/src/up-migrations/effect-sqlite.ts`
-  - `/Users/kit/code/open-source/drizzle-orm-beta16/integration-tests/tests/sqlite/effect-sql.test.ts`
-  - `/Users/kit/code/open-source/drizzle-orm-beta16/drizzle-orm/type-tests/sqlite/effect.ts`
+  - `../drizzle-orm-beta16/drizzle-orm/src/up-migrations/effect-sqlite.ts`
+  - `../drizzle-orm-beta16/integration-tests/tests/sqlite/effect-sql.test.ts`
+  - `../drizzle-orm-beta16/drizzle-orm/type-tests/sqlite/effect.ts`
 - Effect SQLite client source of truth:
-  - `/Users/kit/code/open-source/effect-smol/packages/sql/sqlite-bun/src/SqliteClient.ts`
-  - `/Users/kit/code/open-source/effect-smol/packages/sql/sqlite-node/test/Client.test.ts`
-  - `/Users/kit/code/open-source/effect-smol/packages/sql/sqlite-node/test/SqliteMigrator.test.ts`
+  - `../effect-smol/packages/sql/sqlite-bun/src/SqliteClient.ts`
+  - `../effect-smol/packages/sql/sqlite-node/test/Client.test.ts`
+  - `../effect-smol/packages/sql/sqlite-node/test/SqliteMigrator.test.ts`
 
 Important API patterns from those references:
 

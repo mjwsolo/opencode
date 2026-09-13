@@ -1068,20 +1068,18 @@ const ProviderLimit = Schema.Struct({
 /** The provider id localcode's launcher writes into its config; its model list is dynamic. */
 export const LOCALCODE_PROVIDER_ID = ProviderV2.ID.make("localcode")
 
-let localcodeVisionCache: { at: number; value: boolean | undefined } = { at: 0, value: undefined }
 /** True/false when the launcher's supervisor reports the loaded model's vision projector; undefined without a supervisor. */
-async function localcodeVision(): Promise<boolean | undefined> {
+async function localcodeVision(modelID: string): Promise<boolean | undefined> {
   const base = (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
   if (!base) return undefined
-  if (Date.now() - localcodeVisionCache.at < 3000) return localcodeVisionCache.value
   try {
     const r = await fetch(base + "/status", { signal: AbortSignal.timeout(1500) })
-    const j = (await r.json()) as { vision?: boolean }
-    localcodeVisionCache = { at: Date.now(), value: typeof j.vision === "boolean" ? j.vision : undefined }
+    if (!r.ok) return false
+    const j = (await r.json()) as { current?: string; state?: string; vision?: boolean }
+    return j.current === modelID && j.state !== "loading" && j.vision === true
   } catch {
-    localcodeVisionCache = { at: Date.now(), value: undefined }
+    return false
   }
-  return localcodeVisionCache.value
 }
 
 export const Model = Schema.Struct({
@@ -1895,24 +1893,23 @@ const layer = Layer.effect(
       if (providerID === LOCALCODE_PROVIDER_ID) {
         // localcode: whether the served model can see images depends on the gguf
         // the supervisor loaded (its mmproj), not on the config template. Ask it.
-        const vision = yield* Effect.promise(() => localcodeVision())
-        const target = info ?? provider.models[modelID]
-        if (target && vision !== undefined) {
-          target.capabilities.attachment = vision
-          target.capabilities.input.image = vision
-        }
-      }
-      if (!info && providerID === LOCALCODE_PROVIDER_ID) {
-        // localcode: the served model is whatever gguf the supervisor loaded
-        // last. Quants are discovered at runtime (HF repo listing), so the
-        // config cannot enumerate every valid alias up front. Any alias under
-        // the localcode provider is valid; clone the first configured model's
-        // wiring (api, limits, capabilities) under the new id.
-        const template = Object.values(provider.models)[0]
-        if (template) {
-          const synthesized: Model = { ...template, id: modelID, name: modelID }
-          provider.models[modelID] = synthesized
-          return synthesized
+        const target = info ?? Object.values(provider.models)[0]
+        if (target) {
+          const vision = yield* Effect.promise(() => localcodeVision(modelID))
+          // Each discovered alias owns its capabilities. A shallow clone would
+          // inherit or overwrite the previously loaded model's image support.
+          const resolved: Model = {
+            ...target,
+            id: modelID,
+            name: info?.name ?? modelID,
+            capabilities: {
+              ...target.capabilities,
+              attachment: vision ?? target.capabilities.attachment,
+              input: { ...target.capabilities.input, image: vision ?? target.capabilities.input.image },
+            },
+          }
+          provider.models[modelID] = resolved
+          return resolved
         }
       }
       if (!info) {

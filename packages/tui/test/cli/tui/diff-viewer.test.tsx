@@ -4,7 +4,7 @@ import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { DiffRenderable, type Renderable, ScrollBoxRenderable } from "@opentui/core"
 import { testRender, useRenderer } from "@opentui/solid"
 import type { TuiPluginApi, TuiPluginMeta, TuiRouteCurrent, TuiRouteDefinition } from "@opencode-ai/plugin/tui"
-import type { Session } from "@opencode-ai/sdk/v2"
+import type { Message, Session } from "@opencode-ai/sdk/v2"
 import { KVProvider } from "../../../src/context/kv"
 import { ThemeProvider } from "../../../src/context/theme"
 import { TuiConfigProvider } from "../../../src/config"
@@ -98,7 +98,21 @@ test("brackets navigate diff hunks", async () => {
   }
 })
 
-async function renderDiffViewer(vcsDiff: unknown[], height = 20, initialRoute?: TuiRouteCurrent) {
+test("a plain folder opens the session changes instead of an empty Git diff", async () => {
+  const viewer = await renderDiffViewer([], 20, undefined, true)
+  try {
+    expect(viewer.current()).toEqual({
+      name: "diff",
+      params: { mode: "last-turn", sessionID: "session-1", returnRoute: startRoute },
+    })
+    expect(viewer.sessionDiffInput()).toEqual({ sessionID: "session-1", messageID: "latest-user" })
+    expect(viewer.vcsDiffInput()).toBeUndefined()
+  } finally {
+    viewer.app.renderer.destroy()
+  }
+})
+
+async function renderDiffViewer(vcsDiff: unknown[], height = 20, initialRoute?: TuiRouteCurrent, plain = false) {
   const commands = new Map<
     string,
     NonNullable<Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]["commands"]>[number]
@@ -140,6 +154,18 @@ async function renderDiffViewer(vcsDiff: unknown[], height = 20, initialRoute?: 
     })
     const api = {
       ...base,
+      state: {
+        ...base.state,
+        vcs: plain ? {} : { branch: "main" },
+        session: {
+          ...base.state.session,
+          messages: () => [
+            { id: "older-user", role: "user" },
+            { id: "latest-user", role: "user" },
+            { id: "latest-assistant", role: "assistant" },
+          ] as Message[],
+        },
+      },
       route: {
         register(routes) {
           renderDiff = routes.find((route) => route.name === "diff")?.render

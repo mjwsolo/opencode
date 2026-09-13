@@ -107,7 +107,9 @@ function DiffViewer(props: { api: TuiPluginApi }) {
     return {
       mode: mode(),
       sessionID,
-      messageID: params()?.messageID,
+      messageID: params()?.messageID ?? (sessionID
+        ? props.api.state.session.messages(sessionID).findLast((message) => message.role === "user")?.id
+        : undefined),
       directory: sessionID ? props.api.state.session.get(sessionID)?.directory : undefined,
     }
   })
@@ -1060,7 +1062,7 @@ const tui: TuiPlugin = async (api) => {
         namespace: "palette",
         run() {
           api.route.navigate(ROUTE, {
-            mode: "git",
+            mode: api.state.vcs?.branch ? "git" : "last-turn",
             sessionID: "params" in api.route.current ? api.route.current.params?.sessionID : undefined,
             returnRoute: api.route.current,
           })

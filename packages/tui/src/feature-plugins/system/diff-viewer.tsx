@@ -108,7 +108,10 @@ function DiffViewer(props: { api: TuiPluginApi }) {
       mode: mode(),
       sessionID,
       messageID: params()?.messageID ?? (sessionID
-        ? props.api.state.session.messages(sessionID).findLast((message) => message.role === "user")?.id
+        ? props.api.state.session.messages(sessionID).findLast((message) => {
+          const parts = props.api.state.part(message.id)
+          return message.role === "user" && !(parts.length && parts.every((part) => part.type === "text" && part.synthetic))
+        })?.id
         : undefined),
       directory: sessionID ? props.api.state.session.get(sessionID)?.directory : undefined,
     }

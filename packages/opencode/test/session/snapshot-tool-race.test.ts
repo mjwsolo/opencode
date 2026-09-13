@@ -185,6 +185,32 @@ it.live("tool execution produces non-empty session diff (snapshot race)", () =>
         yield* Effect.sleep("100 millis")
       }
       expect(diff.length).toBeGreaterThan(0)
+
+      // A hidden todo-gate continuation belongs to the original visible task.
+      yield* llm.tool("bash", { command: "echo continued > continued.txt" })
+      yield* llm.text("done")
+      yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "Finish the pending todo", synthetic: true }],
+      })
+      yield* prompt.loop({ sessionID: session.id })
+      const continued = yield* summary.diff({ sessionID: session.id, messageID: user.info.id })
+      expect(continued.map((item) => item.file).sort()).toEqual(["continued.txt", "race-test.txt"])
+
+      // A later visible request must not leak into that task's diff.
+      yield* llm.tool("bash", { command: "echo separate > separate.txt" })
+      yield* llm.text("done")
+      yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "Create a separate file" }],
+      })
+      yield* prompt.loop({ sessionID: session.id })
+      const separate = yield* summary.diff({ sessionID: session.id, messageID: user.info.id })
+      expect(separate.map((item) => item.file).sort()).toEqual(["continued.txt", "race-test.txt"])
     }),
     { git: true, config: providerCfg },
   ),

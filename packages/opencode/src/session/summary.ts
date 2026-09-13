@@ -128,11 +128,19 @@ const layer = Layer.effect(
 
     const diff = Effect.fn("SessionSummary.diff")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {
       if (!input.messageID) return []
-      const message = (yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)).find(
-        (item) => item.info.id === input.messageID,
-      )
+      const all = yield* sessions.messages({ sessionID: input.sessionID }).pipe(Effect.orDie)
+      const index = all.findIndex((item) => item.info.id === input.messageID)
+      const message = all[index]
       if (!message || message.info.role !== "user") return []
-      const diffs = message.info.summary?.diffs ?? []
+      const following = all.slice(index + 1)
+      const next = following.findIndex((item) => item.info.role === "user" &&
+        !(item.parts.length && item.parts.every((part) => part.type === "text" && part.synthetic)))
+      const continuation = next < 0 ? following : following.slice(0, next)
+      // Hidden gate prompts continue the same visible task, so include their
+      // final snapshot rather than showing only the first partial response.
+      const diffs = continuation.some((item) => item.info.role === "user")
+        ? yield* computeDiff({ messages: [message, ...continuation] })
+        : message.info.summary?.diffs ?? []
       return diffs.map((item) => {
         if (item.file === undefined) return item
         const file = unquoteGitPath(item.file)

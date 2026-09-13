@@ -4,7 +4,7 @@ import { createDefaultOpenTuiKeymap } from "@opentui/keymap/opentui"
 import { DiffRenderable, type Renderable, ScrollBoxRenderable } from "@opentui/core"
 import { testRender, useRenderer } from "@opentui/solid"
 import type { TuiPluginApi, TuiPluginMeta, TuiRouteCurrent, TuiRouteDefinition } from "@opencode-ai/plugin/tui"
-import type { Message, Session } from "@opencode-ai/sdk/v2"
+import type { Message, Part, Session } from "@opencode-ai/sdk/v2"
 import { KVProvider } from "../../../src/context/kv"
 import { ThemeProvider } from "../../../src/context/theme"
 import { TuiConfigProvider } from "../../../src/config"
@@ -157,12 +157,17 @@ async function renderDiffViewer(vcsDiff: unknown[], height = 20, initialRoute?: 
       state: {
         ...base.state,
         vcs: plain ? {} : { branch: "main" },
+        part: (messageID: string) => messageID === "hidden-gate"
+          ? [{ type: "text", text: "continue", synthetic: true }] as Part[]
+          : [],
         session: {
           ...base.state.session,
           messages: () => [
             { id: "older-user", role: "user" },
             { id: "latest-user", role: "user" },
             { id: "latest-assistant", role: "assistant" },
+            { id: "hidden-gate", role: "user" },
+            { id: "continued-assistant", role: "assistant" },
           ] as Message[],
         },
       },

@@ -505,7 +505,10 @@ export function Session() {
       run: async () => {
         const status = sync.data.session_status?.[route.sessionID]
         if (status?.type !== "idle") await sdk.client.session.abort({ sessionID: route.sessionID }).catch(() => {})
-        const message = messagesBeforeRevert().findLast((item) => item.role === "user")
+        const message = messagesBeforeRevert().findLast((item) =>
+          item.role === "user" && !(sync.data.part[item.id]?.length &&
+            sync.data.part[item.id].every((part) => part.type === "text" && part.synthetic)),
+        )
         if (!message) return
         void sdk.client.session
           .revert({
@@ -543,7 +546,8 @@ export function Session() {
         dialog.clear()
         const messageID = session()?.revert?.messageID
         if (!messageID) return
-        const message = messages().find((x) => x.role === "user" && x.id > messageID)
+        const message = messages().find((x) => x.role === "user" && x.id > messageID &&
+          !(sync.data.part[x.id]?.length && sync.data.part[x.id].every((part) => part.type === "text" && part.synthetic)))
         if (!message) {
           void sdk.client.session.unrevert({
             sessionID: route.sessionID,

@@ -126,10 +126,13 @@ export const WebFetchTool = Tool.define(
           const content = new TextDecoder().decode(arrayBuffer)
           // localcode: a fetched page goes straight into a local model's context,
           // where 5 MB is minutes of prompt fill. Cap what the model sees (classic
-          // localcode uses the same 20k-char default); LOCALCODE_WEBFETCH_MAX_CHARS overrides.
-          const cap = Number.parseInt(process.env.LOCALCODE_WEBFETCH_MAX_CHARS ?? "", 10) || 20_000
-          const clip = (text: string) =>
-            text.length > cap ? `${text.slice(0, cap)}\n…[truncated at ${cap} characters of ${text.length}]` : text
+          // localcode uses the same 20k-char default); the override can lower it.
+          const cap = Math.min(20_000, Math.max(128, Number.parseInt(process.env.LOCALCODE_WEBFETCH_MAX_CHARS ?? "", 10) || 20_000))
+          const clip = (text: string) => {
+            if (text.length <= cap) return text
+            const suffix = `\n…[truncated from ${text.length} characters]`
+            return text.slice(0, cap - suffix.length) + suffix
+          }
 
           // Handle content based on requested format and actual content type
           switch (params.format) {

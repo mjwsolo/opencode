@@ -269,10 +269,11 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       return
     }
     const label = `${props.group.display_name} · ${q.label}`
-    toast.show({ variant: "info", title: label, message: q.downloaded ? "Loading…" : `Downloading from huggingface.co/${props.group.hf_repo}…` })
+    toast.show({ variant: "info", title: label, message: q.downloaded ? "Loading…" : `Downloading from huggingface.co/${props.group.hf_repo}…`, duration: 60_000 })
     // Poll the supervisor until the server is serving the new gguf.
     let last = ""
     const started = Date.now()
+    let shown = started
     const timer = setInterval(async () => {
       let st: Status
       try {
@@ -303,9 +304,10 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         clearInterval(timer)
         return
       }
-      if (line !== last && Date.now() - started > 1500) {
+      if ((line !== last || Date.now() - shown > 45_000) && Date.now() - started > 1500) {
         last = line
-        toast.show({ variant: "info", title: label, message: line })
+        shown = Date.now()
+        toast.show({ variant: "info", title: label, message: line, duration: 60_000 })
       }
     }, 1000)
     onCleanup(() => clearInterval(timer))

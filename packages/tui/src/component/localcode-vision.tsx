@@ -51,11 +51,11 @@ export async function ensureVision(dialog: DialogContext, toast: Toast): Promise
       <DialogConfirm
         title="Enable images for this model?"
         message={`Download the ${st.vision_size_gb} GB vision projector for ${st.current} from Hugging Face and restart the local server with it?`}
-        label="Download and enable"
+        confirmLabel="Download and enable"
         onConfirm={() => resolve(true)}
         onCancel={() => resolve(false)}
       />
-    ))
+    ), () => resolve(false))
   })
   dialog.clear()
   if (!ok) return false

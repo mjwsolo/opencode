@@ -1,6 +1,6 @@
 /**
  * localcode voice: push-to-talk speech-to-text and read-aloud, entirely local.
- * The launcher's supervisor records the mic (ffmpeg), transcribes with
+ * The launcher's supervisor records the mic (PortAudio), transcribes with
  * whisper.cpp in a private venv, and speaks with macOS `say`; the TUI only
  * calls its control API. Nothing here touches the network.
  */
@@ -51,12 +51,12 @@ export async function ensureVoiceReady(
     dialog.replace(() => (
       <DialogConfirm
         title="Set up voice?"
-        message={`Voice runs entirely on this Mac, but needs a one-time download:\n• ${parts.join("\n• ")}\nRecording uses ffmpeg; read-aloud uses macOS say. Nothing else is fetched.`}
-        label="Download and enable"
+        message={`Voice runs entirely on this Mac, but needs a one-time download:\n• ${parts.join("\n• ")}\nRecording uses the bundled PortAudio recorder; no ffmpeg is needed. Read-aloud uses macOS say.`}
+        confirmLabel="Download and enable"
         onConfirm={() => resolve(true)}
         onCancel={() => resolve(false)}
       />
-    ))
+    ), () => resolve(false))
   })
   dialog.clear()
   if (!ok) return false

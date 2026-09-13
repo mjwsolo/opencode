@@ -1467,15 +1467,14 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
         <box
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
           border={["left"]}
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
           marginTop={1}
-          backgroundColor={theme.backgroundPanel}
-          customBorderChars={SplitBorder.customBorderChars}
+          backgroundColor={theme.error}
+          customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
           borderColor={theme.error}
         >
-          <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
+          <box paddingTop={1} paddingBottom={1} paddingLeft={2} backgroundColor={theme.backgroundPanel}>
+            <text fg={theme.textMuted}>{errorMessage(props.message.error)}</text>
+          </box>
         </box>
       </Show>
       <Switch>
@@ -1941,13 +1940,9 @@ function BlockTool(props: {
     <box
       ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
       border={["left"]}
-      paddingTop={1}
-      paddingBottom={1}
-      paddingLeft={2}
       marginTop={1}
-      gap={1}
-      backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundPanel}
-      customBorderChars={SplitBorder.customBorderChars}
+      backgroundColor={theme.background}
+      customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
       borderColor={theme.background}
       onMouseOver={() => props.onClick && setHover(true)}
       onMouseOut={() => setHover(false)}
@@ -1956,24 +1951,32 @@ function BlockTool(props: {
         props.onClick?.()
       }}
     >
-      <Show when={props.title}>
-        {(title) => (
-          <Show
-            when={props.spinner}
-            fallback={
-              <text paddingLeft={3} fg={theme.textMuted}>
-                {title()}
-              </text>
-            }
-          >
-            <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
-          </Show>
-        )}
-      </Show>
-      {props.children}
-      <Show when={error()}>
-        <text fg={theme.error}>{error()}</text>
-      </Show>
+      <box
+        paddingTop={1}
+        paddingBottom={1}
+        paddingLeft={2}
+        gap={1}
+        backgroundColor={hover() ? theme.backgroundMenu : theme.backgroundPanel}
+      >
+        <Show when={props.title}>
+          {(title) => (
+            <Show
+              when={props.spinner}
+              fallback={
+                <text paddingLeft={3} fg={theme.textMuted}>
+                  {title()}
+                </text>
+              }
+            >
+              <Spinner color={theme.textMuted}>{title().replace(/^# /, "")}</Spinner>
+            </Show>
+          )}
+        </Show>
+        {props.children}
+        <Show when={error()}>
+          <text fg={theme.error}>{error()}</text>
+        </Show>
+      </box>
     </box>
   )
 }

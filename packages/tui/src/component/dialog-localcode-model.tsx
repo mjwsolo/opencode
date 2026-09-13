@@ -290,7 +290,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         clearInterval(timer)
         if (st.model !== q.alias) return
         local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: q.alias }, { recent: true })
-        toast.show({ variant: "success", title: "Model changed", message: label })
+        toast.show({ variant: "success", title: "Model loaded", message: label })
         void import("./localcode-vision").then((m) => m.visionHint(toast))
         return
       }

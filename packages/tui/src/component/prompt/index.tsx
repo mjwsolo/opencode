@@ -1601,7 +1601,18 @@ export function Prompt(props: PromptProps) {
               cursorStyle={tuiConfig.cursor}
               syntaxStyle={syntax()}
             />
-            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between">
+            <Show when={hasRightContent()}><box paddingTop={1}>{props.right}</box></Show>
+          </box>
+        </box>
+        <box width="100%" flexDirection="row" justifyContent="space-between" marginTop={1} paddingLeft={3} paddingRight={2} gap={3}>
+          <box flexDirection="row" gap={1} flexShrink={1}>
+            <Show when={status().type !== "idle"}>
+                  <box marginLeft={1}>
+                    <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[⋯]</text>}>
+                      <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
+                    </Show>
+                  </box>
+            </Show>
               <box flexDirection="row" gap={1}>
                 <text fg={theme.primary}><span style={{ bold: true }}>localcode</span></text>
                 <text fg={theme.textMuted}>·</text>
@@ -1622,7 +1633,9 @@ export function Prompt(props: PromptProps) {
                             <text fg={fadeColor(theme.textMuted, modelMetaAlpha())}>·</text>
                           </Show>
                           <text
-                            flexShrink={0}
+                            flexShrink={1}
+                            wrapMode="none"
+                            overflow="hidden"
                             fg={fadeColor(leader() ? theme.textMuted : theme.text, modelMetaAlpha())}
                           >
                             {modelLoaded() ? local.model.parsed().model : "No model loaded · /models"}
@@ -1644,15 +1657,7 @@ export function Prompt(props: PromptProps) {
                   )}
                 </Show>
               </box>
-              <Show when={hasRightContent()}>
-                <box flexDirection="row" gap={1} alignItems="center">
-                  {props.right}
-                </box>
-              </Show>
-            </box>
           </box>
-        </box>
-        <box width="100%" flexDirection="row" justifyContent="space-between" marginTop={1} paddingLeft={3} paddingRight={2} gap={3}>
           <Switch>
             <Match when={status().type !== "idle"}>
               <box
@@ -1662,11 +1667,7 @@ export function Prompt(props: PromptProps) {
                 justifyContent={status().type === "retry" ? "space-between" : "flex-start"}
               >
                 <box flexShrink={0} flexDirection="row" gap={1}>
-                  <box marginLeft={1}>
-                    <Show when={kv.get("animations_enabled", true)} fallback={<text fg={theme.textMuted}>[⋯]</text>}>
-                      <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
-                    </Show>
-                  </box>
+
                   <box flexDirection="row" gap={1} flexShrink={0}>
                     {(() => {
                       const retry = createMemo(() => {

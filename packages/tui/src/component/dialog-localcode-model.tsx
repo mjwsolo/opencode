@@ -159,8 +159,8 @@ export function DialogLocalcodeModel() {
           {g.downloading ? `⇣ ${pctLabel(g.pct)}` : g.current ? "Loaded" : g.installed_count ? `${g.installed_count} on disk` : "Download"}
         </span>
       ),
-      category: g.installed_count || g.current ? "On this Mac" : "Available to download",
-      categoryView: <text fg={theme.primary}>{g.installed_count || g.current ? "On this Mac" : "Available to download"}</text>,
+      category: g.installed_count || g.current ? "Models" : "Available to download",
+      categoryView: <text fg={theme.primary}>{g.installed_count || g.current ? "Models" : "Available to download"}</text>,
       onSelect: () => {
         escapeStepsBack = true
         dialog.replace(
@@ -243,10 +243,10 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       </span>
     ),
     disabled: q.fit === "too big" && !q.downloading,
-    category: q.downloaded || q.current ? "On this Mac" : "Available to download",
+    category: q.downloaded || q.current ? "Models" : "Available to download",
     categoryView: (
       <text fg={theme.textMuted}>
-        <span style={{ fg: theme.primary }}>{(q.downloaded || q.current ? "On this Mac" : dimensions().width >= 80 ? "Available to download" : "Download").padEnd(nameWidth())}</span>
+        <span style={{ fg: theme.primary }}>{(q.downloaded || q.current ? "Models" : dimensions().width >= 80 ? "Available to download" : "Download").padEnd(nameWidth())}</span>
         {"Size".padEnd(10)}{"Memory".padEnd(12)}State
       </text>
     ),

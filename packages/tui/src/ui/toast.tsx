@@ -27,23 +27,21 @@ export function Toast() {
           top={2}
           right={2}
           maxWidth={Math.min(60, dimensions().width - 6)}
-          paddingLeft={2}
-          paddingRight={2}
-          paddingTop={1}
-          paddingBottom={1}
-          backgroundColor={theme.backgroundPanel}
+          backgroundColor={theme[current().variant]}
           borderColor={theme[current().variant]}
           border={["left", "right"]}
-          customBorderChars={SplitBorder.customBorderChars}
+          customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
         >
-          <Show when={current().title}>
-            <text attributes={TextAttributes.BOLD} marginBottom={1} fg={theme.text}>
-              {current().title}
+          <box width="100%" paddingLeft={2} paddingRight={2} paddingTop={1} paddingBottom={1} backgroundColor={theme.backgroundPanel}>
+            <Show when={current().title}>
+              <text attributes={TextAttributes.BOLD} marginBottom={1} fg={theme.text}>
+                {current().title}
+              </text>
+            </Show>
+            <text fg={theme.text} wrapMode="word" width="100%">
+              {current().message}
             </text>
-          </Show>
-          <text fg={theme.text} wrapMode="word" width="100%">
-            {current().message}
-          </text>
+          </box>
         </box>
       )}
     </Show>

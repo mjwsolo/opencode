@@ -1151,8 +1151,9 @@ export function Session() {
                               marginTop={1}
                               flexShrink={0}
                               border={["left"]}
-                              customBorderChars={SplitBorder.customBorderChars}
+                              customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
                               borderColor={theme.backgroundPanel}
+                              backgroundColor={theme.backgroundPanel}
                             >
                               <box
                                 paddingTop={1}
@@ -1326,7 +1327,8 @@ function UserMessage(props: {
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}
           border={["left"]}
           borderColor={color()}
-          customBorderChars={SplitBorder.customBorderChars}
+          backgroundColor={color()}
+          customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
           marginTop={props.index === 0 ? 0 : 1}
         >
           <box

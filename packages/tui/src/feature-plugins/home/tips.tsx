@@ -40,7 +40,7 @@ const tui: TuiPlugin = async (api) => {
         const hidden = createMemo(() => api.kv.get("tips_hidden", false))
         const first = createMemo(() => api.state.session.count() === 0)
         const connected = createMemo(() => api.state.provider.length > 0)
-        const show = createMemo(() => (!first() || !connected()) && !hidden())
+        const show = createMemo(() => false && (!first() || !connected()) && !hidden()) // localcode: no tips line on the home screen
         return <View api={api} hidden={hidden()} show={show()} connected={connected()} />
       },
     },

@@ -90,6 +90,10 @@ export async function refreshSupervisor() {
   } catch { setLastStatus(undefined) }
 }
 
+// Esc on the quant list steps back to the model list. The dialog's onClose also
+// fires when we replace/clear it ourselves, so a flag says whether to step back.
+let escapeStepsBack = true
+
 const pctLabel = (pct: number | null | undefined) => (pct != null ? `${Math.round(pct)}%` : "…")
 
 /** Re-fetch a resource every second while a download runs, so rows show live progress. */
@@ -144,8 +148,16 @@ export function DialogLocalcodeModel() {
       value: g.key,
       title: `${g.display_name} · ${g.maker}${g.recommended ? "  ★" : ""}${g.downloading ? `  ⇣ ${pctLabel(g.pct)}` : ""}`,
       description: g.downloading ? `downloading ${pctLabel(g.pct)}` : g.current ? "current" : undefined,
-      details: [g.license, `huggingface.co/${g.hf_repo}`],
-      onSelect: () => dialog.replace(() => <DialogLocalcodeQuant group={g} />),
+      onSelect: () => {
+        escapeStepsBack = true
+        dialog.replace(
+          () => <DialogLocalcodeQuant group={g} />,
+          () => {
+            // the stack pops after this callback, so reopen on the next tick
+            if (escapeStepsBack) setTimeout(() => dialog.replace(() => <DialogLocalcodeModel />), 0)
+          },
+        )
+      },
     })),
     {
       value: "__models_dir__",
@@ -202,10 +214,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       // Status word gets a colour: green = on disk, blue = loaded now, muted = not yet.
       titleView: (
         <span>
-          {q.label}
-          {q.recommended ? "  ★" : ""}
-          {q.downloading ? `  ⇣ ${pctLabel(q.pct)}` : ""}
-          {"   "}
+          {`${q.label}${q.recommended ? " ★" : ""}${q.downloading ? ` ⇣${pctLabel(q.pct)}` : ""}`.padEnd(16)}
           <span
             style={{
               fg: q.downloading ? theme.warning : q.current ? theme.primary : q.downloaded ? theme.success : theme.textMuted,
@@ -222,6 +231,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
     }))
 
   async function select(q: Quant) {
+    escapeStepsBack = false
     dialog.clear()
     try {
       const r = await fetch(controlUrl() + "/select", {

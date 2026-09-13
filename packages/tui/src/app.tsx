@@ -356,7 +356,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
       process.stderr.write((cliErrorMessage(result.reason) ?? errorFormat(result.reason)) + "\n")
     if (result.epilogue) {
       // The restored primary screen may still contain text below its saved cursor.
-      const start = process.stdout.isTTY ? "\r\n\x1b[J" : "\n"
+      const start = process.stdout.isTTY ? "\r\x1b[2K\n\x1b[J" : "\n"
       process.stdout.write(start + result.epilogue + "\n")
     }
   })

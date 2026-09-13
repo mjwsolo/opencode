@@ -188,6 +188,7 @@ export function DialogLocalcodeModel() {
 
 export function DialogLocalcodeQuant(props: { group: Group }) {
   const dialog = useDialog()
+  onMount(() => dialog.setSize("large"))
   const toast = useToast()
   const local = useLocal()
   const { theme } = useTheme()
@@ -220,7 +221,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
               fg: q.downloading ? theme.warning : q.current ? theme.primary : q.downloaded ? theme.success : theme.textMuted,
             }}
           >
-            {q.downloading ? `downloading ${pctLabel(q.pct)} (enter cancels)` : q.current ? "loaded" : q.downloaded ? "downloaded" : "download"}
+            {q.downloading ? "downloading" : q.current ? "loaded" : q.downloaded ? "downloaded" : "download"}
           </span>
         </span>
       ),

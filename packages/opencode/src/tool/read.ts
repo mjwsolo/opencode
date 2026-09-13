@@ -238,6 +238,11 @@ export const ReadTool = Tool.define<
       if (process.platform === "win32") {
         filepath = FSUtil.normalizePath(filepath)
       }
+      if (path.basename(filepath).toLowerCase() === "agents.md") {
+        return yield* Effect.fail(
+          new Error("Legacy instruction files are not supported. Project instructions use LOCALCODE.md."),
+        )
+      }
       const title = path.relative(instance.worktree, filepath)
 
       const stat = yield* fs.stat(filepath).pipe(

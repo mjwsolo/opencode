@@ -26,6 +26,7 @@ import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 
 export function provider(model: Provider.Model) {
+  if (model.providerID === "localcode") return [PROMPT_LOCALCODE]
   if (model.api.id.includes("muse")) {
     const name = model.api.id.includes("muse-glimmer") ? "Muse Glimmer" : "Muse Spark"
     return [PROMPT_META.replaceAll("{{MODEL_NAME}}", name)]
@@ -46,9 +47,6 @@ export function provider(model: Provider.Model) {
     ["kimi-for-coding", "moonshotai", "moonshotai-cn"].includes(model.providerID)
   )
     return [PROMPT_KIMI]
-  // localcode: every local model (Gemma, Qwen, ...) gets the localcode prompt —
-  // shorter than default.txt and written for finishing tasks, not chat brevity.
-  if (model.providerID === "localcode") return [PROMPT_LOCALCODE]
   return [PROMPT_DEFAULT]
 }
 

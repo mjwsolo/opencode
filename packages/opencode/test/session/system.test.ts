@@ -84,6 +84,14 @@ const it = testEffect(
 )
 
 describe("session.system", () => {
+  test("all local models use only the localcode instruction convention", () => {
+    for (const id of ["muse-glimmer", "kimi", "trinity", "gemma", "North-Mini"]) {
+      const prompt = SystemPrompt.provider({ providerID: "localcode", api: { id } } as Provider.Model)[0]
+      expect(prompt).toContain("Use only LOCALCODE.md")
+      expect(prompt).not.toContain("AGENTS.md")
+    }
+  })
+
   test("selects the Meta prompt for Muse Spark model IDs", () => {
     for (const id of ["meta/muse-spark-preview", "muse-spark-1.1", "muse-spark-1.2"]) {
       const prompt = SystemPrompt.provider({ api: { id } } as Provider.Model)[0]

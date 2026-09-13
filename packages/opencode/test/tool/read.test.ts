@@ -568,6 +568,15 @@ root_type Monster;`
 })
 
 describe("tool.read loaded instructions", () => {
+  it.live("does not expose legacy instruction file contents", () =>
+    Effect.gen(function* () {
+      const dir = yield* tmpdirScoped()
+      yield* put(path.join(dir, "AGENTS.md"), "legacy instructions must not enter context")
+      const result = yield* fail(dir, { filePath: path.join(dir, "AGENTS.md") })
+      expect(String(result)).toContain("Legacy instruction files are not supported")
+    }),
+  )
+
   it.live("loads LOCALCODE.md from parent directory and includes in metadata", () =>
     Effect.gen(function* () {
       const dir = yield* tmpdirScoped()

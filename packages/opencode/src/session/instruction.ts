@@ -141,14 +141,16 @@ const layer: Layer.Layer<
         }
       }
 
-      return paths
+      return new Set([...paths].filter((item) => path.basename(item).toLowerCase() !== "agents.md"))
     })
 
     const system = Effect.fn("Instruction.system")(function* () {
       const config = yield* cfg.get()
       const paths = yield* systemPaths()
       const urls = (config.instructions ?? []).filter(
-        (item) => item.startsWith("https://") || item.startsWith("http://"),
+        (item) =>
+          (item.startsWith("https://") || item.startsWith("http://")) &&
+          path.basename(new URL(item).pathname).toLowerCase() !== "agents.md",
       )
 
       const files = yield* Effect.forEach(Array.from(paths), read, { concurrency: 8 })

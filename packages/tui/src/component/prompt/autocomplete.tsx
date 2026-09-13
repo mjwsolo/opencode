@@ -729,6 +729,8 @@ export function Autocomplete(props: {
       zIndex={100}
       {...SplitBorder}
       borderColor={theme.border}
+      backgroundColor={theme.border}
+      customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
     >
       <scrollbox
         ref={(r: ScrollBoxRenderable) => (scroll = r)}

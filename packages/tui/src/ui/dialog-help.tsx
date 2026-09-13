@@ -30,7 +30,7 @@ export function DialogHelp() {
       </box>
       <box paddingBottom={1} gap={1}>
         <text fg={theme.textMuted}>
-          localcode is a local-only coding agent. Models run on this machine and nothing leaves your computer.
+          Models run on this machine. Model downloads and web tools contact external services when you request them.
         </text>
         <box>
           <text fg={theme.textMuted}>
@@ -47,7 +47,7 @@ export function DialogHelp() {
             <span style={{ fg: theme.text }}>localcode -s &lt;id&gt;</span>
           </text>
           <text fg={theme.textMuted}>
-            <span style={{ fg: theme.text }}>{commandShortcut()}</span> opens the command palette with every action
+            <span style={{ fg: theme.text }}>{commandShortcut() || "/"}</span> lists every action
             available in the current context
           </text>
         </box>

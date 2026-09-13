@@ -19,3 +19,12 @@ export function spawn(cmd: string, argsOrOpts?: string[] | Process.Options, opts
 
   return proc
 }
+
+// The compiled app contains Bun: JavaScript language servers must not require
+// a separately installed node executable (including their child processes).
+export function spawnJavaScript(script: string, args: string[], opts?: Process.Options) {
+  return spawn(process.execPath, [script, ...args], {
+    ...opts,
+    env: { ...process.env, ...opts?.env, BUN_BE_BUN: "1" },
+  })
+}

@@ -17,12 +17,12 @@ function View(props: { api: TuiPluginApi }) {
           <text fg={theme().text}>{open() ? "▼" : "▶"}</text>
         </Show>
         <text fg={theme().text}>
-          <b>LSP</b>
+          <b>Code intelligence</b>
         </text>
       </box>
       <Show when={list().length <= 2 || open()}>
         <Show when={list().length === 0}>
-          <text fg={theme().textMuted}>{off() ? "LSPs are disabled" : "installed servers start as files are read · /lsp to add one"}</text>
+          <text fg={theme().textMuted}>{off() ? "LSPs are disabled" : "Starts automatically for your project’s language"}</text>
         </Show>
         <For each={list()}>
           {(item) => (
@@ -37,7 +37,7 @@ function View(props: { api: TuiPluginApi }) {
               </text>
               <text fg={theme().textMuted}>
                 {item.id} {item.root}
-                {(item.status as string) === "starting" ? " · starting…" : (item.status as string) === "error" ? " · not running — /lsp" : ""}
+                {(item.status as string) === "starting" ? " · setting up…" : (item.status as string) === "error" ? " · failed to start — /lsp" : ""}
               </text>
             </box>
           )}

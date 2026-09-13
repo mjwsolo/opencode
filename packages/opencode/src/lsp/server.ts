@@ -10,7 +10,7 @@ import { Archive } from "@/util/archive"
 import { Process } from "@/util/process"
 import { which } from "@opencode-ai/core/util/which"
 import { Module } from "@opencode-ai/core/util/module"
-import { spawn } from "./launch"
+import { spawn, spawnJavaScript } from "./launch"
 import { Npm } from "@opencode-ai/core/npm"
 import type { RuntimeFlags } from "@/effect/runtime-flags"
 
@@ -22,13 +22,32 @@ const pathExists = async (p: string) =>
 const run = (cmd: string[], opts: Process.RunOptions = {}) => Process.run(cmd, { ...opts, nothrow: true })
 const output = (cmd: string[], opts: Process.RunOptions = {}) => Process.text(cmd, { ...opts, nothrow: true })
 
-async function npmServer(pkg: string, bin: string, flags: RuntimeFlags.Info) {
+async function npmServer(pkg: string, bin: string, flags: RuntimeFlags.Info, root?: string) {
+  const local = root && Module.resolve(`${pkg}/package.json`, root)
+  if (local) {
+    const metadata = await Bun.file(local).json()
+    const entry = typeof metadata.bin === "string" ? metadata.bin : metadata.bin?.[bin]
+    if (entry) return path.resolve(path.dirname(local), entry)
+  }
   const installed = which(bin)
   if (installed) return installed
   const cached = path.join(Global.Path.cache, "packages", Npm.sanitize(pkg), "node_modules", ".bin", bin)
   if (await pathExists(cached)) return cached
   if (flags.disableLspDownload) return
-  return Npm.which(pkg, bin)
+  const resolved = await Npm.which(pkg, bin)
+  if (!resolved) throw new Error(`Could not set up ${pkg}; see the localcode log for the download failure`)
+  return resolved
+}
+
+async function typescriptServer(root: string, flags: RuntimeFlags.Info) {
+  // Keep the fallback version compatible with the JavaScript tsserver protocol.
+  // Resolve project dependencies first; never replace the project's compiler.
+  const cached = path.join(Global.Path.cache, "packages", Npm.sanitize("typescript@5.8.2"), "node_modules", "typescript", "lib", "tsserver.js")
+  return Module.resolve("typescript/lib/tsserver.js", root)
+    ?? (await pathExists(cached) ? cached : undefined)
+    ?? (!flags.disableLspDownload
+      ? path.join((await Npm.add("typescript@5.8.2")).directory, "lib", "tsserver.js")
+      : undefined)
 }
 
 export interface Handle {
@@ -124,16 +143,16 @@ export const Deno: Info = {
 export const Typescript: Info = {
   id: "typescript",
   root: NearestRoot(
-    ["package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock"],
+    ["tsconfig.json", "jsconfig.json", "package.json", "package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock"],
     ["deno.json", "deno.jsonc"],
   ),
   extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"],
-  async spawn(root, ctx, flags) {
-    const tsserver = Module.resolve("typescript/lib/tsserver.js", ctx.directory)
+  async spawn(root, _ctx, flags) {
+    const tsserver = await typescriptServer(root, flags)
     if (!tsserver) return
-    const bin = await npmServer("typescript-language-server", "typescript-language-server", flags)
+    const bin = await npmServer("typescript-language-server", "typescript-language-server", flags, root)
     if (!bin) return
-    const proc = spawn(bin, ["--stdio"], {
+    const proc = spawnJavaScript(bin, ["--stdio"], {
       cwd: root,
       env: {
         ...process.env,
@@ -142,6 +161,7 @@ export const Typescript: Info = {
     return {
       process: proc,
       initialization: {
+        disableAutomaticTypingAcquisition: true,
         tsserver: {
           path: tsserver,
         },
@@ -155,16 +175,11 @@ export const Vue: Info = {
   extensions: [".vue"],
   root: NearestRoot(["package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock"]),
   async spawn(root, _ctx, flags) {
-    let binary = which("vue-language-server")
+    const binary = await npmServer("@vue/language-server", "vue-language-server", flags, root)
+    if (!binary) return
     const args: string[] = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("@vue/language-server")
-      if (!resolved) return
-      binary = resolved
-    }
     args.push("--stdio")
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,
@@ -181,10 +196,10 @@ export const Vue: Info = {
 
 export const ESLint: Info = {
   id: "eslint",
-  root: NearestRoot(["package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock"]),
+  root: StrictNearestRoot(["eslint.config.js", "eslint.config.mjs", "eslint.config.cjs", "eslint.config.ts", ".eslintrc", ".eslintrc.json", ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.yaml", ".eslintrc.yml"]),
   extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".vue"],
   async spawn(root, ctx, flags) {
-    const eslint = Module.resolve("eslint", ctx.directory)
+    const eslint = Module.resolve("eslint", root)
     if (!eslint) return
     const serverPath = path.join(Global.Path.bin, "vscode-eslint", "server", "out", "eslintServer.js")
     if (!(await Filesystem.exists(serverPath))) {
@@ -217,7 +232,7 @@ export const ESLint: Info = {
       await Process.run([npmCmd, "run", "compile"], { cwd: finalPath })
     }
 
-    const proc = spawn("node", [serverPath, "--stdio"], {
+    const proc = spawnJavaScript(serverPath, ["--stdio"], {
       cwd: root,
       env: {
         ...process.env,
@@ -232,15 +247,7 @@ export const ESLint: Info = {
 
 export const Oxlint: Info = {
   id: "oxlint",
-  root: NearestRoot([
-    ".oxlintrc.json",
-    "package-lock.json",
-    "bun.lockb",
-    "bun.lock",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-    "package.json",
-  ]),
+  root: StrictNearestRoot([".oxlintrc.json"]),
   extensions: [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".astro", ".svelte"],
   async spawn(root, ctx) {
     const ext = process.platform === "win32" ? ".cmd" : ""
@@ -304,15 +311,7 @@ export const Oxlint: Info = {
 
 export const Biome: Info = {
   id: "biome",
-  root: NearestRoot([
-    "biome.json",
-    "biome.jsonc",
-    "package-lock.json",
-    "bun.lockb",
-    "bun.lock",
-    "pnpm-lock.yaml",
-    "yarn.lock",
-  ]),
+  root: StrictNearestRoot(["biome.json", "biome.jsonc"]),
   extensions: [
     ".ts",
     ".tsx",
@@ -344,9 +343,9 @@ export const Biome: Info = {
     let args = ["lsp-proxy", "--stdio"]
 
     if (!bin) {
-      const resolved = Module.resolve("biome", root)
+      const resolved = Module.resolve("@biomejs/biome/package.json", root)
       if (!resolved) return
-      bin = await npmServer("biome", "biome", flags)
+      bin = await npmServer("@biomejs/biome", "biome", flags, root)
       if (!bin) return
       args = ["lsp-proxy", "--stdio"]
     }
@@ -496,15 +495,9 @@ export const Pyright: Info = {
   extensions: [".py", ".pyi"],
   root: NearestRoot(["pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile", "pyrightconfig.json"]),
   async spawn(root, _ctx, flags) {
-    let binary = which("pyright-langserver")
-    const args = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("pyright", "pyright-langserver")
-      if (!resolved) return
-      binary = resolved
-    }
-    args.push("--stdio")
+    const binary = await npmServer("pyright", "pyright-langserver", flags, root)
+    if (!binary) return
+    const args = ["--stdio"]
 
     const initialization: Record<string, string> = {}
 
@@ -522,7 +515,7 @@ export const Pyright: Info = {
       }
     }
 
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,
@@ -1080,16 +1073,11 @@ export const Svelte: Info = {
   extensions: [".svelte"],
   root: NearestRoot(["package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock"]),
   async spawn(root, _ctx, flags) {
-    let binary = which("svelteserver")
+    const binary = await npmServer("svelte-language-server", "svelteserver", flags, root)
+    if (!binary) return
     const args: string[] = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("svelte-language-server")
-      if (!resolved) return
-      binary = resolved
-    }
     args.push("--stdio")
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,
@@ -1107,22 +1095,17 @@ export const Astro: Info = {
   extensions: [".astro"],
   root: NearestRoot(["package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock"]),
   async spawn(root, ctx, flags) {
-    const tsserver = Module.resolve("typescript/lib/tsserver.js", ctx.directory)
+    const tsserver = await typescriptServer(root, flags)
     if (!tsserver) {
       return
     }
     const tsdk = path.dirname(tsserver)
 
-    let binary = which("astro-ls")
+    const binary = await npmServer("@astrojs/language-server", "astro-ls", flags, root)
+    if (!binary) return
     const args: string[] = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("@astrojs/language-server")
-      if (!resolved) return
-      binary = resolved
-    }
     args.push("--stdio")
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,
@@ -1372,16 +1355,11 @@ export const YamlLS: Info = {
   extensions: [".yaml", ".yml"],
   root: NearestRoot(["package-lock.json", "bun.lockb", "bun.lock", "pnpm-lock.yaml", "yarn.lock"]),
   async spawn(root, _ctx, flags) {
-    let binary = which("yaml-language-server")
+    const binary = await npmServer("yaml-language-server", "yaml-language-server", flags, root)
+    if (!binary) return
     const args: string[] = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("yaml-language-server")
-      if (!resolved) return
-      binary = resolved
-    }
     args.push("--stdio")
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,
@@ -1526,16 +1504,11 @@ export const PHPIntelephense: Info = {
   extensions: [".php"],
   root: NearestRoot(["composer.json", "composer.lock", ".php-version"]),
   async spawn(root, _ctx, flags) {
-    let binary = which("intelephense")
+    const binary = await npmServer("intelephense", "intelephense", flags, root)
+    if (!binary) return
     const args: string[] = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("intelephense")
-      if (!resolved) return
-      binary = resolved
-    }
     args.push("--stdio")
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,
@@ -1607,16 +1580,11 @@ export const BashLS: Info = {
   extensions: [".sh", ".bash", ".zsh", ".ksh"],
   root: async (_file, ctx) => ctx.directory,
   async spawn(root, _ctx, flags) {
-    let binary = which("bash-language-server")
+    const binary = await npmServer("bash-language-server", "bash-language-server", flags, root)
+    if (!binary) return
     const args: string[] = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("bash-language-server")
-      if (!resolved) return
-      binary = resolved
-    }
     args.push("start")
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,
@@ -1785,16 +1753,11 @@ export const DockerfileLS: Info = {
   extensions: [".dockerfile", "Dockerfile"],
   root: async (_file, ctx) => ctx.directory,
   async spawn(root, _ctx, flags) {
-    let binary = which("docker-langserver")
+    const binary = await npmServer("dockerfile-language-server-nodejs", "docker-langserver", flags, root)
+    if (!binary) return
     const args: string[] = []
-    if (!binary) {
-      if (flags.disableLspDownload) return
-      const resolved = await Npm.which("dockerfile-language-server-nodejs")
-      if (!resolved) return
-      binary = resolved
-    }
     args.push("--stdio")
-    const proc = spawn(binary, args, {
+    const proc = spawnJavaScript(binary, args, {
       cwd: root,
       env: {
         ...process.env,

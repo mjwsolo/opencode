@@ -20,6 +20,17 @@ describe("LSP service lifecycle", () => {
     spawnSpy.mockRestore()
   })
 
+  it.instance("unavailable servers are not errors and are retried after project setup", () =>
+    LSP.Service.use((lsp) => Effect.gen(function* () {
+      const file = path.join((yield* TestInstance).directory, "example.ts")
+      yield* lsp.touchFile(file)
+      expect(yield* lsp.status()).toEqual([])
+      yield* lsp.touchFile(file)
+      expect(spawnSpy).toHaveBeenCalledTimes(2)
+    })),
+    { config: { lsp: true } },
+  )
+
   it.instance("init() completes without error", () => LSP.Service.use((lsp) => lsp.init()))
 
   it.instance("status() returns empty array initially", () =>

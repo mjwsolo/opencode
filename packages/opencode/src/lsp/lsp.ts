@@ -11,6 +11,7 @@ import { Config } from "@/config/config"
 import { Process } from "@/util/process"
 import { spawn as lspspawn } from "./launch"
 import { Effect, Layer, Context, Schema } from "effect"
+import { EffectBridge } from "@/effect/bridge"
 import { InstanceState } from "@/effect/instance-state"
 import { containsPath } from "@/project/instance-context"
 import { NonNegativeInt } from "@opencode-ai/core/schema"
@@ -156,7 +157,7 @@ type LocInput = { file: string; line: number; character: number }
 interface State {
   clients: LSPClient.Info[]
   servers: Record<string, LSPServer.Info>
-  broken: Set<string>
+  broken: Map<string, number>
   spawning: Map<string, Promise<LSPClient.Info | undefined>>
 }
 
@@ -237,7 +238,7 @@ const layer = Layer.effect(
         const s: State = {
           clients: [],
           servers,
-          broken: new Set(),
+          broken: new Map(),
           spawning: new Map(),
         }
 
@@ -255,6 +256,7 @@ const layer = Layer.effect(
       const ctx = yield* InstanceState.context
       if (!containsPath(file, ctx)) return [] as LSPClient.Info[]
       const s = yield* InstanceState.get(state)
+      const bridge = yield* EffectBridge.make()
       const clients = yield* Effect.promise(async () => {
         const extension = path.parse(file).ext || file
         const result: LSPClient.Info[] = []
@@ -263,12 +265,9 @@ const layer = Layer.effect(
         async function schedule(server: LSPServer.Info, root: string, key: string) {
           const handle = await server
             .spawn(root, ctx, flags)
-            .then((value) => {
-              if (!value) s.broken.add(key)
-              return value
-            })
-            .catch(() => {
-              s.broken.add(key)
+            .catch(async (error) => {
+              s.broken.set(key, Date.now() + 30_000)
+              await bridge.promise(Effect.logWarning("language server setup failed", { server: server.id, root, error }))
               return undefined
             })
 
@@ -279,8 +278,9 @@ const layer = Layer.effect(
             root,
             directory: ctx.directory,
             instance: ctx,
-          }).catch(async () => {
-            s.broken.add(key)
+          }).catch(async (error) => {
+            await bridge.promise(Effect.logWarning("language server initialization failed", { server: server.id, root, error }))
+            s.broken.set(key, Date.now() + 30_000)
             await Process.stop(handle.process)
             return undefined
           })
@@ -302,7 +302,8 @@ const layer = Layer.effect(
 
           const root = await server.root(file, ctx)
           if (!root) continue
-          if (s.broken.has(root + server.id)) continue
+          if ((s.broken.get(root + server.id) ?? 0) > Date.now()) continue
+          s.broken.delete(root + server.id)
 
           const match = s.clients.find((x) => x.root === root && x.serverID === server.id)
           if (match) {
@@ -320,14 +321,17 @@ const layer = Layer.effect(
 
           const task = schedule(server, root, root + server.id)
           s.spawning.set(root + server.id, task)
-          // localcode: a server that is downloading/starting, or one that failed,
-          // is visible in the sidebar instead of silently absent.
+          // Publish before awaiting setup, so automatic provisioning is visible.
+          await bridge.promise(events.publish(Event.Updated, {}))
           updated++
 
-          task.finally(() => {
+          task.finally(async () => {
             if (s.spawning.get(root + server.id) === task) {
               s.spawning.delete(root + server.id)
             }
+            // Reads start diagnostics in the background; their Effect scope can
+            // end before setup does. Publish completion from the task itself.
+            await bridge.promise(events.publish(Event.Updated, {}))
           })
 
           const client = await task
@@ -380,7 +384,7 @@ const layer = Layer.effect(
           const root = key.slice(0, -server.id.length)
           result.push({ id: server.id, name: server.id, root: path.relative(ctx.directory, root), status: "starting" })
         }
-        for (const key of s.broken) {
+        for (const key of s.broken.keys()) {
           if (!key.endsWith(server.id)) continue
           const root = key.slice(0, -server.id.length)
           result.push({ id: server.id, name: server.id, root: path.relative(ctx.directory, root), status: "error" })
@@ -430,7 +434,7 @@ const layer = Layer.effect(
       const server = s.servers[id]
       if (!server) return { ok: false, error: `unknown language server "${id}"` } satisfies InstallResult
       const root = ctx.directory
-      for (const key of [...s.broken]) if (key.endsWith(server.id)) s.broken.delete(key)
+      for (const key of s.broken.keys()) if (key.endsWith(server.id)) s.broken.delete(key)
       const allow = { ...flags, disableLspDownload: false }
       const result = yield* Effect.promise(async () => {
         try {
@@ -467,7 +471,8 @@ const layer = Layer.effect(
           if (server.extensions.length && !server.extensions.includes(extension)) continue
           const root = await server.root(file, ctx)
           if (!root) continue
-          if (s.broken.has(root + server.id)) continue
+          if ((s.broken.get(root + server.id) ?? 0) > Date.now()) continue
+          s.broken.delete(root + server.id)
           return true
         }
         return false

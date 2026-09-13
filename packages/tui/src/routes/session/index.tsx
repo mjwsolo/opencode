@@ -104,10 +104,6 @@ const sessionBindingCommands = [
   "messages.copy",
   "session.copy",
   "session.export",
-  "session.child.first",
-  "session.parent",
-  "session.child.next",
-  "session.child.previous",
 ] as const
 
 const sessionGlobalBindingCommands = [
@@ -902,69 +898,6 @@ export function Session() {
         dialog.clear()
       },
     },
-    {
-      title: "Background subagents",
-      value: "session.background",
-      category: "Session",
-      hidden: true,
-      enabled: foregroundTasks().length > 0,
-      run: () => {
-        void sdk.client.experimental.session.background({
-          sessionID: route.sessionID,
-          workspace: project.workspace.current(),
-        })
-        dialog.clear()
-      },
-    },
-    {
-      title: "Go to child session",
-      value: "session.child.first",
-      category: "Session",
-      hidden: true,
-      run: () => {
-        dialog.clear()
-        moveFirstChild()
-      },
-    },
-    {
-      title: "Go to parent session",
-      value: "session.parent",
-      category: "Session",
-      hidden: true,
-      enabled: !!session()?.parentID,
-      run: childSessionHandler(() => {
-        const parentID = session()?.parentID
-        if (parentID) {
-          navigate({
-            type: "session",
-            sessionID: parentID,
-          })
-        }
-        dialog.clear()
-      }),
-    },
-    {
-      title: "Next child session",
-      value: "session.child.next",
-      category: "Session",
-      hidden: true,
-      enabled: !!session()?.parentID,
-      run: childSessionHandler(() => {
-        dialog.clear()
-        moveChild(1)
-      }),
-    },
-    {
-      title: "Previous child session",
-      value: "session.child.previous",
-      category: "Session",
-      hidden: true,
-      enabled: !!session()?.parentID,
-      run: childSessionHandler(() => {
-        dialog.clear()
-        moveChild(-1)
-      }),
-    },
   ])
 
   const sessionCommands = createMemo(() =>
@@ -994,13 +927,6 @@ export function Session() {
   useBindings(() => ({
     mode: OPENCODE_BASE_MODE,
     bindings: tuiConfig.keybinds.gather("session", sessionBindingCommands),
-  }))
-
-  useBindings(() => ({
-    mode: OPENCODE_BASE_MODE,
-    enabled: foregroundTasks().length > 0,
-    priority: 1,
-    bindings: tuiConfig.keybinds.get("session.background"),
   }))
 
   const revertInfo = createMemo(() => session()?.revert)
@@ -1369,8 +1295,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
     return taskDuration(messages(), sync.data.part, props.message.parentID, props.message.time.completed)
   })
 
-  const childShortcut = useCommandShortcut("session.child.first")
-  const backgroundShortcut = useCommandShortcut("session.background")
 
   return (
     <>
@@ -1389,30 +1313,6 @@ function AssistantMessage(props: { message: AssistantMessage; parts: Part[]; las
           )
         }}
       </For>
-      <Show when={props.parts.some((x) => x.type === "tool" && x.tool === "task")}>
-        <box paddingTop={1} paddingLeft={3}>
-          <text fg={theme.text}>
-            {childShortcut()}
-            <span style={{ fg: theme.textMuted }}> view subagents</span>
-            <Show
-              when={
-                sync.data.capabilities.experimentalBackgroundSubagents &&
-                props.parts.some(
-                  (x) =>
-                    x.type === "tool" &&
-                    x.tool === "task" &&
-                    x.state.status === "running" &&
-                    x.state.metadata?.background !== true,
-                )
-              }
-            >
-              <span style={{ fg: theme.textMuted }}> · </span>
-              {backgroundShortcut()}
-              <span style={{ fg: theme.textMuted }}> background</span>
-            </Show>
-          </text>
-        </box>
-      </Show>
       <Show when={props.message.error && props.message.error.name !== "MessageAbortedError"}>
         <box
           ref={(el: BoxRenderable) => alwaysSeparate.add(el)}

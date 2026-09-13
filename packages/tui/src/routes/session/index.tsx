@@ -1844,6 +1844,7 @@ export function InlineToolRow(props: {
   onMouseUp?: () => void
 }) {
   return (
+    <Show when={props.complete || props.failed || props.denied || props.spinner}>
     <box
       paddingLeft={3}
       onMouseOver={props.onMouseOver}
@@ -1864,18 +1865,7 @@ export function InlineToolRow(props: {
           <Spinner color={props.color} children={props.children} />
         </Match>
         <Match when={true}>
-          <Show
-            fallback={
-              <text
-                paddingLeft={3}
-                fg={props.color}
-                attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
-              >
-                ~ {props.pending}
-              </text>
-            }
-            when={props.complete || props.failed}
-          >
+          <Show when={props.complete || props.failed || props.denied}>
             <box flexDirection="row">
               <text
                 width={INLINE_TOOL_ICON_WIDTH}
@@ -1901,6 +1891,7 @@ export function InlineToolRow(props: {
         </box>
       </Show>
     </box>
+    </Show>
   )
 }
 

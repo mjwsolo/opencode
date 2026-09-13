@@ -228,6 +228,18 @@ describe("TUI inline tool wrapping", () => {
     expect(toolDisplay("plugin_tool")).toBe("generic")
   })
 
+  test("pending tools add neither placeholder text nor an empty row", async () => {
+    const frame = await renderFrame(() => (
+      <box>
+        <text>before</text>
+        <InlineToolRow icon="$" complete={false} pending="Writing command…">Command</InlineToolRow>
+        <InlineToolRow icon="*" complete={false} pending="Updating todos…">Todos</InlineToolRow>
+        <text>after</text>
+      </box>
+    ), { width: 72, height: 5 })
+    expect(frame).toBe("before\nafter")
+  })
+
   test("replaces pending copy when a tool fails before completion", async () => {
     const frame = await renderFrame(() => <FailedPendingToolFixture />, { width: 72, height: 3 })
     expect(frame).toContain("Patch failed")

@@ -2043,7 +2043,7 @@ function Write(props: ToolProps) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="←" pending="Preparing write…" complete={stringValue(props.input.filePath)} part={props.part}>
+        <InlineTool icon="←" pending="Drafting file…" complete={stringValue(props.input.filePath)} part={props.part}>
           Write {pathFormatter.format(stringValue(props.input.filePath))}
         </InlineTool>
       </Match>
@@ -2349,7 +2349,7 @@ function Edit(props: ToolProps) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="←" pending="Preparing edit…" complete={stringValue(props.input.filePath)} part={props.part}>
+        <InlineTool icon="←" pending="Drafting edit…" complete={stringValue(props.input.filePath)} part={props.part}>
           Edit {pathFormatter.format(stringValue(props.input.filePath))} {input({ replaceAll: props.input.replaceAll })}
         </InlineTool>
       </Match>
@@ -2425,7 +2425,7 @@ function ApplyPatch(props: ToolProps) {
         </For>
       </Match>
       <Match when={true}>
-        <InlineTool icon="%" pending="Preparing patch…" failure="Patch failed" complete={false} part={props.part}>
+        <InlineTool icon="%" pending="Drafting patch…" failure="Patch failed" complete={false} part={props.part}>
           Patch
         </InlineTool>
       </Match>

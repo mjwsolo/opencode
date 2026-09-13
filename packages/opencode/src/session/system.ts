@@ -5,6 +5,7 @@ import { InstanceState } from "@/effect/instance-state"
 
 import PROMPT_ANTHROPIC from "./prompt/anthropic.txt"
 import PROMPT_DEFAULT from "./prompt/default.txt"
+import PROMPT_LOCALCODE from "./prompt/localcode.txt"
 import PROMPT_BEAST from "./prompt/beast.txt"
 import PROMPT_GEMINI from "./prompt/gemini.txt"
 import PROMPT_GPT from "./prompt/gpt.txt"
@@ -45,6 +46,9 @@ export function provider(model: Provider.Model) {
     ["kimi-for-coding", "moonshotai", "moonshotai-cn"].includes(model.providerID)
   )
     return [PROMPT_KIMI]
+  // localcode: every local model (Gemma, Qwen, ...) gets the localcode prompt —
+  // shorter than default.txt and written for finishing tasks, not chat brevity.
+  if (model.providerID === "localcode") return [PROMPT_LOCALCODE]
   return [PROMPT_DEFAULT]
 }
 

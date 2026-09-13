@@ -22,10 +22,14 @@ it.live("undo and redo restore files in a plain folder without touching a siblin
     yield* fs.writeFileString(sibling, "outside")
     yield* Effect.gen(function* () {
       const snapshot = yield* Snapshot.Service
+      const log = path.join(directory, ".localcode-agent", "localcode-plugin.log")
+      yield* fs.ensureDir(path.dirname(log))
+      yield* fs.writeFileString(log, "before\n")
       const before = yield* snapshot.track()
       expect(before).toBeTruthy()
       const file = path.join(directory, "hello.py")
       yield* fs.writeFileString(file, "def add(a, b): return a + b\n")
+      yield* fs.writeFileString(log, "before\nafter\n")
       const patch = yield* snapshot.patch(before!)
       expect(patch.files).toEqual([file])
       const after = yield* snapshot.track()
@@ -34,6 +38,7 @@ it.live("undo and redo restore files in a plain folder without touching a siblin
       yield* snapshot.revert([patch])
       expect(yield* fs.exists(file)).toBe(false)
       expect(yield* fs.readFileString(sibling)).toBe("outside")
+      expect(yield* fs.readFileString(log)).toBe("before\nafter\n")
       yield* snapshot.restore(after!)
       expect(yield* fs.readFileString(file)).toContain("return a + b")
       expect(yield* fs.exists(path.join(directory, ".git"))).toBe(false)

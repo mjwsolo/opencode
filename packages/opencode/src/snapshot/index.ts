@@ -187,6 +187,7 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
           const target = path.join(state.gitdir, "info", "exclude")
           const text = [
             file ? (yield* read(file)).trimEnd() : "",
+            "/.localcode-agent/*.log",
             ...list.map((item) => `/${item.replaceAll("\\", "/")}`),
           ]
             .filter(Boolean)

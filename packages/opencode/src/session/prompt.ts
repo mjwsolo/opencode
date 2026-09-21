@@ -1257,7 +1257,10 @@ const layer = Layer.effect(
             const workspace = model.providerID !== "localcode" || SystemPrompt.workspaceActive(msgs, lastUser.id)
             const [skills, env, instructions, mcpInstructions, modelMsgs] = yield* Effect.all([
               workspace ? sys.skills(agent) : Effect.succeed(undefined),
-              workspace ? sys.environment(model) : Effect.succeed([`Today's date: ${new Date().toDateString()}`]),
+              // The environment block (working directory, git, platform) is
+              // always present: without it a first-turn build request has no
+              // idea where it is and invents a path outside the workspace.
+              sys.environment(model),
               workspace ? instruction.system().pipe(Effect.orDie) : Effect.succeed([]),
               sys.mcp(agent, session.permission),
               MessageV2.toModelMessagesEffect(msgs, model),

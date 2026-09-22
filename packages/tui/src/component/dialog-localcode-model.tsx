@@ -198,7 +198,7 @@ export function DialogLocalcodeModel() {
       fallback={<DialogSelect title="Select model" options={[]} emptyView={<text>Could not reach the localcode model supervisor: {String(catalog.error)}</text>} />}
     >
       <DialogSelect<string>
-        title={catalog.loading ? "localcode models — loading…" : "localcode models"}
+        title={catalog.loading ? "Select a model — loading…" : "Select a model"}
         placeholder="Search models…"
         footer={<text fg={theme.textMuted}>★ Recommended for your {catalog()?.ram_gb ?? "?"} GB Mac</text>}
         options={options()}

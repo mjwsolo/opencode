@@ -53,7 +53,8 @@ type Status = { state: "idle" | "downloading" | "loading" | "ready" | "error"; m
 const FIT_GLYPH: Record<Quant["fit"], string> = { fits: "✓", tight: "~", "too big": "✗" }
 
 async function getJSON<T>(path: string): Promise<T> {
-  const r = await fetch(controlUrl() + path, { signal: AbortSignal.timeout(30_000) })
+  // Short: a dead supervisor must surface as an error, not a picker stuck on "loading…".
+  const r = await fetch(controlUrl() + path, { signal: AbortSignal.timeout(5_000) })
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`)
   return (await r.json()) as T
 }
@@ -195,7 +196,7 @@ export function DialogLocalcodeModel() {
   return (
     <Show
       when={!catalog.error}
-      fallback={<DialogSelect title="Select model" options={[]} emptyView={<text>Could not reach the localcode model supervisor: {String(catalog.error)}</text>} />}
+      fallback={<DialogSelect title="Model service not running" options={[]} emptyView={<text>The localcode model service is not answering ({String(catalog.error)}). Press esc, then exit and run localcode again.</text>} />}
     >
       <DialogSelect<string>
         title={catalog.loading ? "Select a model — loading…" : "Select a model"}

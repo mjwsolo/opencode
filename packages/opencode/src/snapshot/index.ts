@@ -3,6 +3,7 @@ import { Cause, Duration, Effect, Layer, Schedule, Schema, Semaphore, Context } 
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { formatPatch, structuredPatch } from "diff"
 import path from "path"
+import os from "os"
 import { AppProcess } from "@opencode-ai/core/process"
 import { InstanceState } from "@/effect/instance-state"
 import { FSUtil } from "@opencode-ai/core/fs-util"
@@ -167,8 +168,15 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
         const remove = (file: string) => fs.remove(file).pipe(Effect.catch(() => Effect.void))
         const locked = <A, E, R>(fx: Effect.Effect<A, E, R>) => lock(state.gitdir).withPermits(1)(fx)
 
+        // Snapshots shadow-index the whole worktree with git before the first
+        // message. On a home directory (or after the first index blows its
+        // time budget) that is minutes of scanning with no answer, so those
+        // sessions run without undo/diff snapshots instead.
+        let budgetExceeded = false
         const enabled = Effect.fnUntraced(function* () {
+          if (budgetExceeded) return false
           if (state.worktree === path.parse(state.worktree).root) return false
+          if (path.resolve(state.worktree) === path.resolve(os.homedir())) return false
           return (yield* config.get()).snapshot !== false
         })
 
@@ -319,7 +327,22 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
           )
         })
 
+        const TRACK_BUDGET = Duration.seconds(15)
         const track = Effect.fnUntraced(function* () {
+          if (!(yield* enabled())) return
+          const result = yield* trackInner().pipe(Effect.timeoutOption(TRACK_BUDGET))
+          if (result._tag === "None") {
+            budgetExceeded = true
+            yield* Effect.logWarning("snapshot index exceeded its time budget; undo/diff snapshots disabled for this directory", {
+              cwd: state.directory,
+              budgetSeconds: Duration.toSeconds(TRACK_BUDGET),
+            })
+            return
+          }
+          return result.value
+        })
+
+        const trackInner = Effect.fnUntraced(function* () {
           return yield* locked(
             Effect.gen(function* () {
               if (!(yield* enabled())) return

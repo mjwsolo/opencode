@@ -1,6 +1,7 @@
 import type { ModelMessage, ToolResultPart } from "ai"
 import { mergeDeep, unique } from "remeda"
 import type { JSONSchema7 } from "@ai-sdk/provider"
+import { compactToolSchema } from "./schema-compact"
 import type * as Provider from "./provider"
 import type * as ModelsDev from "@opencode-ai/core/models-dev"
 import { iife } from "@/util/iife"
@@ -1591,7 +1592,12 @@ export function schema(model: Provider.Model, schema: JSONSchema7): JSONSchema7 
 
   if (model.api.npm === "@ai-sdk/openai" || model.api.npm === "@ai-sdk/azure") {
     schema = sanitizeOpenAISchema(schema) as JSONSchema7
-    // Codex also applies lossy compaction above 4 KB; defer that until OpenCode needs the same schema budget.
+  }
+
+  if (model.providerID === "localcode") {
+    // Small local models pay for every schema byte on every turn: compact
+    // oversized tool schemas the way Codex does (see schema-compact.ts).
+    schema = compactToolSchema(schema)
   }
 
   if (model.providerID === "moonshotai" || model.api.id.toLowerCase().includes("kimi")) {

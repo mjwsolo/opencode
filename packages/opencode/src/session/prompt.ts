@@ -1008,7 +1008,15 @@ const layer = Layer.effect(
         { message: info, parts: resolvedParts },
       )
 
-      const parts = yield* Effect.forEach(resolvedParts, (part) =>
+      // A plugin may append parts in chat.message (localcode adds the open-todo
+      // list to the user turn). Those arrive without id/sessionID/messageID and
+      // failed the save ("invalid user part before save"), which broke the turn.
+      // Give every part the same identity the resolved ones got.
+      const hookedParts = resolvedParts.map((part) =>
+        assign({ ...part, sessionID: part.sessionID ?? input.sessionID, messageID: part.messageID ?? info.id }),
+      )
+
+      const parts = yield* Effect.forEach(hookedParts, (part) =>
         part.type === "file" && part.mime.startsWith("image/")
           ? image.normalize(part).pipe(
               Effect.catchIf(

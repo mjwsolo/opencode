@@ -1086,6 +1086,49 @@ async function localcodeStatus(modelID: string): Promise<{ vision: boolean; cont
   }
 }
 
+/**
+ * localcode slot affinity. llama-server routes a request to the idle slot whose
+ * cached prompt shares the longest prefix (threshold 10%). Every request shares
+ * the system prompt and tool schemas, so a short side request (title generation)
+ * landed on the user's conversation slot and truncated its cache; the next turn
+ * re-read the whole conversation (15-23 s at 30k tokens) while other slots sat
+ * idle. Side requests are pinned to the LAST slot instead. A side request is one
+ * with no tools and a short prompt; compaction (no tools, long prompt) stays on
+ * the conversation's slot where its prefix is already cached.
+ */
+const localcodeSlots = new Map<string, { n: number; at: number }>()
+async function localcodeSlotCount(baseURL: string): Promise<number> {
+  const root = baseURL.replace(/\/v1\/?$/, "")
+  const hit = localcodeSlots.get(root)
+  if (hit && Date.now() - hit.at < 60_000) return hit.n
+  let n = 1
+  try {
+    const r = await fetch(root + "/slots", { signal: AbortSignal.timeout(1000) })
+    if (r.ok) {
+      const j = (await r.json()) as unknown
+      if (Array.isArray(j) && j.length > 0) n = j.length
+    }
+  } catch {}
+  localcodeSlots.set(root, { n, at: Date.now() })
+  return n
+}
+const LOCALCODE_SIDE_REQUEST_MAX_CHARS = 24_000
+export function localcodePinSideRequest(body: string, slots: number): string {
+  if (slots <= 1) return body
+  let j: any
+  try {
+    j = JSON.parse(body)
+  } catch {
+    return body
+  }
+  if (!j || typeof j !== "object" || j.id_slot !== undefined) return body
+  const tools = Array.isArray(j.tools) ? j.tools.length : 0
+  if (tools > 0) return body
+  if (body.length > LOCALCODE_SIDE_REQUEST_MAX_CHARS) return body
+  j.id_slot = slots - 1
+  return JSON.stringify(j)
+}
+
 export const Model = Schema.Struct({
   id: ModelV2.ID,
   providerID: ProviderV2.ID,
@@ -1828,6 +1871,11 @@ const layer = Layer.effect(
 
           const combined = signals.length === 0 ? null : signals.length === 1 ? signals[0] : AbortSignal.any(signals)
           if (combined) opts.signal = combined
+
+          if (model.providerID === LOCALCODE_PROVIDER_ID && typeof opts.body === "string" && typeof options["baseURL"] === "string") {
+            const n = await localcodeSlotCount(options["baseURL"])
+            opts.body = localcodePinSideRequest(opts.body, n)
+          }
 
           const res = await fetchFn(input, {
             ...opts,

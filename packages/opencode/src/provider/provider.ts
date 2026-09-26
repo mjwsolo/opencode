@@ -1906,6 +1906,9 @@ const layer = Layer.effect(
           const resolved: Model = {
             ...target,
             id: modelID,
+            // The wire id too: the runtime quotes model.api.id in its "You are
+            // powered by" line, and the launcher's template carries "__pending__".
+            api: { ...target.api, id: modelID },
             name: info?.name ?? modelID,
             limit: status?.context
               ? {

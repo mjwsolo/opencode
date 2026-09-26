@@ -14,7 +14,7 @@ import { useTuiConfig } from "../config"
 import { HomeSessionDestinationProvider } from "./home/session-destination"
 import { useDialog } from "../ui/dialog"
 import { useToast } from "../ui/toast"
-import { DialogLocalcodeModel, controlUrl, modelLoaded, refreshSupervisor, watchSupervisor } from "../component/dialog-localcode-model"
+import { controlUrl, modelLoaded, refreshSupervisor, watchSupervisor } from "../component/dialog-localcode-model"
 
 let once = false
 const placeholder = {
@@ -44,13 +44,13 @@ export function Home() {
   const toast = useToast()
   onMount(() => {
     editor.clearSelection()
-    // localcode first-run journey: the TUI opens first; if the supervisor has no
-    // model loaded yet, open the model → quant picker straight away.
+    // localcode: the first screen is the prompt, never a dialog. With no model
+    // loaded, the picker opens when the user sends a message (prompt/index.tsx)
+    // or runs /models; here we only start watching the supervisor.
     if (!controlUrl()) return
     watchSupervisor()
     void refreshSupervisor().then(() => {
-      if (!modelLoaded()) dialog.replace(() => <DialogLocalcodeModel />)
-      else void import("../component/localcode-vision").then((m) => m.visionHint(toast))
+      if (modelLoaded()) void import("../component/localcode-vision").then((m) => m.visionHint(toast))
     })
   })
 

@@ -22,7 +22,7 @@ function View(props: { api: TuiPluginApi }) {
       </box>
       <Show when={list().length <= 2 || open()}>
         <Show when={list().length === 0}>
-          <text fg={theme().textMuted}>{off() ? "LSPs are disabled" : "Starts automatically for your project’s language"}</text>
+          <text fg={theme().textMuted}>{off() ? "LSPs are disabled" : "Not running · /lsp to set up"}</text>
         </Show>
         <For each={list()}>
           {(item) => (

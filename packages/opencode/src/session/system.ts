@@ -28,12 +28,15 @@ import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 
 export function workspaceActive(
   messages: { info: { id: string }; parts: { type: string; tool?: string }[] }[],
-  userID: string,
+  _userID: string,
 ) {
-  const start = messages.findIndex((message) => message.info.id === userID)
-  if (start < 0) return false
+  // Sticky for the whole session, not per turn. The system prompt is the
+  // cached prefix of every request; deciding this per turn made step 1 of a
+  // turn drop the workspace block and step 2 add it back, so the server
+  // re-read the entire conversation twice per turn (15-23 s each at 30k
+  // tokens). Once a session has touched the workspace, it stays a workspace
+  // session; the block's own text tells the model when the rules apply.
   return messages
-    .slice(start)
     .some((message) =>
       message.parts.some(
         (part) =>

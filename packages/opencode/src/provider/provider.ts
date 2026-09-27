@@ -1068,19 +1068,20 @@ const ProviderLimit = Schema.Struct({
 /** The provider id localcode's launcher writes into its config; its model list is dynamic. */
 export const LOCALCODE_PROVIDER_ID = ProviderV2.ID.make("localcode")
 
-/** Read capabilities and the actual loaded context size; the startup template may differ. */
-async function localcodeStatus(modelID: string): Promise<{ vision: boolean; context?: number } | undefined> {
+/** Read capabilities, the context the server really gives each request, and the
+ *  budget the supervisor measured for this machine (ui/context_budget.py): the
+ *  prompt length at which the session should compact. The startup template may differ. */
+async function localcodeStatus(modelID: string): Promise<{ vision: boolean; context?: number; budget?: number } | undefined> {
   const base = (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
   if (!base) return undefined
   try {
     const r = await fetch(base + "/status", { signal: AbortSignal.timeout(1500) })
     if (!r.ok) return { vision: false }
-    const j = (await r.json()) as { current?: string; state?: string; vision?: boolean; ctx?: number }
+    const j = (await r.json()) as { current?: string; state?: string; vision?: boolean; ctx?: number; budget?: number }
     const loaded = j.current === modelID && j.state === "ready"
-    return {
-      vision: loaded && j.vision === true,
-      context: loaded && typeof j.ctx === "number" && Number.isFinite(j.ctx) && j.ctx > 0 ? j.ctx : undefined,
-    }
+    const ctx = loaded && typeof j.ctx === "number" && Number.isFinite(j.ctx) && j.ctx > 0 ? j.ctx : undefined
+    const budget = ctx && typeof j.budget === "number" && Number.isFinite(j.budget) && j.budget > 0 ? Math.min(j.budget, ctx) : undefined
+    return { vision: loaded && j.vision === true, context: ctx, budget }
   } catch {
     return { vision: false }
   }
@@ -1958,10 +1959,13 @@ const layer = Layer.effect(
             // powered by" line, and the launcher's template carries "__pending__".
             api: { ...target.api, id: modelID },
             name: info?.name ?? modelID,
+            // limit.input is the compaction threshold (overflow.ts prefers it over
+            // context - output); the supervisor's budget already holds one step's headroom.
             limit: status?.context
               ? {
                   context: status.context,
                   output: Math.min(target.limit.output || 8192, Math.max(1, Math.floor(status.context / 4))),
+                  ...(status.budget ? { input: status.budget } : {}),
                 }
               : { ...target.limit },
             capabilities: {

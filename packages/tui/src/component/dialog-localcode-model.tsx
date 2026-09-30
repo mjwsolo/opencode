@@ -40,7 +40,7 @@ type Quant = {
   alias: string
   label: string
   size_gb: number
-  fit: "fits" | "tight" | "too big"
+  fit: "fits" | "tight" | "too_big" | "too big"
   tok_s: number | null
   recommended: boolean
   downloaded: boolean
@@ -50,7 +50,10 @@ type Quant = {
 }
 type Status = { state: "idle" | "downloading" | "loading" | "ready" | "error"; model?: string; detail?: string; pct?: number | null }
 
-const FIT_GLYPH: Record<Quant["fit"], string> = { fits: "✓", tight: "~", "too big": "✗" }
+const FIT_GLYPH: Record<string, string> = { fits: "✓", tight: "~", too_big: "✗", "too big": "✗" }
+/** The supervisor sends "too_big"; the row shows "too big". */
+const fitLabel = (fit: string) => (fit === "too_big" ? "too big" : fit)
+const tooBig = (fit: string) => fit === "too_big" || fit === "too big"
 
 async function getJSON<T>(path: string): Promise<T> {
   // Short: a dead supervisor must surface as an error, not a picker stuck on "loading…".
@@ -167,8 +170,8 @@ export function DialogLocalcodeModel() {
           {g.downloading ? `⇣ ${pctLabel(g.pct)}` : g.current ? "Loaded" : g.installed_count ? `${g.installed_count} on disk` : "Download"}
         </span>
       ),
-      category: g.installed_count || g.current ? "Models" : "Available to download",
-      categoryView: <text fg={theme.primary}>{g.installed_count || g.current ? "Models" : "Available to download"}</text>,
+      category: "Models",
+      categoryView: <text fg={theme.primary}>Models</text>,
       onSelect: () => {
         escapeStepsBack = true
         dialog.replace(
@@ -245,13 +248,13 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       <span>
         {`${q.label}${q.recommended ? " ★" : ""}`.padEnd(nameWidth())}
         {`${q.size_gb.toFixed(1)} GB`.padEnd(10)}
-        {`${FIT_GLYPH[q.fit]} ${q.fit}`.padEnd(12)}
+        {`${FIT_GLYPH[q.fit] ?? "✗"} ${fitLabel(q.fit)}`.padEnd(12)}
         <span style={{ fg: active() === q.alias ? selectedForeground(theme) : q.current ? theme.primary : q.downloaded ? theme.success : theme.textMuted }}>
           {q.downloading ? `⇣ ${pctLabel(q.pct)}` : q.current ? "Loaded" : q.downloaded ? "Ready" : "Download"}
         </span>
       </span>
     ),
-    disabled: q.fit === "too big" && !q.downloading,
+    disabled: tooBig(q.fit) && !q.downloading,
     category: q.downloaded || q.current ? "Downloaded" : "Available to download",
     categoryView: (
       <text fg={theme.textMuted}>

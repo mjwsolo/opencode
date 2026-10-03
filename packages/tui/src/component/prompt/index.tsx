@@ -44,7 +44,7 @@ import { errorMessage } from "../../util/error"
 import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
-import { DialogLocalcodeModel, controlUrl, modelLoaded, modelChanging, queuedModelName, supervisorKnown } from "../dialog-localcode-model"
+import { DialogLocalcodeModel, controlUrl, controlFetch, modelLoaded, modelChanging, queuedModelName, supervisorKnown } from "../dialog-localcode-model"
 import { voiceStart, voiceStop, ensureVoiceReady } from "../localcode-voice"
 import { ensureVision } from "../localcode-vision"
 import { DialogLsp } from "../dialog-lsp"
@@ -227,7 +227,7 @@ export function Prompt(props: PromptProps) {
     }
     const timer = setInterval(async () => {
       try {
-        const r = await fetch(controlUrl() + "/progress", { signal: AbortSignal.timeout(900) })
+        const r = await controlFetch("/progress", { signal: AbortSignal.timeout(900) })
         const p = (await r.json()) as { phase?: string; pct?: number; done?: number; todo?: number; cached?: number; decoded?: number }
         if (p.phase === "reading" && (p.todo ?? 0) > 0) {
           // llama-server grows the prompt total while it tokenises in batches, so a

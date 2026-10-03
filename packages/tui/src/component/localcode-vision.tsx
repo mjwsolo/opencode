@@ -5,7 +5,7 @@
  */
 import { DialogConfirm } from "../ui/dialog-confirm"
 import type { DialogContext } from "../ui/dialog"
-import { controlUrl } from "./dialog-localcode-model"
+import { controlUrl, controlFetch } from "./dialog-localcode-model"
 
 type Toast = { show: (t: { variant: "info" | "success" | "error" | "warning"; title?: string; message: string; duration?: number }) => void }
 type Status = { state: string; current?: string | null; vision?: boolean; vision_available?: boolean; vision_size_gb?: number; detail?: string }
@@ -13,7 +13,7 @@ type Status = { state: string; current?: string | null; vision?: boolean; vision
 export async function visionStatus(): Promise<Status | undefined> {
   if (!controlUrl()) return undefined
   try {
-    const r = await fetch(controlUrl() + "/status", { signal: AbortSignal.timeout(5000) })
+    const r = await controlFetch("/status", { signal: AbortSignal.timeout(5000) })
     return (await r.json()) as Status
   } catch {
     return undefined
@@ -60,7 +60,7 @@ export async function ensureVision(dialog: DialogContext, toast: Toast): Promise
   dialog.clear()
   if (!ok) return false
   try {
-    const r = await fetch(controlUrl() + "/vision/install", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    const r = await controlFetch("/vision/install", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
     const res = (await r.json()) as { error?: string }
     if (res.error) throw new Error(res.error)
   } catch (e) {

@@ -22,6 +22,14 @@ import { useTerminalDimensions } from "@opentui/solid"
 
 export const LOCALCODE_PROVIDER_ID = "localcode"
 export const controlUrl = () => (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
+export const controlFetch = (path: string, init: RequestInit = {}) => {
+  const token = process.env.LOCALCODE_CONTROL_TOKEN
+  if (!token) throw new Error("LocalCode control credential is missing")
+  return fetch(controlUrl() + path, {
+    ...init,
+    headers: { ...Object.fromEntries(new Headers(init.headers).entries()), Authorization: `Bearer ${token}` },
+  })
+}
 
 type Group = {
   key: string
@@ -57,13 +65,13 @@ const tooBig = (fit: string) => fit === "too_big" || fit === "too big"
 
 async function getJSON<T>(path: string): Promise<T> {
   // Short: a dead supervisor must surface as an error, not a picker stuck on "loading…".
-  const r = await fetch(controlUrl() + path, { signal: AbortSignal.timeout(5_000) })
+  const r = await controlFetch(path, { signal: AbortSignal.timeout(5_000) })
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`)
   return (await r.json()) as T
 }
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetch(controlUrl() + path, {
+  const r = await controlFetch(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -285,7 +293,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
 
   async function load(q: Quant) {
     try {
-      const r = await fetch(controlUrl() + "/select", {
+      const r = await controlFetch("/select", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ group: props.group.key, filename: q.filename }),

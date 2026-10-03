@@ -22,6 +22,11 @@ import { useTerminalDimensions } from "@opentui/solid"
 
 export const LOCALCODE_PROVIDER_ID = "localcode"
 export const controlUrl = () => (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
+/** The supervisor refuses any request without the session token (reads included). */
+export const controlHeaders = (): Record<string, string> => ({ "x-localcode-token": process.env.LOCALCODE_CONTROL_TOKEN ?? "" })
+/** Every request to the supervisor goes through here so none can forget the token. */
+export const controlFetch = (path: string, init: RequestInit = {}) =>
+  fetch(controlUrl() + path, { ...init, headers: { ...((init.headers as Record<string, string>) ?? {}), ...controlHeaders() } })
 
 type Group = {
   key: string
@@ -57,15 +62,15 @@ const tooBig = (fit: string) => fit === "too_big" || fit === "too big"
 
 async function getJSON<T>(path: string): Promise<T> {
   // Short: a dead supervisor must surface as an error, not a picker stuck on "loading…".
-  const r = await fetch(controlUrl() + path, { signal: AbortSignal.timeout(5_000) })
+  const r = await controlFetch(path, { headers: controlHeaders(), signal: AbortSignal.timeout(5_000) })
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`)
   return (await r.json()) as T
 }
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
-  const r = await fetch(controlUrl() + path, {
+  const r = await controlFetch(path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...controlHeaders() },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   })
@@ -285,7 +290,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
 
   async function load(q: Quant) {
     try {
-      const r = await fetch(controlUrl() + "/select", {
+      const r = await controlFetch("/select", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ group: props.group.key, filename: q.filename }),

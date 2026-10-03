@@ -1075,7 +1075,10 @@ async function localcodeStatus(modelID: string): Promise<{ vision: boolean; cont
   const base = (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
   if (!base) return undefined
   try {
-    const r = await fetch(base + "/status", { signal: AbortSignal.timeout(1500) })
+    const r = await fetch(base + "/status", {
+      headers: { "x-localcode-token": process.env.LOCALCODE_CONTROL_TOKEN ?? "" },
+      signal: AbortSignal.timeout(1500),
+    })
     if (!r.ok) return { vision: false }
     const j = (await r.json()) as { current?: string; state?: string; vision?: boolean; ctx?: number; budget?: number }
     const loaded = j.current === modelID && j.state === "ready"

@@ -5,7 +5,7 @@
  * calls its control API. Nothing here touches the network.
  */
 import { createSignal } from "solid-js"
-import { controlUrl } from "./dialog-localcode-model"
+import { controlUrl, controlFetch } from "./dialog-localcode-model"
 import { DialogConfirm } from "../ui/dialog-confirm"
 import type { DialogContext } from "../ui/dialog"
 
@@ -20,7 +20,7 @@ type VoiceStatus = {
 export async function voiceStatus(): Promise<VoiceStatus | undefined> {
   if (!controlUrl()) return undefined
   try {
-    const r = await fetch(controlUrl() + "/voice/status", { signal: AbortSignal.timeout(5000) })
+    const r = await controlFetch("/voice/status", { signal: AbortSignal.timeout(5000) })
     return (await r.json()) as VoiceStatus
   } catch {
     return undefined
@@ -87,7 +87,7 @@ async function post<T>(path: string, body: unknown = {}): Promise<T & { error?: 
   // and a stale keep-alive socket surfaces as "socket connection was closed".
   for (let attempt = 0; ; attempt++) {
     try {
-      const r = await fetch(controlUrl() + path, {
+      const r = await controlFetch(path, {
         method: "POST",
         headers: { "content-type": "application/json", connection: "close" },
         body: JSON.stringify(body),

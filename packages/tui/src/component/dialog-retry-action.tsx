@@ -1,4 +1,5 @@
 import { RGBA, TextAttributes } from "@opentui/core"
+import { openUrl } from "@opencode-ai/core/open"
 import { createSignal } from "solid-js"
 import { selectedForeground, useTheme } from "../context/theme"
 import { useDialog, type DialogContext } from "../ui/dialog"
@@ -10,10 +11,12 @@ export type DialogRetryActionProps = {
   title: string
   message: string
   label: string
+  link?: string
   onClose?: (dontShowAgain?: boolean) => void
 }
 
 function runAction(props: DialogRetryActionProps, dialog: ReturnType<typeof useDialog>) {
+  if (props.link) openUrl(props.link).catch(() => {})
   props.onClose?.()
   dialog.clear()
 }
@@ -108,7 +111,7 @@ export function DialogRetryAction(props: DialogRetryActionProps) {
   )
 }
 
-DialogRetryAction.show = (dialog: DialogContext, props: Pick<DialogRetryActionProps, "title" | "message" | "label">) => {
+DialogRetryAction.show = (dialog: DialogContext, props: Pick<DialogRetryActionProps, "title" | "message" | "label" | "link">) => {
   return new Promise<boolean>((resolve) => {
     dialog.replace(
       () => <DialogRetryAction {...props} onClose={(dontShow) => resolve(dontShow ?? false)} />,

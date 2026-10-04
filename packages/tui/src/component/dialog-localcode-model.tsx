@@ -27,7 +27,7 @@ export const controlFetch = (path: string, init: RequestInit = {}) => {
   if (!token) throw new Error("LocalCode control credential is missing")
   return fetch(controlUrl() + path, {
     ...init,
-    headers: { ...Object.fromEntries(new Headers(init.headers).entries()), Authorization: `Bearer ${token}` },
+    headers: { ...Object.fromEntries(new Headers(init.headers).entries()), "x-localcode-token": token },
   })
 }
 

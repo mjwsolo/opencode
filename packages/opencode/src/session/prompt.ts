@@ -1262,7 +1262,15 @@ const layer = Layer.effect(
 
             yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
-            const workspace = model.providerID !== "localcode" || SystemPrompt.workspaceActive(msgs, lastUser.id)
+            // The system prompt is the KV-cached prefix of every request, so it
+            // must not change within a session. Gating the workspace block,
+            // instructions and skills on the first tool call (the previous
+            // localcode-only behaviour) rewrote that prefix mid-session: the
+            // server dropped the cache from the insertion point and re-read
+            // ~6k new tokens on top (12k tokens, ~20 s on a 27B Q8 model).
+            // Local models now get the same constant prompt every provider
+            // gets; the warm-up replays it while the model loads.
+            const workspace = true
             const [skills, env, instructions, mcpInstructions, modelMsgs] = yield* Effect.all([
               workspace ? sys.skills(agent) : Effect.succeed(undefined),
               // The environment block (working directory, git, platform) is

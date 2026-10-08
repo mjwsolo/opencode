@@ -27,6 +27,8 @@ import { Reference } from "@opencode-ai/core/reference"
 import { MCP } from "@/mcp"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 
+// No longer consulted when building the system prompt (see prompt.ts: the
+// prompt is constant per session). Kept for callers that gate behaviour, not text.
 export function workspaceActive(
   messages: { info: { id: string }; parts: { type: string; tool?: string }[] }[],
   _userID: string,

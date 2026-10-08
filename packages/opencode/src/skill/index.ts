@@ -20,7 +20,12 @@ import { escapeHtml } from "@/util/html"
 
 const CLAUDE_EXTERNAL_DIR = ".claude"
 const AGENTS_EXTERNAL_DIR = ".agents"
-const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
+// One directory level, like Claude Code itself reads ~/.claude/skills/<name>/SKILL.md.
+// The previous `skills/**/SKILL.md` (with dot dirs) also picked up every nested
+// copy a skill package keeps for other agents (gstack ships ~10 per skill under
+// .slate/.kiro/.agents/...), which put ~22k tokens of duplicate listings into
+// every request's system prompt for such users.
+const EXTERNAL_SKILL_PATTERN = "skills/*/SKILL.md"
 const OPENCODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_PATTERN = "**/SKILL.md"
 
@@ -122,12 +127,18 @@ const add = Effect.fnUntraced(function* (state: State, match: string, events: Ev
 
   if (!isSkillFrontmatter(md.data)) return
 
-  if (state.skills[md.data.name]) {
+  const existing = state.skills[md.data.name]
+  if (existing) {
     yield* Effect.logWarning("duplicate skill name", {
       name: md.data.name,
-      existing: state.skills[md.data.name].location,
+      existing: existing.location,
       duplicate: match,
     })
+    // Skills load concurrently, so "last writer wins" picked a random copy
+    // on every launch. The skill list is part of the KV-cached system
+    // prompt: a different <location> per launch invalidates the warm-up
+    // prefix. Resolve collisions by path so the result is stable.
+    if (existing.location.localeCompare(match) <= 0) return
   }
 
   state.dirs.add(path.dirname(match))

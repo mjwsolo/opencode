@@ -1,5 +1,5 @@
 import type { JSONSchema7 } from "@ai-sdk/provider"
-import { JsonSchema, Schema } from "effect"
+import { Schema } from "effect"
 import type * as Tool from "./tool"
 
 type JsonObject = Record<string, unknown>
@@ -10,8 +10,9 @@ export function fromSchema(schema: Schema.Top): JSONSchema7 {
   if (cached) return cached
 
   const document = Schema.toJsonSchemaDocument(schema, { additionalProperties: true })
+  // No $schema line: the model reads every tool schema on each new session and
+  // the meta-schema URI tells it nothing.
   const result = normalize({
-    $schema: JsonSchema.META_SCHEMA_URI_DRAFT_2020_12,
     ...document.schema,
     ...(Object.keys(document.definitions).length > 0 ? { $defs: document.definitions } : {}),
   })
@@ -78,10 +79,6 @@ function normalize(value: unknown, options: { stripNull?: boolean } = {}): unkno
   if (Array.isArray(schema.allOf) && schema.allOf.every(isRecord) && canFlattenAllOf(schema.allOf, schema)) {
     const { allOf, ...rest } = schema
     return normalize({ ...Object.assign({}, ...allOf), ...rest })
-  }
-
-  if (schema.type === "integer" && schema.maximum === undefined) {
-    return { minimum: Number.MIN_SAFE_INTEGER, ...schema, maximum: Number.MAX_SAFE_INTEGER }
   }
 
   return schema

@@ -44,7 +44,7 @@ export function DialogHelp() {
           <text fg={theme.textMuted}>
             <span style={{ fg: theme.text }}>/sessions</span>
             {sessionShortcut() ? ` or ${sessionShortcut()}` : ""} lists sessions; resume one later with{" "}
-            <span style={{ fg: theme.text }}>localcode -s &lt;id&gt;</span>
+            <span style={{ fg: theme.text }}>localcode --resume &lt;id&gt;</span>
           </text>
           <text fg={theme.textMuted}>
             <span style={{ fg: theme.text }}>{commandShortcut() || "/"}</span> lists every action

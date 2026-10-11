@@ -237,7 +237,7 @@ const TIPS: Tip[] = [
   "Add {highlight}.ts{/highlight} files to {highlight}.localcode-agent/plugins/{/highlight} for event hooks",
   "Use plugins to send OS notifications when sessions complete",
   "Create a plugin to prevent localcode from reading sensitive files",
-  "Use {highlight}localcode -s <id>{/highlight} to resume a session; the id is printed when you exit",
+  "Use {highlight}localcode --resume <id>{/highlight} to resume a session; the id is printed when you exit",
   "Use {highlight}localcode --continue{/highlight} to resume the last session",
   "Smaller quants load faster and leave more room for context; larger quants answer more accurately",
   "Close memory-hungry apps before loading a large model: the fit badge in the quant picker assumes free RAM",

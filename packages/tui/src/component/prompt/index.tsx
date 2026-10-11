@@ -45,7 +45,7 @@ import { formatDuration } from "../../util/format"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogLocalcodeModel, controlUrl, controlFetch, modelLoaded, modelChanging, queuedModelName, supervisorKnown } from "../dialog-localcode-model"
-import { voiceStart, voiceStop, ensureVoiceReady } from "../localcode-voice"
+import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
 import { ensureVision } from "../localcode-vision"
 import { DialogLsp } from "../dialog-lsp"
 import { DialogAlert } from "../../ui/dialog-alert"
@@ -250,6 +250,16 @@ export function Prompt(props: PromptProps) {
     streak: 0,
     lastSpace: 0,
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
+    // Live dictation: what was in the input before speaking, and the poll that
+    // rewrites everything after it as the words arrive.
+    base: "",
+    live: undefined as ReturnType<typeof setInterval> | undefined,
+    show(text: string) {
+      const next = this.base ? (text ? `${this.base} ${text}` : this.base) : text
+      if (input.isDestroyed || input.plainText === next) return
+      input.setText(next)
+      input.cursorOffset = next.length
+    },
     press() {
       if (this.timer) clearTimeout(this.timer)
       if (!this.active) {
@@ -267,6 +277,18 @@ export function Prompt(props: PromptProps) {
             return
           }
           toast.show({ variant: "info", title: "Voice", message: "Listening… release space when done", duration: 60_000 })
+          this.base = input.plainText.replace(/ +$/, "")
+          if (this.live) clearInterval(this.live)
+          let asking = false
+          this.live = setInterval(() => {
+            if (asking || !this.active) return
+            asking = true
+            void voicePartial()
+              .then((text) => {
+                if (this.active && text.trim()) this.show(text.trim())
+              })
+              .finally(() => (asking = false))
+          }, 350)
         })
       }
       this.timer = setTimeout(() => this.stop(), 450)
@@ -276,19 +298,21 @@ export function Prompt(props: PromptProps) {
       this.timer = undefined
       if (!this.active) return
       this.active = false
-      toast.show({ variant: "info", title: "Voice", message: "Transcribing…", duration: 60_000 })
+      if (this.live) clearInterval(this.live)
+      this.live = undefined
+      toast.show({ variant: "info", title: "Voice", message: "Finishing…", duration: 60_000 })
       void voiceStop().then((res) => {
         if (res.error) {
+          this.show("")
           toast.show({ variant: "error", title: "Voice", message: res.error, duration: 6000 })
           return
         }
         const text = (res.text ?? "").trim()
+        this.show(text)
         if (!text) {
           toast.show({ variant: "warning", title: "Voice", message: "Nothing heard", duration: 3000 })
           return
         }
-        const current = input.plainText.replace(/ +$/, "")
-        input.setText(current ? `${current} ${text}` : text)
         toast.show({ variant: "success", title: "Voice", message: "Transcript inserted — enter to send", duration: 3000 })
       })
     },

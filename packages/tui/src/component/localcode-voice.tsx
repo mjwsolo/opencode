@@ -1,8 +1,9 @@
 /**
  * localcode voice: push-to-talk speech-to-text and read-aloud, entirely local.
  * The launcher's supervisor records the mic (PortAudio), transcribes with
- * whisper.cpp in a private venv, and speaks with macOS `say`; the TUI only
- * calls its control API. Nothing here touches the network.
+ * whisper.cpp in a private venv as you speak, and speaks with macOS `say`; the
+ * TUI only calls its control API and shows the words as they arrive. Nothing
+ * here touches the network.
  */
 import { createSignal } from "solid-js"
 import { controlUrl, controlFetch } from "./dialog-localcode-model"
@@ -112,6 +113,17 @@ export async function voiceStart(): Promise<string | undefined> {
   if (res.error) return res.error
   setRecording(true)
   return undefined
+}
+
+/** What has been heard so far, while recording. Empty when the supervisor is older or nothing is said yet. */
+export async function voicePartial(): Promise<string> {
+  try {
+    const r = await controlFetch("/voice/partial", { signal: AbortSignal.timeout(900) })
+    const p = (await r.json()) as { text?: string; recording?: boolean }
+    return p.recording ? (p.text ?? "") : ""
+  } catch {
+    return ""
+  }
 }
 
 export async function voiceStop(): Promise<{ text?: string; error?: string }> {

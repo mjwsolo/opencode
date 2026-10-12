@@ -254,9 +254,20 @@ export function Prompt(props: PromptProps) {
     // rewrites everything after it as the words arrive.
     base: "",
     live: undefined as ReturnType<typeof setInterval> | undefined,
+    // What dictation last wrote into the prompt. If the prompt no longer holds
+    // it, the user has typed, cleared or sent since, and dictation must not
+    // write over that.
+    shown: undefined as string | undefined,
+    finishing: false,     // released, waiting for the final transcript
+    sendWhenDone: false,  // enter was pressed before the final transcript arrived
+    owns() {
+      return !input.isDestroyed && (this.shown === undefined || input.plainText === this.shown)
+    },
     show(text: string) {
+      if (!this.owns()) return
       const next = this.base ? (text ? `${this.base} ${text}` : this.base) : text
-      if (input.isDestroyed || input.plainText === next) return
+      this.shown = next
+      if (input.plainText === next) return
       input.setText(next)
       input.cursorOffset = next.length
     },
@@ -278,6 +289,8 @@ export function Prompt(props: PromptProps) {
           }
           toast.show({ variant: "info", title: "Voice", message: "Listening… release space when done", duration: 60_000 })
           this.base = input.plainText.replace(/ +$/, "")
+          this.shown = undefined
+          this.sendWhenDone = false
           if (this.live) clearInterval(this.live)
           let asking = false
           this.live = setInterval(() => {
@@ -300,17 +313,32 @@ export function Prompt(props: PromptProps) {
       this.active = false
       if (this.live) clearInterval(this.live)
       this.live = undefined
+      this.finishing = true
       toast.show({ variant: "info", title: "Voice", message: "Finishing…", duration: 60_000 })
       void voiceStop().then((res) => {
+        this.finishing = false
+        const send = this.sendWhenDone
+        this.sendWhenDone = false
         if (res.error) {
           this.show("")
           toast.show({ variant: "error", title: "Voice", message: res.error, duration: 6000 })
           return
         }
         const text = (res.text ?? "").trim()
+        // The final transcript replaces the live one only while the prompt still
+        // holds it. Sent, cleared or edited in the meantime: leave the prompt alone.
+        if (!this.owns()) {
+          toast.show({ variant: "info", title: "Voice", message: "Done", duration: 1500 })
+          return
+        }
         this.show(text)
         if (!text) {
           toast.show({ variant: "warning", title: "Voice", message: "Nothing heard", duration: 3000 })
+          return
+        }
+        if (send) {
+          toast.show({ variant: "success", title: "Voice", message: "Sent", duration: 1500 })
+          void submit()
           return
         }
         toast.show({ variant: "success", title: "Voice", message: "Transcript inserted — enter to send", duration: 3000 })
@@ -973,6 +1001,14 @@ export function Prompt(props: PromptProps) {
 
   let submitting = false
   async function submit() {
+    // Enter while dictating, or in the moment after release before the last
+    // words are in: send once the whole transcript has arrived, not the part
+    // that happens to be on screen.
+    if (voiceHold.active || voiceHold.finishing) {
+      voiceHold.sendWhenDone = true
+      if (voiceHold.active) voiceHold.stop()
+      return false
+    }
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
     // a second call slips past the empty-input check before the first call

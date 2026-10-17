@@ -324,3 +324,13 @@ test("provides config and its host interface", async () => {
     app.renderer.destroy()
   }
 })
+
+test("the main interface leaves the command palette unbound unless configured", () => {
+  expect(resolve({}, { terminalSuspend: true }).keybinds.get("command.palette.show")?.[0]?.key).toBe("ctrl+p")
+  expect(resolve({}, { terminalSuspend: true, paletteKey: false }).keybinds.get("command.palette.show")).toEqual([])
+  expect(
+    resolve({ keybinds: { "command.palette.show": "ctrl+k" } }, { terminalSuspend: true, paletteKey: false }).keybinds.get(
+      "command.palette.show",
+    )?.[0]?.key,
+  ).toBe("ctrl+k")
+})

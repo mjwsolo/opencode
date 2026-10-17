@@ -287,10 +287,17 @@ export type Resolved = Omit<Info, "attention" | "cursor" | "keybinds" | "leader"
 
 export function resolve(
   input: Info,
-  options: { terminalSuspend: boolean; environment?: Readonly<Record<string, string | undefined>> },
+  options: {
+    terminalSuspend: boolean
+    environment?: Readonly<Record<string, string | undefined>>
+    /** false: the command palette has no default key (an explicit keybind still applies). */
+    paletteKey?: boolean
+  },
 ): Resolved {
   const tabsMode = input.tabs?.mode ?? (input.tabs?.enabled === undefined ? "auto" : input.tabs.enabled ? "on" : "off")
   const keybinds: TuiKeybind.KeybindOverrides = { ...input.keybinds }
+  if (options.paletteKey === false && keybinds["command.palette.show"] === undefined)
+    keybinds["command.palette.show"] = "none"
   if (!options.terminalSuspend) {
     keybinds["terminal.suspend"] = "none"
     if (keybinds["input.undo"] === undefined) {

@@ -38,7 +38,11 @@ test.each(["success", "failure", "home"])("Copy session ID from Ctrl+P (%s)", as
     run({
       app: { name: "test", version: "test", channel: "test" },
       server: { endpoint: { url: server.url.toString() } },
-      config: { get: async () => ({ animations: false }), update: async () => ({}) },
+      // LocalCode leaves the palette unbound by default; these tests bind it explicitly.
+      config: {
+        get: async () => ({ animations: false, keybinds: { "command.palette.show": "ctrl+p" } }),
+        update: async () => ({}),
+      },
       packages: { prepare: async () => ({ directory: "" }) },
       terminalHandoff: async () => ({ renderer: setup.renderer, mode: "dark", complete: () => {} }),
       args: mode === "home" ? {} : { sessionID },

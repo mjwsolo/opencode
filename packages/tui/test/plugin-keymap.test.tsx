@@ -14,7 +14,7 @@ beforeEach(() => {
 
 test("setup layers before and after await reach keyboard, palette, and slash across disable and enable", async () => {
   await using plugin = await copyPlugin()
-  await using setup = await createAppFixture({ config: { animations: false, plugins: [plugin.directory] } })
+  await using setup = await createAppFixture({ config: { animations: false, plugins: [plugin.directory], keybinds: { "command.palette.show": "ctrl+p" } } })
   await setup.ready
   await setup.waitForFrame((frame) => frame.includes("Fixture ready generation 1"))
 
@@ -61,7 +61,7 @@ test("setup layers before and after await reach keyboard, palette, and slash acr
 
 test("a component layer ends when its component unmounts while the plugin stays active", async () => {
   await using plugin = await copyPlugin()
-  await using setup = await createAppFixture({ config: { animations: false, plugins: [plugin.directory] } })
+  await using setup = await createAppFixture({ config: { animations: false, plugins: [plugin.directory], keybinds: { "command.palette.show": "ctrl+p" } } })
   await setup.ready
   await setup.waitForFrame((frame) => frame.includes("Fixture ready generation 1"))
 
@@ -83,7 +83,7 @@ test("a component layer ends when its component unmounts while the plugin stays 
 
 test("a component layer ends with its activation on reload while the component stays mounted", async () => {
   await using plugin = await copyPlugin()
-  await using setup = await createAppFixture({ config: { animations: false, plugins: [plugin.directory] } })
+  await using setup = await createAppFixture({ config: { animations: false, plugins: [plugin.directory], keybinds: { "command.palette.show": "ctrl+p" } } })
   await setup.ready
   await setup.waitForFrame((frame) => frame.includes("Fixture ready generation 1"))
 

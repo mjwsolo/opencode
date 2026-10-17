@@ -1,6 +1,6 @@
 import { define } from "@opencode/plugin/effect/plugin"
 import type { SessionHooks } from "@opencode/plugin/effect/session"
-import { Duration, Effect, Schedule, type JsonSchema } from "effect"
+import { Duration, Effect, type JsonSchema } from "effect"
 import { Model } from "../../model.js"
 import { LocalContext } from "../../session/local-context.js"
 import type { PluginInternal } from "../internal.js"
@@ -218,7 +218,13 @@ export const LocalCodeProviderPlugin = define({
       if (status) state.seen.add(status.alias)
       yield* ctx.model.reload()
     })
-    // The supervisor is a local process; a short poll keeps the model list in step with the picker.
-    yield* refresh().pipe(Effect.ignore, Effect.repeat(Schedule.spaced(Duration.seconds(2))), Effect.forkScoped)
+    // Know the loaded model before the first request (readStatus times out after 1.5 s), then a
+    // short poll of the local supervisor keeps the model list in step with the picker.
+    yield* refresh().pipe(Effect.ignore)
+    yield* Effect.sleep(Duration.seconds(2)).pipe(
+      Effect.andThen(refresh().pipe(Effect.ignore)),
+      Effect.forever,
+      Effect.forkScoped,
+    )
   }),
 } satisfies PluginInternal.InternalPlugin)

@@ -21,7 +21,7 @@ describe("localcode provider", () => {
   })
 
   test("thinking variants switch the chat template, except for Muse Glimmer", () => {
-    expect(variants("qwen3").map((item) => item.id)).toEqual(["none", "thinking"])
+    expect(variants("qwen3").map((item) => String(item.id))).toEqual(["none", "thinking"])
     expect(variants("muse-glimmer-q4")).toEqual([])
   })
 

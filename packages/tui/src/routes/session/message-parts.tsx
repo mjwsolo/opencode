@@ -33,6 +33,7 @@ const toolDisplays = new Set([
   "patch",
   "question",
   "skill",
+  "todowrite",
 ])
 
 export function toolDisplay(tool: string) {

@@ -2429,6 +2429,9 @@ function ToolPart(props: { part: SessionMessageAssistantTool; images?: boolean }
       <Match when={display() === "skill"}>
         <Skill {...toolprops} />
       </Match>
+      <Match when={display() === "todowrite"}>
+        <Todos {...toolprops} />
+      </Match>
       <Match when={true}>
         <GenericTool {...toolprops} />
       </Match>
@@ -3462,6 +3465,48 @@ function Skill(props: ToolProps) {
     <InlineTool icon="→" pending="Loading skill…" complete={name()} part={props.part}>
       Skill "{name()}"
     </InlineTool>
+  )
+}
+
+/** LocalCode's checklist tool (a plugin tool): the list itself, one line per item. */
+export function todoLines(input: Record<string, unknown>) {
+  const todos = Array.isArray(input.todos) ? input.todos : []
+  return todos.flatMap((todo) => {
+    if (!todo || typeof todo !== "object") return []
+    const content = "content" in todo && typeof todo.content === "string" ? todo.content : undefined
+    if (!content) return []
+    const status = "status" in todo ? todo.status : undefined
+    const mark = status === "completed" ? "[x]" : status === "in_progress" ? "[>]" : status === "cancelled" ? "[-]" : "[ ]"
+    return [{ text: `${mark} ${content}`, open: status !== "completed" && status !== "cancelled" }]
+  })
+}
+
+function Todos(props: ToolProps) {
+  const theme = useTheme()
+  const lines = createMemo(() => todoLines(props.input))
+  const open = createMemo(() => lines().filter((line) => line.open).length)
+  return (
+    <>
+      <InlineTool
+        icon={props.part.state.status === "error" ? "✗" : "☰"}
+        pending="Updating todos…"
+        complete={props.part.state.status === "completed" || props.part.state.status === "error"}
+        part={props.part}
+      >
+        Todos · {open()} open of {lines().length}
+      </InlineTool>
+      <Show when={props.part.state.status !== "error" && lines().length > 0}>
+        <box paddingLeft={3 + INLINE_TOOL_ICON_WIDTH}>
+          <For each={lines()}>
+            {(line) => (
+              <text wrapMode="word" fg={line.open ? theme.text.base : theme.text.muted}>
+                {line.text}
+              </text>
+            )}
+          </For>
+        </box>
+      </Show>
+    </>
   )
 }
 

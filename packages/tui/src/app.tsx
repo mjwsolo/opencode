@@ -450,7 +450,11 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
   yield* Effect.sync(() => {
     if (result.reason !== undefined)
       process.stderr.write((cliErrorMessage(result.reason) ?? errorFormat(result.reason)) + "\n")
-    if (result.epilogue) process.stdout.write(result.epilogue + "\n")
+    if (result.epilogue) {
+      // Start on a clean line: clear the restored cursor line and anything below it first.
+      const start = process.stdout.isTTY ? "\r\x1b[2K\n\x1b[J" : "\n"
+      process.stdout.write(start + result.epilogue + "\n")
+    }
   })
 })
 

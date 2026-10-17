@@ -149,16 +149,16 @@ describe("TUI inline tool wrapping", () => {
 
   test("aligns switch reminders with instruction reminders", async () => {
     expect(await renderFrame(() => <ReminderAlignmentFixture />, { width: 35, height: 2 })).toBe(
-      "   Switched variant to medium\n   ◈ Instructions updated",
+      "   Switched variant to medium\n     Instructions updated",
     )
   })
 
   test("wraps a trailing status as one padded item", async () => {
     expect(await renderFrame(() => <TrailingStatusFixture />, { width: 70, height: 2 })).toBe(
-      "   : Explore Subagent — Inspect renderer status styling  Background",
+      "     Explore Subagent — Inspect renderer status styling  Background",
     )
     expect(await renderFrame(() => <TrailingStatusFixture />, { width: 62, height: 2 })).toBe(
-      "   : Explore Subagent — Inspect renderer status styling\n      Background",
+      "     Explore Subagent — Inspect renderer status styling\n      Background",
     )
   })
 
@@ -209,11 +209,11 @@ describe("TUI inline tool wrapping", () => {
         includeArchived: false,
         filters: { category: "accessories" },
       }),
-    ).toBe("demo_search_catalog [query=wireless keyboard, limit=8, includeArchived=false]")
+    ).toBe("Demo Search Catalog [query=wireless keyboard, limit=8, includeArchived=false]")
     expect(genericToolSummary("demo_get_weather", { city: "Tokyo", units: "celsius" })).toBe(
-      "demo_get_weather [city=Tokyo, units=celsius]",
+      "Demo Get Weather [city=Tokyo, units=celsius]",
     )
-    expect(genericToolSummary("demo_refresh", {})).toBe("demo_refresh")
+    expect(genericToolSummary("demo_refresh", {})).toBe("Demo Refresh")
   })
 
   test("ignores diagnostics with malformed nested ranges", () => {

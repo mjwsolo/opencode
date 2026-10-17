@@ -216,6 +216,8 @@ export function InlineToolRow(props: {
   onMouseUp?: (event: MouseEvent) => void
 }) {
   return (
+    // Pending tools render no row until they have something to show.
+    <Show when={props.complete || props.failed || props.denied || props.spinner}>
     <box paddingLeft={3} onMouseOver={props.onMouseOver} onMouseOut={props.onMouseOut} onMouseUp={props.onMouseUp}>
       <Switch>
         <Match when={props.spinner}>
@@ -231,15 +233,10 @@ export function InlineToolRow(props: {
           </Show>
         </Match>
         <Match when={true}>
-          <Show fallback={<Spinner color={props.color}>{props.pending}</Spinner>} when={props.complete || props.failed}>
+          <Show when={props.complete || props.failed}>
             <box flexDirection="row">
-              <text
-                width={INLINE_TOOL_ICON_WIDTH}
-                fg={props.failed ? props.errorColor : (props.iconColor ?? props.color)}
-                attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
-              >
-                {props.icon}
-              </text>
+              {/* A plain action heading: no tool glyphs. */}
+              <box width={INLINE_TOOL_ICON_WIDTH} />
               <Show
                 when={props.status}
                 fallback={
@@ -249,6 +246,7 @@ export function InlineToolRow(props: {
                     attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
                   >
                     {props.failed && !props.complete ? (props.failure ?? props.children) : props.children}
+                    {props.failed ? " · failed" : props.denied ? " · denied" : ""}
                   </text>
                 }
               >
@@ -272,6 +270,7 @@ export function InlineToolRow(props: {
         </box>
       </Show>
     </box>
+    </Show>
   )
 }
 

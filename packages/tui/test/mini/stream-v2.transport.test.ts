@@ -2865,7 +2865,7 @@ describe("V2 mini transport", () => {
     expect(commits.map((item) => item.phase)).toEqual(["start", "final"])
     const start = commits[0]
     if (!start) throw new Error("Expected web search start commit")
-    expect(entryBody(start)).toEqual({ type: "text", content: '◈ Web Search via Exa "effect"' })
+    expect(entryBody(start)).toEqual({ type: "text", content: '◈ Web search via Exa "effect"' })
     await transport.close()
   })
 

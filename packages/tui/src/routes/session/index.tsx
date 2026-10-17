@@ -2614,7 +2614,7 @@ function GenericTool(props: ToolProps) {
 
 export function genericToolSummary(tool: string, input: Record<string, unknown>) {
   const args = primitiveInputSummary(input).replace(/\s+/g, " ")
-  return `${tool}${args ? ` ${args}` : ""}`
+  return `${Locale.titlecase(tool.replaceAll("_", " "))}${args ? ` ${args}` : ""}`
 }
 
 function useToolPermission(part: () => SessionMessageAssistantTool | undefined) {
@@ -2920,8 +2920,9 @@ function ShellDisplay(props: {
   })
   const maxLines = 10
   const maxChars = createMemo(() => maxLines * Math.max(20, ctx.width - 6 - (isRunning() ? 2 : 0)))
-  const prefix = createMemo(() => (workdir() && workdir() !== "." ? `cd ${workdir()} && ` : ""))
-  const input = createMemo(() => (props.command ? `${isRunning() ? "" : "$ "}${prefix()}${props.command}` : ""))
+  // A plain action heading: "Run <command> · <directory>".
+  const suffix = createMemo(() => (workdir() && workdir() !== "." ? ` · ${workdir()}` : ""))
+  const input = createMemo(() => (props.command ? `Run ${props.command}${suffix()}` : ""))
   const collapsed = createMemo(() => collapseShellOutput(input(), output(), maxLines, maxChars()))
   const limitedInput = createMemo(() => (expanded() ? input() : collapsed().input))
   const limitedOutput = createMemo(() => (expanded() ? output() : collapsed().output))
@@ -2994,7 +2995,7 @@ function Write(props: ToolProps) {
     <Switch>
       <Match when={props.part.state.status === "completed"}>
         <BlockTool
-          path={{ label: "# Wrote", value: pathFormatter.format(stringValue(props.input.path)) }}
+          path={{ label: "Write", value: pathFormatter.format(stringValue(props.input.path)) }}
           part={props.part}
         >
           <line_number fg={theme.text.muted} minWidth={3} paddingRight={1}>
@@ -3010,7 +3011,7 @@ function Write(props: ToolProps) {
         </BlockTool>
       </Match>
       <Match when={true}>
-        <InlineTool icon="←" pending="Preparing write…" complete={stringValue(props.input.path)} part={props.part}>
+        <InlineTool icon="←" pending="Write" complete={stringValue(props.input.path)} part={props.part}>
           Write {pathFormatter.format(stringValue(props.input.path))}
         </InlineTool>
       </Match>
@@ -3022,7 +3023,7 @@ function Glob(props: ToolProps) {
   const pathFormatter = usePathFormatter()
   return (
     <InlineTool icon="✱" pending="Finding files…" complete={stringValue(props.input.pattern)} part={props.part}>
-      Glob "{stringValue(props.input.pattern)}"{" "}
+      Find files "{stringValue(props.input.pattern)}"{" "}
       <Show when={stringValue(props.input.path)}>in {pathFormatter.format(stringValue(props.input.path))} </Show>
       <Show when={finiteNumber(props.metadata.count)}>
         ({finiteNumber(props.metadata.count)} {finiteNumber(props.metadata.count) === 1 ? "match" : "matches"})
@@ -3073,7 +3074,7 @@ function Grep(props: ToolProps) {
   const pathFormatter = usePathFormatter()
   return (
     <InlineTool icon="✱" pending="Searching content…" complete={stringValue(props.input.pattern)} part={props.part}>
-      Grep "{stringValue(props.input.pattern)}"{" "}
+      Search files "{stringValue(props.input.pattern)}"{" "}
       <Show when={stringValue(props.input.path)}>in {pathFormatter.format(stringValue(props.input.path))} </Show>
       <Show when={finiteNumber(props.metadata.matches)}>
         ({finiteNumber(props.metadata.matches)} {finiteNumber(props.metadata.matches) === 1 ? "match" : "matches"})
@@ -3085,7 +3086,7 @@ function Grep(props: ToolProps) {
 function WebFetch(props: ToolProps) {
   return (
     <InlineTool icon="%" pending="Fetching from the web…" complete={stringValue(props.input.url)} part={props.part}>
-      WebFetch {stringValue(props.input.url)}
+      Web fetch {stringValue(props.input.url)}
     </InlineTool>
   )
 }
@@ -3094,11 +3095,11 @@ function WebSearch(props: ToolProps) {
   const ctx = use()
   const provider = createMemo(() => stringValue(props.metadata.provider))
   return (
-    <InlineTool icon="◈" pending="Searching web…" complete={stringValue(props.input.query)} part={props.part}>
-      <Show when={provider()} fallback="Web Search">
+    <InlineTool icon="" pending="Searching web…" complete={stringValue(props.input.query)} part={props.part}>
+      <Show when={provider()} fallback="Web search">
         {(value) => (
           <>
-            Web Search via{" "}
+            Web search via{" "}
             <RetryProvider
               value={{
                 id: `${ctx.sessionID}:${props.part.time.created}:${props.part.id}`,
@@ -3293,7 +3294,7 @@ function Edit(props: ToolProps) {
     <Switch>
       <Match when={file()}>
         {(item) => (
-          <BlockTool path={{ label: "← Edit", value: pathFormatter.format(path()) }} part={props.part}>
+          <BlockTool path={{ label: "Edit", value: pathFormatter.format(path()) }} part={props.part}>
             <box paddingLeft={1}>
               <PatchDiff
                 diff={item().patch}
@@ -3324,10 +3325,10 @@ function Edit(props: ToolProps) {
         <BlockTool
           path={
             stringValue(props.input.path)
-              ? { label: "← Edit", value: pathFormatter.format(stringValue(props.input.path)) }
+              ? { label: "Edit", value: pathFormatter.format(stringValue(props.input.path)) }
               : undefined
           }
-          title={stringValue(props.input.path) ? undefined : "# Preparing edit…"}
+          title={stringValue(props.input.path) ? undefined : "Edit"}
           part={props.part}
           spinner={props.part.state.status === "streaming"}
         />
@@ -3371,7 +3372,7 @@ function ApplyPatch(props: ToolProps) {
             {(file) => (
               <BlockTool
                 path={{
-                  label: file.type === "add" ? "# Created" : file.type === "delete" ? "# Deleted" : "← Patched",
+                  label: file.type === "add" ? "Create" : file.type === "delete" ? "Delete" : "Patch",
                   value: pathFormatter.format(file.relativePath),
                 }}
                 part={props.part}
@@ -3418,7 +3419,7 @@ function ApplyPatch(props: ToolProps) {
             {(file) => (
               <BlockTool
                 path={{
-                  label: file.type === "add" ? "# Created" : file.type === "delete" ? "# Deleted" : "← Patched",
+                  label: file.type === "add" ? "Create" : file.type === "delete" ? "Delete" : "Patch",
                   value: pathFormatter.format(file.resource),
                 }}
                 part={props.part}
@@ -3438,13 +3439,13 @@ function ApplyPatch(props: ToolProps) {
           path={
             targets().length === 1
               ? {
-                  label: props.part.state.status === "error" ? "# Patch failed" : "Patching",
+                  label: props.part.state.status === "error" ? "Patch" : "Patch",
                   value: pathFormatter.format(targets()[0]),
                 }
               : undefined
           }
           title={
-            targets().length === 1 ? undefined : props.part.state.status === "error" ? "# Patch failed" : "Patching"
+            targets().length === 1 ? undefined : props.part.state.status === "error" ? "Patch" : "Patch"
           }
           part={props.part}
           spinner={props.part.state.status === "streaming" || props.part.state.status === "running"}
@@ -3470,7 +3471,7 @@ function Question(props: ToolProps) {
   return (
     <Switch>
       <Match when={answers()}>
-        <BlockTool title="# Questions" part={props.part}>
+        <BlockTool title="Questions" part={props.part}>
           <box gap={1}>
             <For each={questions()}>
               {(q, i) => (

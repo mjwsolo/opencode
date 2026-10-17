@@ -11,12 +11,12 @@ test("preserves permission roots and self-contained metadata", () => {
   expect(
     permissionPresentation({ action: "webfetch", resources: [], metadata: { url: "https://example.com" } }),
   ).toMatchObject({
-    title: "WebFetch https://example.com",
+    title: "Web fetch https://example.com",
     lines: ["URL: https://example.com"],
   })
   expect(permissionPresentation({ action: "websearch", resources: [], metadata: { query: "releases" } })).toMatchObject(
     {
-      title: 'Web Search "releases"',
+      title: 'Web search "releases"',
       lines: ["Query: releases"],
     },
   )

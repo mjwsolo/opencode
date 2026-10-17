@@ -55,7 +55,7 @@ export function permissionPresentation(
 
   if (action === "glob" || action === "grep") {
     const pattern = text(input.pattern) || resources[0] || ""
-    const title = action === "glob" ? "Glob" : "Grep"
+    const title = action === "glob" ? "Find files" : "Search files"
     return {
       icon: "✱",
       title: `${title} "${pattern}"`,
@@ -86,7 +86,7 @@ export function permissionPresentation(
     const url = text(input.url) || text(metadata.url)
     return {
       icon: "%",
-      title: `WebFetch ${url}`,
+      title: `Web fetch ${url}`,
       lines: url ? [`URL: ${url}`] : [],
     }
   }
@@ -95,7 +95,7 @@ export function permissionPresentation(
     const query = text(input.query) || text(metadata.query)
     const title = webSearchProviderLabel(metadata.provider)
     return {
-      icon: "◈",
+      icon: "",
       title: query ? `${title} "${query}"` : title,
       lines: query ? [`Query: ${query}`] : [],
     }

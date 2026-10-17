@@ -43,15 +43,22 @@ export const Plugin = define({
           const resolved = yield* fs.realPath(directory).pipe(Effect.orElseSucceed(() => undefined))
           if (!resolved) continue
           yield* watch(resolved, "directory")
+          // One directory level, like Claude Code reads ~/.claude/skills/<name>/SKILL.md. A recursive
+          // scan also loaded every nested copy a skill package keeps for other agents.
           const files = yield* fs
-            .scan("{*.md,**/SKILL.md}", { cwd: resolved, absolute: true, include: "file", symlink: true, dot: true })
+            .scan("{*.md,*/SKILL.md}", { cwd: resolved, absolute: true, include: "file", symlink: true, dot: true })
             .pipe(Effect.orElseSucceed(() => [] as string[]))
+          // Later roots still take precedence (a worktree over its parent checkout); within one
+          // root a name collision keeps the copy whose path sorts first.
+          const local = new Map<Skill.ID, Skill.Info>()
           for (const filepath of files.toSorted()) {
             const content = yield* fs.readFileStringSafe(filepath).pipe(Effect.orElseSucceed(() => undefined))
             if (!content) continue
             const parsed = SkillFile.parse(resolved, filepath, content)
-            if (parsed._tag === "Parsed") loaded.set(parsed.skill.id, parsed.skill)
+            if (parsed._tag !== "Parsed" || local.has(parsed.skill.id)) continue
+            local.set(parsed.skill.id, parsed.skill)
           }
+          for (const [id, skill] of local) loaded.set(id, skill)
         }
         skills.splice(0, skills.length, ...loaded.values())
       },

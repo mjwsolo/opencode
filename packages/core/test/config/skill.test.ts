@@ -211,6 +211,31 @@ describe("ConfigSkillPlugin.Plugin", () => {
     ),
   )
 
+  it.live("reads compatibility skills one level deep and keeps the first path on a name collision", () =>
+    Effect.acquireDisposable(Effect.promise(() => tmpdir())).pipe(
+      Effect.flatMap((tmp) =>
+        Effect.gen(function* () {
+          const claude = path.join(tmp.path, "claude")
+          const skills = path.join(claude, "skills")
+          yield* Effect.promise(async () => {
+            await fs.mkdir(path.join(skills, "review", ".kiro", "skills", "nested"), { recursive: true })
+            await write(skills, "review", "Review")
+            await write(path.join(skills, "review", ".kiro", "skills"), "nested", "Nested copy")
+            // A flat file and a folder with the same skill id: the path that sorts first wins.
+            await fs.writeFile(path.join(skills, "review.md"), "---\ndescription: Flat copy\n---\n# review")
+          })
+          const skill = yield* startEntries([], tmp.path, tmp.path, emptyDiscovery, {
+            claude: [AbsolutePath.make(claude)],
+            agents: [],
+          })
+          const list = yield* skill.list()
+          expect(list.map((item) => item.id)).toEqual([Skill.ID.make("review")])
+          expect(list[0]?.description).toBe("Flat copy")
+        }),
+      ),
+    ),
+  )
+
   it.live("loads directory and individual downloaded skill roots with later-source precedence", () =>
     Effect.acquireDisposable(Effect.promise(() => tmpdir())).pipe(
       Effect.flatMap((tmp) =>

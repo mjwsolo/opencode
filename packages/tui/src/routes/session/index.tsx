@@ -19,6 +19,8 @@ import { useRoute, useRouteData } from "../../context/route"
 import { createStore } from "solid-js/store"
 import { useData } from "../../context/data"
 import { SplitBorder } from "../../ui/border"
+import { withSolidQuotes } from "../../ui/solid-quote"
+import { messagePanelStyle, SENT_MESSAGE_BACKGROUND } from "../../ui/message-panel"
 import { useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner, SPINNER_FRAMES } from "../../component/spinner"
 import { PatchDiff } from "../../component/patch-diff"
@@ -2082,7 +2084,7 @@ function CompactionMessage(props: { message: Extract<SessionMessageInfo, { type:
         <box paddingTop={1} paddingLeft={3}>
           <markdown
             syntaxStyle={syntax()}
-            renderNode={plugins.markdown()}
+            renderNode={withSolidQuotes(plugins.markdown())}
             streaming={true}
             internalBlockMode="top-level"
             content={content()}
@@ -2215,8 +2217,6 @@ function ShellMessage(props: { message: Extract<SessionMessageInfo, { type: "she
 function UserMessage(props: { message: SessionMessageUser }) {
   const ctx = use()
   const newDesigns = useNewDesigns()
-  const data = useData()
-  const local = useLocal()
   const files = createMemo(() => deduplicateVisibleImages(props.message.files ?? []))
   const skills = createMemo(() => props.message.skills ?? [])
   const images = createMemo(() =>
@@ -2228,7 +2228,8 @@ function UserMessage(props: { message: SessionMessageUser }) {
   const theme = useTheme()
   const mode = themes.mode
   const [hover, setHover] = createSignal(false)
-  const color = createMemo(() => local.agent.color(data.session.get(ctx.sessionID)?.agent ?? "build"))
+  // A sent message is one uniform panel: no accent stripe, a fixed grey in dark mode.
+  const panel = createMemo(() => (mode() === "dark" ? SENT_MESSAGE_BACKGROUND : theme.background.raised.base))
   const delivery = createMemo(() => ctx.pendingDelivery(props.message.id))
   const dialog = useDialog()
   const renderer = useRenderer()
@@ -2240,12 +2241,7 @@ function UserMessage(props: { message: SessionMessageUser }) {
 
   return (
     <Show when={props.message.text.trim() || files().length || skills().length}>
-      <box
-        border={["left"]}
-        borderColor={delivery() ? theme.border.base : color()}
-        customBorderChars={SplitBorder.customBorderChars}
-        backgroundColor={theme.background.raised.base}
-      >
+      <box {...messagePanelStyle(panel())}>
         <SessionImages images={images()} paddingLeft={2} />
         <box
           onMouseOver={() => {
@@ -2285,10 +2281,10 @@ function UserMessage(props: { message: SessionMessageUser }) {
           paddingTop={1}
           paddingBottom={1}
           paddingLeft={2}
-          backgroundColor={hover() ? theme.decrease(theme.background.raised.base) : theme.background.raised.base}
+          backgroundColor={hover() ? theme.decrease(panel()) : panel()}
           flexShrink={0}
         >
-          <text fg={theme.text.base}>{props.message.text}</text>
+          <text fg={delivery() ? theme.text.muted : theme.text.base}>{props.message.text}</text>
           <Show when={skills().length}>
             <box flexDirection="row" paddingTop={1} gap={1} flexWrap="wrap">
               <For each={skills()}>

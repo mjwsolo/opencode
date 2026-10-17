@@ -1,5 +1,6 @@
 import { createMemo, createSignal, Match, Show, Switch } from "solid-js"
 import { RGBA, TextAttributes, type MouseEvent } from "@opentui/core"
+import { withSolidQuotes } from "../../ui/solid-quote"
 import type { JSX } from "@opentui/solid"
 import type {
   SessionMessageAssistant,
@@ -181,7 +182,7 @@ export function TextPart(props: {
         {/* Configure custom nodes before parsing; apply content before streaming so completion keeps the final tokens. */}
         <markdown
           syntaxStyle={syntax()}
-          renderNode={plugins.markdown()}
+          renderNode={withSolidQuotes(plugins.markdown())}
           content={props.part.text.trim()}
           streaming={props.message.time.completed === undefined}
           internalBlockMode="top-level"

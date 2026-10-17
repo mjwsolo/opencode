@@ -44,6 +44,16 @@ import { errorMessage } from "../../util/error"
 import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogIntegration } from "../dialog-integration"
+import { DialogLocalcodeModel } from "../dialog-localcode-model"
+import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
+import {
+  controlFetch,
+  controlUrl,
+  modelChanging,
+  modelLoaded,
+  queuedModelName,
+  supervisorKnown,
+} from "../../util/localcode"
 import { useConnected } from "../use-connected"
 import { useToast } from "../../ui/toast"
 import { createFadeIn } from "../../util/signal"
@@ -314,6 +324,15 @@ export function Prompt(props: PromptProps) {
   const connected = useConnected()
 
   function promptModelWarning() {
+    if (controlUrl()) {
+      toast.show({
+        variant: "warning",
+        message: "No model loaded. Use /models to pick a local model before sending prompts",
+        duration: 3000,
+      })
+      dialog.replace(() => <DialogLocalcodeModel />)
+      return
+    }
     toast.show({
       variant: "warning",
       message: "Connect an integration to send prompts",
@@ -322,6 +341,133 @@ export function Prompt(props: PromptProps) {
     if (!connected()) {
       dialog.replace(() => <DialogIntegration />)
     }
+  }
+
+  // Prompt-fill progress from the local server (via the supervisor's /progress), so a long
+  // context read shows "reading context · 12k tokens read" instead of a bare spinner.
+  const [fill, setFill] = createSignal("")
+  createEffect(() => {
+    if (!controlUrl() || status() === "idle") {
+      setFill("")
+      return
+    }
+    const timer = setInterval(async () => {
+      try {
+        const r = await controlFetch("/progress", { signal: AbortSignal.timeout(900) })
+        const p = (await r.json()) as { phase?: string; done?: number; todo?: number; decoded?: number }
+        if (p.phase === "reading" && (p.todo ?? 0) > 0) {
+          // llama-server grows the prompt total while it tokenises in batches, so a percentage
+          // drifts; tokens read so far is honest and only goes up.
+          const k = (p.done ?? 0) / 1000
+          setFill(`reading context · ${k >= 1 ? `${k.toFixed(k >= 10 ? 0 : 1)}k` : `${p.done ?? 0}`} tokens read`)
+        } else if (p.phase === "generating" && (p.decoded ?? 0) > 0) {
+          setFill(`writing · ${p.decoded} tokens`)
+        } else setFill("")
+      } catch {
+        setFill("")
+      }
+    }, 500)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  // Hold-space voice (see onKeyDown). 450 ms without a key repeat = released.
+  const voiceHold = {
+    active: false,
+    streak: 0,
+    lastSpace: 0,
+    timer: undefined as ReturnType<typeof setTimeout> | undefined,
+    // Live dictation: what was in the input before speaking, and the poll that rewrites
+    // everything after it as the words arrive.
+    base: "",
+    live: undefined as ReturnType<typeof setInterval> | undefined,
+    // What dictation last wrote into the prompt. If the prompt no longer holds it, the user
+    // has typed, cleared or sent since, and dictation must not write over that.
+    shown: undefined as string | undefined,
+    finishing: false,
+    sendWhenDone: false,
+    owns() {
+      return !input.isDestroyed && (this.shown === undefined || input.plainText === this.shown)
+    },
+    show(text: string) {
+      if (!this.owns()) return
+      const next = this.base ? (text ? `${this.base} ${text}` : this.base) : text
+      this.shown = next
+      if (input.plainText === next) return
+      input.setText(next)
+      input.cursorOffset = next.length
+    },
+    press() {
+      if (this.timer) clearTimeout(this.timer)
+      if (!this.active) {
+        this.active = true
+        void voiceStart().then(async (err) => {
+          if (err === "setup_needed") {
+            this.active = false
+            if (this.timer) clearTimeout(this.timer)
+            await ensureVoiceReady(dialog, toast) // asks first; the next hold records
+            return
+          }
+          if (err) {
+            this.active = false
+            toast.show({ variant: "error", title: "Voice", message: err, duration: 5000 })
+            return
+          }
+          toast.show({ variant: "info", title: "Voice", message: "Listening… release space when done", duration: 60_000 })
+          this.base = input.plainText.replace(/ +$/, "")
+          this.shown = undefined
+          this.sendWhenDone = false
+          if (this.live) clearInterval(this.live)
+          let asking = false
+          this.live = setInterval(() => {
+            if (asking || !this.active) return
+            asking = true
+            void voicePartial()
+              .then((text) => {
+                if (this.active && text.trim()) this.show(text.trim())
+              })
+              .finally(() => (asking = false))
+          }, 350)
+        })
+      }
+      this.timer = setTimeout(() => this.stop(), 450)
+    },
+    stop() {
+      if (this.timer) clearTimeout(this.timer)
+      this.timer = undefined
+      if (!this.active) return
+      this.active = false
+      if (this.live) clearInterval(this.live)
+      this.live = undefined
+      this.finishing = true
+      toast.show({ variant: "info", title: "Voice", message: "Finishing…", duration: 60_000 })
+      void voiceStop().then((res) => {
+        this.finishing = false
+        const send = this.sendWhenDone
+        this.sendWhenDone = false
+        if (res.error) {
+          this.show("")
+          toast.show({ variant: "error", title: "Voice", message: res.error, duration: 6000 })
+          return
+        }
+        const text = (res.text ?? "").trim()
+        // The final transcript replaces the live one only while the prompt still holds it.
+        if (!this.owns()) {
+          toast.show({ variant: "info", title: "Voice", message: "Done", duration: 1500 })
+          return
+        }
+        this.show(text)
+        if (!text) {
+          toast.show({ variant: "warning", title: "Voice", message: "Nothing heard", duration: 3000 })
+          return
+        }
+        if (send) {
+          toast.show({ variant: "success", title: "Voice", message: "Sent", duration: 1500 })
+          void submit()
+          return
+        }
+        toast.show({ variant: "success", title: "Voice", message: "Transcript inserted — enter to send", duration: 3000 })
+      })
+    },
   }
 
   function dismissEditorContext() {
@@ -1093,6 +1239,13 @@ export function Prompt(props: PromptProps) {
   let submitting = false
   async function submit(delivery: SessionInbox.Delivery = "steer") {
     if (disabled()) return false
+    // Enter while dictating, or just after release before the last words are in: send once the
+    // whole transcript has arrived, not the part that happens to be on screen.
+    if (voiceHold.active || voiceHold.finishing) {
+      voiceHold.sendWhenDone = true
+      if (voiceHold.active) voiceHold.stop()
+      return false
+    }
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
     // a second call slips past the empty-input check before the first call
@@ -1158,8 +1311,16 @@ export function Prompt(props: PromptProps) {
     }
     const agent = local.agent.current()
     if (!agent) return false
+    if (modelChanging()) {
+      toast.show({
+        variant: "info",
+        title: "Model changing…",
+        message: "Wait for the model to finish loading, then send your message. Your draft is kept.",
+      })
+      return false
+    }
     const selection = local.model.selection()
-    if (!selection) {
+    if (!selection || !modelLoaded()) {
       void promptModelWarning()
       return false
     }
@@ -1570,6 +1731,14 @@ export function Prompt(props: PromptProps) {
     return promptDisplay().agentColor ?? theme.border.base
   })
   const agentLabel = createMemo(() => (store.mode === "shell" ? "Shell" : promptDisplay().agentLabel))
+  // Under the localcode launcher the model slot reports the supervisor's state until a model is serving.
+  const localModelLabel = createMemo(() => {
+    if (!controlUrl()) return undefined
+    const queued = queuedModelName() ? ` · queued: ${queuedModelName()}` : ""
+    if (modelChanging()) return "Model changing…" + queued
+    if (modelLoaded()) return queued ? promptDisplay().modelLabel + queued : undefined
+    return supervisorKnown() ? "No model loaded · /models" : "Model service not running · exit and run localcode again"
+  })
   const animateMetadata = !revealedPromptMetadata.has(local)
   const metadataAnimationsEnabled = () => animationsEnabled() && animateMetadata
   const agentMetaAlpha = createFadeIn(() => !!agentLabel(), metadataAnimationsEnabled)
@@ -1760,10 +1929,35 @@ export function Prompt(props: PromptProps) {
                 setCursorVersion((value) => value + 1)
               }}
               onCursorChange={() => setCursorVersion((value) => value + 1)}
-              onKeyDown={(e: { preventDefault(): void }) => {
+              onKeyDown={(e: { preventDefault(): void; name?: string; eventType?: string }) => {
                 if (disabled()) {
                   e.preventDefault()
                   return
+                }
+                // localcode: hold space to talk, with or without text in the prompt. A single space
+                // types a space. Terminals rarely send key-release, so a hold is inferred from key
+                // repeat: the 3rd space inside 700 ms means the key is held. The spaces it typed are
+                // removed, recording starts, repeats keep it alive, and a gap (or a real release
+                // event) stops it and inserts the text.
+                if (e.name === "space" && controlUrl()) {
+                  if (voiceHold.active) {
+                    e.preventDefault()
+                    if (e.eventType === "release") voiceHold.stop()
+                    else voiceHold.press()
+                    return
+                  }
+                  const now = Date.now()
+                  voiceHold.streak = now - voiceHold.lastSpace < 700 ? voiceHold.streak + 1 : 1
+                  voiceHold.lastSpace = now
+                  if (voiceHold.streak >= 3) {
+                    e.preventDefault()
+                    const text = input.plainText
+                    if (/ +$/.test(text)) input.setText(text.replace(/ {1,2}$/, ""))
+                    voiceHold.streak = 0
+                    voiceHold.press()
+                  }
+                } else if (e.name !== "space") {
+                  voiceHold.streak = 0
                 }
               }}
               onSubmit={() => {
@@ -1834,10 +2028,11 @@ export function Prompt(props: PromptProps) {
             <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between">
               <PromptMetadataRow
                 mode={store.mode}
-                agent={agentLabel()}
+                // A single agent (Build only) needs no label.
+                agent={store.mode === "shell" || local.agent.list().length > 1 ? agentLabel() : ""}
                 auto={local.permission.mode === "autoaccept"}
-                model={promptDisplay().modelLabel}
-                provider={promptDisplay().providerLabel}
+                model={localModelLabel() ?? promptDisplay().modelLabel}
+                provider={promptDisplay().providerLabel === "localcode" ? "" : promptDisplay().providerLabel}
                 variant={promptDisplay().variant}
                 muted={!!muted()}
                 highlight={highlight()}
@@ -1902,6 +2097,11 @@ export function Prompt(props: PromptProps) {
                         warning={theme.text.feedback.warning.base}
                         flash={theme.decrease(theme.text.feedback.warning.base, 2)}
                       />
+                      <Show when={fill()}>
+                        <text fg={theme.text.muted} wrapMode="none" truncate flexShrink={1}>
+                          {fill()}
+                        </text>
+                      </Show>
                     </box>
                   </Match>
                   <Match when={move.progress()}>

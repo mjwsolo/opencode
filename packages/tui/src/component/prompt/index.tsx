@@ -81,6 +81,7 @@ import { useWorkingDirectoryActions } from "../../ui/working-directory-actions"
 import { truncateFilePath } from "../../ui/file-path"
 import { PromptMetadataRow } from "./metadata"
 import { messagePanelStyle } from "../../ui/message-panel"
+import { firstResponseNote, type ModelProgress } from "../../ui/first-response-note"
 
 export type PromptProps = {
   sessionID?: string
@@ -347,9 +348,11 @@ export function Prompt(props: PromptProps) {
   // Prompt-fill progress from the local server (via the supervisor's /progress), so a long
   // context read shows "reading context · 12k tokens read" instead of a bare spinner.
   const [fill, setFill] = createSignal("")
+  const [preparationNote, setPreparationNote] = createSignal("")
   createEffect(() => {
     if (!controlUrl() || status() === "idle") {
       setFill("")
+      setPreparationNote("")
       return
     }
     let polling = false
@@ -359,8 +362,10 @@ export function Prompt(props: PromptProps) {
       polling = true
       try {
         const r = await controlFetch("/progress", { signal: AbortSignal.timeout(900) })
-        const p = (await r.json()) as { phase?: string; warmup?: boolean; done?: number; todo?: number; decoded?: number }
+        if (!r.ok) throw new Error("Progress unavailable")
+        const p = (await r.json()) as ModelProgress
         if (!active) return
+        setPreparationNote(firstResponseNote(p))
         if (p.phase === "reading" && (p.todo ?? 0) > 0) {
           // Counts are per request, not the session's total context. Warm-up is separate.
           const k = (p.done ?? 0) / 1000
@@ -371,7 +376,10 @@ export function Prompt(props: PromptProps) {
           setFill(`writing · ${p.decoded} tokens`)
         } else setFill("")
       } catch {
-        if (active) setFill("")
+        if (active) {
+          setFill("")
+          setPreparationNote("")
+        }
       } finally {
         polling = false
       }
@@ -1837,6 +1845,11 @@ export function Prompt(props: PromptProps) {
   return (
     <>
       <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false} width="100%">
+        <Show when={preparationNote()}>
+          <box paddingLeft={3} paddingRight={2} marginBottom={1}>
+            <text fg={theme.text.muted}>{preparationNote()}</text>
+          </box>
+        </Show>
         <box width="100%" {...messagePanelStyle(promptBg())}>
           <box
             paddingLeft={dimensions().width < 44 ? 1 : 2}

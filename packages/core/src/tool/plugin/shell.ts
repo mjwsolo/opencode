@@ -133,7 +133,19 @@ export const Plugin = {
           kind: "directory",
         }),
       )
-      yield* access.authorizeExternal([target, ...directories], context)
+      // Files the command names (file arguments of known file commands, redirection targets):
+      // a path outside the project needs external-directory approval for its folder, as in v1.
+      const files = yield* ShellParse.paths(invocation.command, invocation.shell, target.absolute)
+      const fileTargets = yield* Effect.forEach(files, (file) =>
+        access.resolve({ path: FileAccess.resolvePath(target.absolute, file) }),
+      )
+      const external = [target, ...directories, ...fileTargets]
+      yield* access.authorizeExternal(external, context, {
+        command: invocation.command,
+        directories: [
+          ...new Set(external.flatMap((item) => (item.externalDirectory ? [item.externalDirectory.directory] : []))),
+        ],
+      })
       if (parsed.commands.length > 0)
         yield* permission.assert({
           action: name,

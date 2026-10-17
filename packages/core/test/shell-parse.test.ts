@@ -187,3 +187,31 @@ describe("ShellParse", () => {
     expect(powershell.directories).toEqual(["/workspace/src", "/usr/local/bin"])
   })
 })
+
+describe("ShellParse.paths", () => {
+  const noGrammar = { runtime: "runtime.wasm", bash: "", powershell: "" }
+  const cases: Array<[string, string[]]> = [
+    ["cat > /tmp/x <<EOF\nhi\nEOF", ["/tmp/x"]],
+    ["echo hi >> ~/notes.txt 2>&1", [path.join(os.homedir(), "notes.txt")]],
+    ["cp a.txt /etc/hosts && rm -rf /var/x/*", ["a.txt", "/etc/hosts", "/var/x/"]],
+    ["ls /tmp > /dev/null 2>/dev/null; printf x >&2", []],
+    ['mkdir -p "/opt/my dir"', ["/opt/my dir"]],
+    ["cat $HOME/x; cat *.txt", []],
+    ["chmod +x /usr/local/bin/y", ["/usr/local/bin/y"]],
+    ["git status && npm test", []],
+  ]
+  test.each(cases)("names the files of %j", async (command, expected) => {
+    expect(await Effect.runPromise(ShellParse.paths(command, "/bin/zsh", "/workspace"))).toEqual(expected)
+    // Without the bash grammar the portable scanner and the command source give the same paths.
+    expect(await Effect.runPromise(ShellParse.paths(command, "/bin/zsh", "/workspace", { wasm: noGrammar }))).toEqual(
+      expected,
+    )
+  })
+
+  test("reads redirection targets under the portable permission scanner too", async () => {
+    expect(await Effect.runPromise(ShellParse.paths("tee /tmp/out < input.txt", "/bin/bash", "/w", { portable: true }))).toEqual([
+      "/tmp/out",
+      "input.txt",
+    ])
+  })
+})

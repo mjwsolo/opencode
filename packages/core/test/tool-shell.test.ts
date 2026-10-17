@@ -1,5 +1,5 @@
 import fs from "fs/promises"
-import { realpathSync, watch } from "node:fs"
+import { existsSync, realpathSync, watch } from "node:fs"
 import os from "os"
 import path from "path"
 import { describe, expect } from "bun:test"
@@ -1244,6 +1244,84 @@ describe("ShellTool", () => {
           Effect.promise(() =>
             Promise.all([active[Symbol.asyncDispose](), outside[Symbol.asyncDispose]()]).then(() => undefined),
           ),
+      ),
+    { timeout: 15_000 },
+  )
+
+  // opencode v1 asked for the folders a shell command names, not only its working directory.
+  const externalFileCases = isWindows
+    ? []
+    : [
+        { label: "file argument", command: (file: string) => `cat '${file}'`, written: false },
+        { label: "redirection target", command: (file: string) => `printf hi > '${file}'`, written: true },
+        { label: "appending redirection", command: (file: string) => `printf hi >> '${file}' 2>&1`, written: true },
+        { label: "heredoc into a file", command: (file: string) => `cat > '${file}' <<'EOF'\nhi\nEOF`, written: true },
+        { label: "tee target", command: (file: string) => `printf hi | tee '${file}'`, written: true },
+        { label: "nested command", command: (file: string) => `echo $(cat '${file}')`, written: false },
+      ]
+  for (const item of externalFileCases)
+    it.live(
+      `asks for external_directory for a path outside the project: ${item.label}`,
+      () =>
+        Effect.acquireUseRelease(
+          Effect.promise(() => Promise.all([tmpdir(), tmpdir()])),
+          ([active, outside]) =>
+            Effect.gen(function* () {
+              const file = path.join(outside.path, "outside.txt")
+              if (!item.written) yield* Effect.promise(() => fs.writeFile(file, "x"))
+              reset()
+              denyAction = "external_directory"
+              const settled = yield* withSession(active.path, (registry) =>
+                executeTool(registry, call({ command: item.command(file) }, "call-external-file")),
+              )
+              expect(settled.status).toBe("error")
+              expect(assertions.map((entry) => entry.action)).toEqual(["external_directory"])
+              expect(assertions[0]).toMatchObject({
+                resources: [path.join(realpathSync(outside.path), "*")],
+                metadata: { command: item.command(file), directories: [realpathSync(outside.path)] },
+              })
+              if (item.written) expect(existsSync(file)).toBe(false)
+            }),
+          ([active, outside]) =>
+            Effect.promise(() =>
+              Promise.all([active[Symbol.asyncDispose](), outside[Symbol.asyncDispose]()]).then(() => undefined),
+            ),
+        ),
+      { timeout: 15_000 },
+    )
+
+  if (!isWindows) it.live(
+    "does not ask for external_directory for project paths, wildcards inside it, or terminal devices",
+    () =>
+      Effect.acquireUseRelease(
+        Effect.promise(() => tmpdir()),
+        (tmp) =>
+          Effect.gen(function* () {
+            reset()
+            const command = `mkdir -p nested && printf x > nested/a.txt && rm -rf ${path.join(tmp.path, "nested")}/* && ls > /dev/null 2>/dev/null; printf x 2>&1 >&2`
+            const settled = yield* withSession(tmp.path, (registry) => executeTool(registry, call({ command })))
+            expect(settled.status).toBe("completed")
+            expect(assertions.map((entry) => entry.action)).toEqual(["shell"])
+          }),
+        (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]().then(() => undefined)),
+      ),
+    { timeout: 15_000 },
+  )
+
+  if (!isWindows) it.live(
+    "asks for external_directory for a wildcard path's fixed folder",
+    () =>
+      Effect.acquireUseRelease(
+        Effect.promise(() => tmpdir()),
+        (tmp) =>
+          Effect.gen(function* () {
+            reset()
+            denyAction = "external_directory"
+            yield* withSession(tmp.path, (registry) => executeTool(registry, call({ command: "cat /etc/*" })))
+            expect(assertions.map((entry) => entry.action)).toEqual(["external_directory"])
+            expect(assertions[0]?.resources).toEqual(["/etc/*"])
+          }),
+        (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]().then(() => undefined)),
       ),
     { timeout: 15_000 },
   )

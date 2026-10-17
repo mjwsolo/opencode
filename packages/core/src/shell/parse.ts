@@ -403,3 +403,176 @@ async function initialize() {
   if (psLanguage) ps.setLanguage(psLanguage)
   return { bash, ps }
 }
+
+/**
+ * Paths a command reads or writes that are visible without running it: the file arguments of
+ * commands known to take paths (opencode v1's list) and the targets of redirections. Each is
+ * returned as written (quotes removed, a leading ~ expanded); unknown expansions ($VAR, command
+ * substitutions) and leading globs are skipped, as in v1. Terminal devices are never returned.
+ */
+const FILE_COMMANDS = new Set([
+  ...CWD,
+  "rm",
+  "cp",
+  "mv",
+  "mkdir",
+  "rmdir",
+  "touch",
+  "chmod",
+  "chown",
+  "cat",
+  "tee",
+  "ln",
+  "get-content",
+  "set-content",
+  "add-content",
+  "copy-item",
+  "move-item",
+  "remove-item",
+  "new-item",
+  "rename-item",
+])
+const CMD_FILE_COMMANDS = new Set(["copy", "del", "dir", "erase", "md", "mkdir", "move", "rd", "ren", "rename", "rmdir", "type"])
+const POWERSHELL_FLAGS = new Set(["-destination", "-literalpath", "-path"])
+const POWERSHELL_SWITCHES = new Set(["-confirm", "-debug", "-force", "-nonewline", "-recurse", "-verbose", "-whatif"])
+const DEVICES = /^\/dev\/(?:null|zero|stdin|stdout|stderr|tty|fd\/\d+)$/
+
+export const paths = Effect.fnUntraced(function* (
+  command: string,
+  shell: string,
+  cwd: string,
+  options?: { portable?: boolean; wasm?: typeof shellParserWasm },
+) {
+  const wasm = options?.wasm ?? shellParserWasm
+  const powershell = ShellSelect.ps(shell)
+  const cmd = ShellSelect.name(shell) === "cmd"
+  // The tree-sitter grammar sees redirection targets; use it whenever the build has it, whichever
+  // scanner derives the permission patterns.
+  const raw =
+    wasm.bash === "" || (powershell && wasm.powershell === "")
+      ? yield* pathsPortable(command, shell)
+      : yield* pathsLegacy(command, powershell, cmd)
+  return [
+    ...new Set(
+      raw.flatMap((value) => {
+        const text = pathText(value, powershell, cwd, shell)
+        return text === undefined || DEVICES.test(text) ? [] : [text]
+      }),
+    ),
+  ]
+})
+
+function fileArguments(command: Part[], powershell: boolean, cmd: boolean): string[] {
+  const name = powershell || cmd ? command[0]?.text.toLowerCase() : command[0]?.text
+  if (!name || CWD.has(name) || !(FILE_COMMANDS.has(name) || (cmd && CMD_FILE_COMMANDS.has(name)))) return []
+  if (!powershell)
+    return command
+      .slice(1)
+      .filter(
+        (part) =>
+          !part.text.startsWith("-") && !(cmd && part.text.startsWith("/")) && !(name === "chmod" && part.text.startsWith("+")),
+      )
+      .map((part) => part.text)
+  const out: string[] = []
+  let want = false
+  for (const part of command.slice(1)) {
+    if (want) {
+      out.push(part.text)
+      want = false
+      continue
+    }
+    if (part.type === "command_parameter") {
+      const flag = part.text.toLowerCase()
+      if (POWERSHELL_SWITCHES.has(flag)) continue
+      want = POWERSHELL_FLAGS.has(flag)
+      continue
+    }
+    out.push(part.text)
+  }
+  return out
+}
+
+const REDIRECT_TARGET = /(?:^|[\s;|(])(?:\d+|&)?(>>|>\||>&|<&|<>|>|<(?!<))\s*("[^"]*"|'[^']*'|[^\s;|&<>()]+)/g
+const REDIRECT_OPERATORS = new Set([">", ">>", ">|", "&>", "&>>", "<", "<>", ">&", "<&"])
+
+const pathsLegacy = Effect.fnUntraced(function* (command: string, powershell: boolean, cmd: boolean) {
+  const parsers = yield* Effect.promise(load)
+  const tree = (powershell ? parsers.ps : parsers.bash).parse(command)
+  if (!tree) return yield* Effect.fail(new Error("Failed to parse shell command"))
+  return yield* Effect.acquireUseRelease(
+    Effect.succeed(tree),
+    (tree) =>
+      Effect.sync(() => {
+        const out: string[] = []
+        for (const node of tree.rootNode.descendantsOfType("command")) {
+          if (node) out.push(...fileArguments(parts(node), powershell, cmd))
+        }
+        for (const node of tree.rootNode.descendantsOfType(["file_redirect", "redirected_file_name"])) {
+          if (!node) continue
+          if (node.type === "redirected_file_name") {
+            out.push(node.text)
+            continue
+          }
+          const children = Array.from({ length: node.childCount }, (_, index) => node.child(index)).filter(
+            (child) => child !== null,
+          )
+          const operator = children.find((child) => !child.isNamed && REDIRECT_OPERATORS.has(child.type))?.type
+          const targets = children.filter((child) => child.isNamed && child.type !== "file_descriptor")
+          for (const target of targets) {
+            // ">&2" and "<&-" duplicate or close descriptors; they name no file.
+            if ((operator === ">&" || operator === "<&") && /^(?:\d+|-)$/.test(target.text)) continue
+            out.push(target.text)
+          }
+        }
+        return out
+      }),
+    (tree) => Effect.sync(() => tree.delete()),
+  )
+})
+
+const pathsPortable = Effect.fnUntraced(function* (command: string, shell: string) {
+  const { ShellScan } = yield* Effect.tryPromise({
+    try: () => import("./scan.js"),
+    catch: (cause) => new Error(`Portable shell scanner failed to load: ${cause}`, { cause }),
+  })
+  const powershell = ShellSelect.ps(shell)
+  const name = ShellSelect.name(shell)
+  const result = powershell
+    ? ShellScan.scanPowerShell(command)
+    : ShellScan.scan(command, name === "bash" || name === "zsh" ? name : "posix")
+  if (result.kind === "opaque")
+    return yield* Effect.fail(new Error(`Portable shell scanner cannot analyze command: ${result.reason}`))
+  return result.commands.flatMap((item) => {
+    const end = item.redirectWordCount ?? item.rawWords.length
+    const words = item.rawWords.slice(0, end).map((text, index): Part => ({
+      type: powershell && /^-[A-Za-z_?][\w?-]*$/.test(text) ? "command_parameter" : "word",
+      text: text.startsWith("$'") || (!/[$`~\\]/.test(text) && /['"]/.test(text)) ? item.words[index] : text,
+    }))
+    // The portable scanner keeps no redirection targets; read them from the command's source.
+    const targets = Array.from(item.resource.matchAll(REDIRECT_TARGET), (match) => match[2]).filter(
+      (text) => !/^(?:\d+|-)$/.test(text),
+    )
+    return [...fileArguments(words, powershell, name === "cmd"), ...targets]
+  })
+})
+
+function pathText(value: string, powershell: boolean, cwd: string, shell: string) {
+  const quote = value[0]
+  const unquoted = (quote === '"' || quote === "'") && value.length > 1 && value.at(-1) === quote ? value.slice(1, -1) : value
+  const expanded = powershell
+    ? directoryArgument(unquoted, true, cwd, shell)
+    : unquoted.includes("$") || unquoted.includes("`") || unquoted.startsWith("(")
+      ? undefined
+      : expandKnownDirectory(unquoted)
+  if (!expanded) return
+  // A leading glob names no fixed directory; a later one keeps the fixed part before it.
+  const glob = /[?*[]/.exec(expanded)
+  if (glob?.index === 0) return
+  const fixed = glob ? expanded.slice(0, glob.index) : expanded
+  if (!powershell) return fixed
+  // PowerShell provider paths other than the file system are not files.
+  const provider = /^([A-Za-z]+)::(.*)$/.exec(fixed)
+  if (provider) return provider[1].toLowerCase() === "filesystem" ? provider[2] : undefined
+  const drive = /^([A-Za-z]+):(.*)$/.exec(fixed)
+  return drive && drive[1].length > 1 ? undefined : fixed
+}

@@ -326,9 +326,36 @@ function toLLMMessage(message: SessionMessage.Info, model: Model.Ref, providerMe
   }
 }
 
+export const CANCELLED_TURN_NOTE =
+  "[The previous turn was cancelled. Do not resume its unfinished task, pending tools, or todos unless the user explicitly asks to continue. Respond to the new message below; a greeting is not permission to resume cancelled work.]"
+
 /** Translate projected Session history into canonical @opencode/ai context. */
 export const toLLMMessages = (
   messages: readonly SessionMessage.Info[],
   model: Model.Ref,
   providerMetadataKey: string = model.providerID,
-) => messages.flatMap((message) => toLLMMessage(message, model, providerMetadataKey))
+) => {
+  // localcode: a cancelled turn leaves only an "interrupted" idle marker, which
+  // the model never sees. Carry it into the next user message so a later
+  // greeting is not read as permission to resume the cancelled work.
+  let cancelled = false
+  return messages.flatMap((message) => {
+    if (message.type === "idle") {
+      if (message.outcome === "interrupted") cancelled = true
+      return []
+    }
+    const result = toLLMMessage(message, model, providerMetadataKey)
+    if (!cancelled || message.type !== "user" || result.length === 0) return result
+    cancelled = false
+    return result.map((item) =>
+      item.role === "user"
+        ? Message.make({
+            id: item.id,
+            role: item.role,
+            content: [Message.text(CANCELLED_TURN_NOTE), ...item.content],
+            metadata: item.metadata,
+          })
+        : item,
+    )
+  })
+}

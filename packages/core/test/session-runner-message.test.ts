@@ -5,7 +5,7 @@ import { Provider } from "@opencode/core/provider"
 import { SessionMessage } from "@opencode/core/session/message"
 import { AgentAttachment, Base64, FileAttachment, SkillAttachment } from "@opencode/schema/prompt"
 import { Skill } from "@opencode/schema/skill"
-import { toLLMMessages } from "@opencode/core/session/runner/to-llm-message"
+import { CANCELLED_TURN_NOTE, toLLMMessages } from "@opencode/core/session/runner/to-llm-message"
 import { Agent } from "@opencode/core/agent"
 import { Shell } from "@opencode/schema/shell"
 import { Location } from "@opencode/schema/location"
@@ -49,6 +49,22 @@ describe("toLLMMessages", () => {
     expect(toLLMMessages([completed], model)).toEqual([])
     expect(toLLMMessages([completed, notification], model)).toEqual([
       Message.make({ id: notification.id, role: "user", content: notification.text }),
+    ])
+  })
+
+  test("carries a cancelled turn into the next user message only", () => {
+    const idle = (value: string, outcome: SessionMessage.Idle["outcome"]) =>
+      SessionMessage.Idle.make({ id: id(value), type: "idle", outcome, time: { created } })
+    const user = (value: string, text: string) =>
+      SessionMessage.User.make({ id: id(value), type: "user", text, time: { created } })
+    const result = toLLMMessages(
+      [idle("done", "succeeded"), user("first", "hi"), idle("cancel", "interrupted"), user("greeting", "yo"), user("later", "go on")],
+      model,
+    )
+    expect(result.map((message) => message.content.map((part) => (part.type === "text" ? part.text : "")))).toEqual([
+      ["hi"],
+      [CANCELLED_TURN_NOTE, "yo"],
+      ["go on"],
     ])
   })
 

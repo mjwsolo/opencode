@@ -5,7 +5,14 @@ import { isMissingPath, localProjectDirectory, projectConfigDirectories } from "
 
 export { localSource }
 
-export async function localPluginDirectories(cwd: string, configDirectory: string) {
+/** Project configuration can run code; it loads only when the launch did not disable it. */
+export function projectPluginsEnabled(env: Record<string, string | undefined> = process.env) {
+  const value = env.OPENCODE_CONFIG_PROJECT_DISABLE ?? env.OPENCODE_DISABLE_PROJECT_CONFIG
+  return !(value === "1" || value?.toLowerCase() === "true")
+}
+
+export async function localPluginDirectories(cwd: string, configDirectory: string, project = projectPluginsEnabled()) {
+  if (!project) return [path.join(configDirectory, "plugins")]
   const projectDirectory = await localProjectDirectory(cwd)
   const projectConfig = path.join(projectDirectory, ".opencode")
   const directories = [configDirectory, ...projectConfigDirectories(projectDirectory, cwd)]

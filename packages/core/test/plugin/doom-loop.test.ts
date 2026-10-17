@@ -16,7 +16,10 @@ async function setup(deny = false) {
         return deny ? Effect.fail(new Error("declined") as any) : Effect.void
       }),
   } as any)
-  await Effect.runPromise((DoomLoopPlugin.Plugin.effect(ctx as any) as Effect.Effect<void, never, any>).pipe(Effect.provide(permission)))
+  const effect = (DoomLoopPlugin.Plugin.effect(ctx as any) as Effect.Effect<void, never, Permission.Service>).pipe(
+    Effect.provide(permission),
+  )
+  await Effect.runPromise(effect)
   const call = (input: unknown, messageID = "msg_1", tool = "read") =>
     Effect.runPromiseExit(hook!({ tool, input, messageID, sessionID: "ses_1", agent: "build", id: "call" }))
   return { asserted, call }

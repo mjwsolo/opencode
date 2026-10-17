@@ -123,6 +123,8 @@ import { isRecord } from "../../util/record"
 import { createHistoryPrepend } from "./history"
 import { context, use, type PendingAction } from "./render-context"
 import { INLINE_TOOL_ICON_WIDTH, InlineToolRow, ReasoningPart, TextPart, toolDisplay } from "./message-parts"
+import { TodoItem } from "../../component/todo-item"
+import { parseTodos } from "../../util/todo"
 import { defaultVerbosity, type GroupKind, type SessionEntry } from "./grouping/session"
 import { SessionGroupView } from "./group-view"
 import { useEntryAnchor } from "./anchor-view"
@@ -3468,45 +3470,31 @@ function Skill(props: ToolProps) {
   )
 }
 
-/** LocalCode's checklist tool (a plugin tool): the list itself, one line per item. */
-export function todoLines(input: Record<string, unknown>) {
-  const todos = Array.isArray(input.todos) ? input.todos : []
-  return todos.flatMap((todo) => {
-    if (!todo || typeof todo !== "object") return []
-    const content = "content" in todo && typeof todo.content === "string" ? todo.content : undefined
-    if (!content) return []
-    const status = "status" in todo ? todo.status : undefined
-    const mark = status === "completed" ? "[x]" : status === "in_progress" ? "[>]" : status === "cancelled" ? "[-]" : "[ ]"
-    return [{ text: `${mark} ${content}`, open: status !== "completed" && status !== "cancelled" }]
-  })
-}
-
+/** LocalCode's checklist tool: one line per update; the plan at that update on click. */
 function Todos(props: ToolProps) {
   const theme = useTheme()
-  const lines = createMemo(() => todoLines(props.input))
-  const open = createMemo(() => lines().filter((line) => line.open).length)
+  const todos = createMemo(() => parseTodos(props.input.todos))
+  const [expanded, setExpanded] = createSignal(false)
+  const completed = () => todos().filter((todo) => todo.status === "completed").length
   return (
-    <>
+    <box>
       <InlineTool
-        icon={props.part.state.status === "error" ? "✗" : "☰"}
-        pending="Updating todos…"
+        icon={props.part.state.status === "error" ? "✗" : "✓"}
+        pending="Updating plan…"
         complete={props.part.state.status === "completed" || props.part.state.status === "error"}
         part={props.part}
+        onClick={() => setExpanded((value) => !value)}
       >
-        Todos · {open()} open of {lines().length}
+        {props.part.state.status === "error"
+          ? "Plan update failed"
+          : `Plan updated · ${completed()}/${todos().length} completed · ${expanded() ? "hide details" : "view details"}`}
       </InlineTool>
-      <Show when={props.part.state.status !== "error" && lines().length > 0}>
-        <box paddingLeft={3 + INLINE_TOOL_ICON_WIDTH}>
-          <For each={lines()}>
-            {(line) => (
-              <text wrapMode="word" fg={line.open ? theme.text.base : theme.text.muted}>
-                {line.text}
-              </text>
-            )}
-          </For>
-        </box>
+      <Show when={expanded()}>
+        <BlockTool title="Plan at this update" part={props.part}>
+          <For each={todos()}>{(todo) => <TodoItem theme={theme} status={todo.status} content={todo.content} />}</For>
+        </BlockTool>
       </Show>
-    </>
+    </box>
   )
 }
 

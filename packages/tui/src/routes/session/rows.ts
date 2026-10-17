@@ -473,12 +473,27 @@ function inputIndex(messages: SessionMessageInfo[], end: number, legacy: boolean
   let input = -1
   for (let index = end - 1; index >= 0; index--) {
     const message = messages[index]
-    if (message.type === "idle") return input
+    // LocalCode: a completion nudge continues the same task, so the turn reaches
+    // back past the idle marker that came before it.
+    if (message.type === "idle") {
+      if (input >= 0 && continuation(messages[input])) {
+        input = -1
+        continue
+      }
+      return input
+    }
     if (message.type !== "user" && message.type !== "synthetic") continue
-    if (legacy) return index
+    if (legacy && !continuation(message)) return index
     input = index
   }
   return input
+}
+
+/** A hidden LocalCode continuation (completion nudge), not a new request. */
+export function continuation(message: SessionMessageInfo) {
+  if (message.type !== "synthetic") return false
+  const local = message.metadata?.["localcode"]
+  return typeof local === "object" && local !== null && (local as { nudge?: unknown }).nudge === true
 }
 
 function hasTokenUsage(

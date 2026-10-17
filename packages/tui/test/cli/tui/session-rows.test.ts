@@ -25,6 +25,29 @@ test("measures turn duration from the user prompt across assistant steps", () =>
   expect(turnDuration(final, messages)).toBe(29_000)
 })
 
+test("a LocalCode completion nudge continues the task instead of restarting its duration", () => {
+  const first = assistant("assistant-1", [])
+  first.time = { created: 2_000, completed: 40_000 }
+  const final = assistant("assistant-2", [])
+  final.time = { created: 50_000, completed: 52_000 }
+  const nudge = { type: "synthetic", id: "nudge-1", text: "SYSTEM: run a check", description: "LocalCode", metadata: { localcode: { nudge: true } }, time: { created: 49_000 } } as SessionMessageInfo
+  const idle = (id: string, created: number) => ({ type: "idle", id, time: { created } }) as SessionMessageInfo
+  const messages: SessionMessageInfo[] = [
+    { type: "user", id: "user-1", text: "Build it", time: { created: 1_000 } },
+    first,
+    idle("idle-1", 41_000),
+    nudge,
+    final,
+    idle("idle-2", 53_000),
+  ]
+  expect(turnDuration(final, messages)).toBe(51_000)
+  // A real new request still starts a new turn.
+  const next = assistant("assistant-3", [])
+  next.time = { created: 61_000, completed: 63_000 }
+  messages.push({ type: "user", id: "user-2", text: "Next", time: { created: 60_000 } }, next)
+  expect(turnDuration(next, messages)).toBe(3_000)
+})
+
 test("measures request throughput including reasoning across model changes without tool time", () => {
   const first = assistant("assistant-1", [])
   first.time = { created: 6_000, streamed: 10_000, completed: 20_000 }

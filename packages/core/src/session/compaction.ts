@@ -101,6 +101,10 @@ const TOOL_OUTPUT_MAX_CHARS = 1_250
 const IMAGE_TOKEN_ESTIMATE = 1_500
 const PDF_TOKEN_ESTIMATE = 2_000
 
+/** Local models often echo the template's wrapper tags despite the instruction; drop them. */
+export const untemplated = (text: string) =>
+  text.replace(/^\s*<template>[ \t]*\n?/, "").replace(/\n?[ \t]*<\/template>\s*$/, "")
+
 const SUMMARY_TEMPLATE = `You MUST use this format for your response (you may omit sections that aren't applicable). Do not include the <template> tags in your response.
 <template>
 ## Objective
@@ -293,14 +297,14 @@ export const layer = Layer.effect(
             context.model.limit,
           )
           const reply = yield* stream(context, prompted, prepared.options)
-          if (filled(reply.text)) return { ...reply, recent: split.recent }
+          if (filled(reply.text)) return { ...reply, text: untemplated(reply.text), recent: split.recent }
 
           const nudged = fitOutput(
             LLMRequest.update(prompted, { messages: [...prompted.messages, Message.user(NUDGE)] }),
             context.model.limit,
           )
           const retry = yield* stream(context, nudged, prepared.options)
-          if (filled(retry.text)) return { ...retry, recent: split.recent }
+          if (filled(retry.text)) return { ...retry, text: untemplated(retry.text), recent: split.recent }
           return yield* Effect.fail<Failure>({
             error: {
               type: "compaction.failed",

@@ -462,7 +462,12 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
           </box>
         }
         options={options()}
-        current={(quants()?.quants ?? []).find((q) => q.current)?.alias}
+        // Start on the loaded quant, else the recommended one: Enter on the first row
+        // used to load the smallest, lowest-quality quant.
+        current={
+          (quants()?.quants ?? []).find((q) => q.current)?.alias ??
+          (quants()?.quants ?? []).find((q) => q.recommended)?.alias
+        }
       />
     </Show>
   )

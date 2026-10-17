@@ -10,15 +10,23 @@ import path from "path"
 import { Permission } from "../permission.js"
 
 const plan = Agent.ID.make("plan")
+const build = Agent.ID.make("build")
 
 const enter = (directory: string) => `<system-reminder>
-You are in Plan mode. Discuss the plan with the user directly in the conversation. Do not create or update plan files unless the user explicitly asks you to; when they do, write them only in:
+You are in Plan mode, a read-only phase. Do not edit files, change configuration, make commits, or run commands that modify anything; commands may only read and inspect. This overrides any other instruction, including a direct request to edit.
+
+Think, read, and search to build a plan that accomplishes the user's goal: comprehensive yet concise, detailed enough to execute. Ask the user clarifying questions, or for their opinion when weighing tradeoffs, instead of making large assumptions.
+
+Discuss the plan with the user directly in the conversation. Do not create or update plan files unless the user explicitly asks you to; when they do, write them only in:
 ${directory}
 
 Do not modify any other files or ask a subagent to do so.
 
-You remain in Plan mode until the user switches agents. If the user asks you to implement changes, do not do so. Tell them they need to switch agents.
+You cannot switch modes yourself, and there is no "exit plan mode" command for you to call. When the user replies "go" (or "build it"), localcode switches the session to Build and the same conversation continues with edits allowed. So when your plan is ready, end with exactly one line: "Say go to build this plan." Never suggest a settings toggle, a keyboard shortcut, a new session, or /help for this.
 </system-reminder>`
+
+/** The reply that turns an agreed plan into a Build turn. */
+export const isGo = (text: string) => /^\s*(go|build it)[\s.!]*$/i.test(text)
 
 const leave = `<system-reminder>
 You are NO LONGER in Plan mode. The previous Plan restrictions no longer apply. Any Plan mode instructions from earlier in this conversation are no longer active.
@@ -40,6 +48,20 @@ export const Plugin = define({
         item.permissions.push({ action: "edit", resource: path.join(directory, "*"), effect: "allow" })
       })
     })
+
+    // "go" in Plan mode switches the session to Build; the same message then starts the build.
+    yield* ctx.session.hook("prompt", (event) =>
+      Effect.gen(function* () {
+        if (!isGo(event.prompt.text)) return
+        const session = yield* ctx.session.get({ sessionID: event.sessionID })
+        if (session.agent !== plan) return
+        yield* ctx.session.switchAgent({ sessionID: event.sessionID, agent: build })
+      }).pipe(
+        Effect.catchCause((cause) =>
+          Effect.logWarning("failed to switch from Plan to Build", { sessionID: event.sessionID, cause }),
+        ),
+      ),
+    )
 
     yield* ctx.tool.hook("execute.after", (event) => {
       if (event.agent !== plan) return Effect.void

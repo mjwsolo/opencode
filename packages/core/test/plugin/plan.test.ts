@@ -1,7 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Message, ToolFailure } from "@opencode/ai"
 import { DateTime, Effect, Option, Stream, Types } from "effect"
-import type { SessionContext } from "@opencode/plugin/effect/session"
+import type { SessionContext, SessionPrompt } from "@opencode/plugin/effect/session"
 import type { ToolHooks } from "@opencode/plugin/effect/tool"
 import { Agent } from "@opencode/core/agent"
 import { Environment } from "@opencode/core/environment/index"
@@ -24,7 +24,7 @@ const sessionID = Session.ID.make("ses_plan_test")
 const plan = Agent.ID.make("plan")
 const build = Agent.ID.make("build")
 const home = "/home/plan-test"
-const planDirectory = path.join(home, ".opencode", "plan")
+const planDirectory = path.join(home, ".localcode-agent", "plan")
 
 const agentSelected = (agent: Agent.ID, previous: Agent.ID): SessionEvent.AgentSelected => ({
   id: Event.ID.create(),
@@ -35,9 +35,14 @@ const agentSelected = (agent: Agent.ID, previous: Agent.ID): SessionEvent.AgentS
 })
 
 /** Runs the plan plugin against stubbed domains, capturing persisted reminders and the context hook. */
-const run = Effect.fnUntraced(function* (events: ReadonlyArray<SessionEvent.AgentSelected> = []) {
+const run = Effect.fnUntraced(function* (
+  events: ReadonlyArray<SessionEvent.AgentSelected> = [],
+  current: Agent.ID = plan,
+) {
   const persisted = new Array<string>()
+  const switches = new Array<Agent.ID>()
   let contextHook: ((input: SessionContext) => Effect.Effect<void>) | undefined
+  let promptHook: ((input: SessionPrompt) => Effect.Effect<void>) | undefined
   let toolHook: ((input: ToolHooks["execute.after"]) => Effect.Effect<void>) | undefined
   const defaults = Agent.Info.default(plan)
   const planAgent = {
@@ -83,7 +88,13 @@ const run = Effect.fnUntraced(function* (events: ReadonlyArray<SessionEvent.Agen
       session: {
         hook: (name, callback) => {
           if (name === "context") contextHook = callback as (input: SessionContext) => Effect.Effect<void>
+          if (name === "prompt") promptHook = callback as (input: SessionPrompt) => Effect.Effect<void>
           return Effect.succeed({ dispose: Effect.void })
+        },
+        get: () => Effect.succeed({ agent: current } as never),
+        switchAgent: (input) => {
+          switches.push(input.agent)
+          return Effect.void
         },
         synthetic: (input) => {
           persisted.push(input.text)
@@ -109,7 +120,8 @@ const run = Effect.fnUntraced(function* (events: ReadonlyArray<SessionEvent.Agen
   )
   if (!contextHook) return yield* Effect.die("plan plugin did not register a context hook")
   if (!toolHook) return yield* Effect.die("plan plugin did not register a tool hook")
-  return { persisted, contextHook, toolHook, files: Environment.makeFiles(driver), planAgent }
+  if (!promptHook) return yield* Effect.die("plan plugin did not register a prompt hook")
+  return { persisted, contextHook, promptHook, switches, toolHook, files: Environment.makeFiles(driver), planAgent }
 })
 
 const request = (agent: Agent.ID, messages: Array<Message>): SessionContext => ({
@@ -296,6 +308,37 @@ describe("plan plugin mutations", () => {
       const event = toolError("edit", error)
       yield* toolHook(event)
       expect(event.error).toBe(error)
+    }),
+  )
+})
+
+describe("plan plugin go", () => {
+  const prompt = (text: string): SessionPrompt => ({
+    sessionID,
+    messageID: SessionMessage.ID.make("msg_plan_go"),
+    prompt: { text },
+    delivery: "steer",
+  })
+
+  it.effect("switches a Plan session to Build when the user says go", () =>
+    Effect.gen(function* () {
+      const planRun = yield* run()
+      yield* planRun.promptHook(prompt("Go!"))
+      yield* planRun.promptHook(prompt("go ahead and also rename it"))
+      expect(planRun.switches).toEqual([build])
+
+      const buildRun = yield* run([], build)
+      yield* buildRun.promptHook(prompt("go"))
+      expect(buildRun.switches).toEqual([])
+    }),
+  )
+
+  it.effect("tells the model to end a ready plan with the go line", () =>
+    Effect.gen(function* () {
+      const { enter } = yield* reminders
+      expect(enter).toContain('"Say go to build this plan."')
+      expect(enter).not.toContain("switch agents")
+      expect(PlanPlugin.isGo(" build it. ")).toBe(true)
     }),
   )
 })

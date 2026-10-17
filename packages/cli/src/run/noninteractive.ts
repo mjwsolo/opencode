@@ -96,6 +96,7 @@ export async function runNonInteractivePrompt(input: Input) {
   let finalizing = false
   let admission: AbortController | undefined
   let pendingStep: { timestamp: number; part: Record<string, unknown>; label: string } | undefined
+  let firstTextDelta = false
 
   const emit = (type: string, timestamp: number, data: Record<string, unknown>) => {
     if (input.format !== "json") return false
@@ -235,6 +236,13 @@ export async function runNonInteractivePrompt(input: Input) {
       }
       if (!("sessionID" in event.data) || event.data.sessionID !== input.sessionID) continue
       const time = toMillis("created" in event ? event.created : undefined)
+
+      // A content-free timestamp for local end-to-end latency measurement. Completed text parts
+      // arrive too late to represent first-text time.
+      if (event.type === "session.text.delta" && event.data.delta && !firstTextDelta) {
+        firstTextDelta = true
+        emit("first_text_delta", time, {})
+      }
 
       if (event.type === "session.inbox.delivered") {
         if (event.data.inboxID === messageID) {

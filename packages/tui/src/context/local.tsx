@@ -26,6 +26,7 @@ import { useData } from "./data"
 import { usePermission } from "./permission"
 import { useLocation } from "./location"
 import { parse } from "../util/model"
+import { LOCALCODE_PROVIDER_ID, controlUrl, lastStatus } from "../util/localcode"
 
 export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   name: "Local",
@@ -185,6 +186,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       })
 
       const fallbackModel = createMemo(() => {
+        // LocalCode: new chats use the model the supervisor has loaded. The launch
+        // model (args or config) goes stale once the picker loads another one.
+        const loaded = controlUrl() ? lastStatus()?.current : undefined
+        if (loaded && isModelValid({ providerID: LOCALCODE_PROVIDER_ID, modelID: loaded })) {
+          return { providerID: LOCALCODE_PROVIDER_ID, modelID: loaded }
+        }
         if (args.model) {
           const { providerID, modelID } = parse(args.model)
           if (isModelValid({ providerID, modelID })) {

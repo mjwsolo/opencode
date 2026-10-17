@@ -383,11 +383,14 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         // Up to 10 s for the runtime to list the new alias.
         if (!listed(q.alias) && Date.now() - ready < 10_000) return
         clearInterval(timer)
-        local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: q.alias }, { recent: true })
+        // A fresh chat starts from home: navigate first, so the model becomes the
+        // new-session model rather than the old session's, which home would ignore
+        // in favour of the launch model.
         if (!keepHistory && route.data.type === "session" && route.data.sessionID === sessionID) {
           const draft = prompt.current ? structuredClone(unwrap(prompt.current.current)) : undefined
           route.navigate({ type: "home", prompt: draft })
         }
+        local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: q.alias }, { recent: true })
         toast.show({ variant: "success", title: "Model loaded", message: label })
         void import("./localcode-vision").then((m) => m.visionHint(toast))
         return

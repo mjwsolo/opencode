@@ -325,7 +325,8 @@ export const layer = (options?: Options) =>
       )
 
       const source = options?.url || defaultSource
-      const fetch = options?.fetch ?? true
+      // LocalCode: the bundled snapshot only; never refreshed from the network unless a caller opts in.
+      const fetch = options?.fetch ?? false
       const userAgent = App.useragent(app)
       const key = cacheKey(source)
       const ttl = Duration.minutes(5)

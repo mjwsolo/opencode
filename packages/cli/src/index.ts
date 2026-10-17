@@ -28,8 +28,6 @@ if (process.env.OPENCODE_SSH_ASKPASS_PORT) {
 
 const Handlers = Runtime.handlers(Commands, {
   $: () => import("./commands/handlers/default"),
-  upgrade: () => import("./commands/handlers/upgrade"),
-  uninstall: () => import("./commands/handlers/uninstall"),
   acp: () => import("./commands/handlers/acp"),
   api: () => import("./commands/handlers/api"),
   auth: {
@@ -62,7 +60,6 @@ const Handlers = Runtime.handlers(Commands, {
   stats: () => import("./commands/handlers/stats"),
   mini: () => import("./commands/handlers/mini"),
   run: () => import("./commands/handlers/run"),
-  pair: () => import("./commands/handlers/pair"),
   reload: () => import("./commands/handlers/reload"),
   session: {
     list: () => import("./commands/handlers/session/list"),
@@ -70,15 +67,7 @@ const Handlers = Runtime.handlers(Commands, {
     export: () => import("./commands/handlers/session/export"),
     import: () => import("./commands/handlers/session/import"),
   },
-  service: {
-    start: () => import("./commands/handlers/service/start"),
-    restart: () => import("./commands/handlers/service/restart"),
-    status: () => import("./commands/handlers/service/status"),
-    stop: () => import("./commands/handlers/service/stop"),
-    get: () => import("./commands/handlers/service/get"),
-    set: () => import("./commands/handlers/service/set"),
-    unset: () => import("./commands/handlers/service/unset"),
-  },
+
   serve: () => import("./commands/handlers/serve"),
 })
 

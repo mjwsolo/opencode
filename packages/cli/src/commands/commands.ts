@@ -1,7 +1,6 @@
 import { Argument, Flag, GlobalFlag } from "effect/cli"
 import { Schema } from "effect"
 import { Spec } from "../framework/spec"
-import { Updater } from "../services/updater"
 
 export const PrintLogs = GlobalFlag.Setting("print-logs")({
   flag: Flag.Boolean("print-logs").pipe(
@@ -35,13 +34,13 @@ const PermissionParams = {
   ),
 }
 
-const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME : "opencode", {
-  description: "OpenCode command line interface",
+const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME : "localcode", {
+  description: "localcode agent runtime: local models, local tools",
   params: {
     ...ServerParams,
     ...PermissionParams,
     directory: Argument.String("directory").pipe(
-      Argument.withDescription("Directory to start OpenCode in"),
+      Argument.withDescription("Directory to start localcode in"),
       Argument.optional,
     ),
     continue: Flag.Boolean("continue").pipe(
@@ -62,35 +61,6 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
     ),
   },
   commands: [
-    Spec.make("upgrade", {
-      description: "Upgrade OpenCode to the latest or a specific version",
-      aliases: ["update"],
-      params: {
-        target: Argument.String("target").pipe(
-          Argument.withDescription("Version to upgrade to (with or without a leading v)"),
-          Argument.optional,
-        ),
-        method: Flag.Literals("method", Updater.methods).pipe(
-          Flag.withAlias("m"),
-          Flag.withDescription("Installation method to use"),
-          Flag.optional,
-        ),
-      },
-    }),
-    Spec.make("uninstall", {
-      description: "Uninstall OpenCode, keeping session data, configuration, and state",
-      params: {
-        dryRun: Flag.Boolean("dry-run").pipe(
-          Flag.withDescription("Show what would be removed without removing"),
-          Flag.withDefault(false),
-        ),
-        force: Flag.Boolean("force").pipe(
-          Flag.withAlias("f"),
-          Flag.withDescription("Skip confirmation prompts"),
-          Flag.withDefault(false),
-        ),
-      },
-    }),
     Spec.make("acp", {
       description: "Start an Agent Client Protocol server",
       params: {
@@ -379,7 +349,7 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       },
     }),
     Spec.make("run", {
-      description: "Run OpenCode with a message",
+      description: "Run localcode with a message",
       params: {
         ...ServerParams,
         message: Argument.String("message").pipe(
@@ -473,83 +443,10 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
         }),
       ],
     }),
-    Spec.make("service", {
-      description: "Manage the background server",
-      commands: [
-        Spec.make("start", { description: "Start the background server" }),
-        Spec.make("restart", { description: "Restart the background server" }),
-        Spec.make("status", { description: "Show background server status" }),
-        Spec.make("stop", { description: "Stop the background server" }),
-        Spec.make("get", {
-          description: "Get service configuration",
-          params: {
-            key: Argument.String("key").pipe(Argument.withDescription("Service setting or env"), Argument.optional),
-            name: Argument.String("name").pipe(
-              Argument.withDescription("Environment variable name"),
-              Argument.optional,
-            ),
-          },
-        }),
-        Spec.make("set", {
-          description: "Set service configuration",
-          params: {
-            key: Argument.String("key").pipe(Argument.withDescription("Service setting or env")),
-            value: Argument.String("value").pipe(
-              Argument.withDescription("Setting value or environment variable name"),
-            ),
-            nestedValue: Argument.String("env-value").pipe(
-              Argument.withDescription("Environment variable value"),
-              Argument.optional,
-            ),
-          },
-        }),
-        Spec.make("unset", {
-          description: "Unset service configuration",
-          params: {
-            key: Argument.String("key").pipe(Argument.withDescription("Service setting or env")),
-            name: Argument.String("name").pipe(
-              Argument.withDescription("Environment variable name"),
-              Argument.optional,
-            ),
-          },
-        }),
-      ],
-    }),
     Spec.make("reload", {
       description: "Reload configuration",
       params: {
         ...ServerParams,
-      },
-    }),
-    Spec.make("pair", {
-      description: "Print one-time links to connect a browser or app",
-      params: {
-        url: Flag.String("url").pipe(
-          Flag.withDescription("Use an external HTTP(S) server URL in pairing links"),
-          Flag.mapTryCatch(
-            (value) => {
-              const url = new URL(value)
-              if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.search || url.hash)
-                throw new Error("Invalid pairing URL")
-              return url.href.replace(/\/+$/, "")
-            },
-            () => "Expected an HTTP(S) server URL without credentials, query parameters, or a fragment",
-          ),
-          Flag.optional,
-        ),
-        remote: Flag.Boolean("remote").pipe(
-          Flag.withDescription(
-            "Pair through the OpenTunnel remote address, enabling remote access if needed (exposes the server to the internet)",
-          ),
-          Flag.withDefault(false),
-        ),
-        yes: Flag.Boolean("yes").pipe(
-          Flag.withAlias("y"),
-          Flag.withDescription(
-            "Accept exposing the server to the internet when --remote enables remote access for the first time (required without an interactive terminal)",
-          ),
-          Flag.withDefault(false),
-        ),
       },
     }),
     Spec.make("serve", {

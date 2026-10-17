@@ -6,7 +6,6 @@ import { Effect, FileSystem, Option, Schema } from "effect"
 import { randomBytes } from "crypto"
 import path from "path"
 import { selfCommand } from "../util/process"
-import { RemoteTunnel } from "./remote-tunnel"
 
 // The CLI's service configuration file, plus the Service.EnsureOptions binding that
 // points the client package's service operations at this CLI: which
@@ -254,13 +253,9 @@ export const set = Effect.fn("cli.service-config.set")(function* (key: string, v
     }
     case "remote": {
       if (value !== "true" && value !== "false") throw new Error("Remote must be true or false")
-      // A tunnel that cannot be created leaves remote access off instead of a service that keeps retrying.
-      if (value === "true") yield* RemoteTunnel.ensure()
+      // LocalCode has no remote access.
+      if (value === "true") throw new Error("LocalCode does not offer remote access")
       yield* Service.stop(yield* options())
-      if (value === "true") {
-        yield* remote()
-        return
-      }
       yield* disableRemote()
       return
     }

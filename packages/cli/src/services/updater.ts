@@ -273,6 +273,7 @@ const make = Effect.gen(function* () {
   }
 
   const release = Effect.fnUntraced(function* (method?: Method) {
+    if (LOCALCODE_UPDATES_DISABLED) return yield* Effect.fail(new Error("LocalCode does not check for releases"))
     const distribution = method === "brew" ? "homebrew" : "npm"
     // Homebrew Core builds its formula on its own schedule, so the tap release does not describe it.
     const core = method === "brew" && installedFormula === "opencode"
@@ -531,7 +532,8 @@ const make = Effect.gen(function* () {
   })
 
   const inspect = Effect.fnUntraced(function* () {
-    if (OPENCODE_LOCAL || ["1", "true"].includes(process.env.OPENCODE_DISABLE_AUTOUPDATE?.toLowerCase() ?? "")) {
+    // LocalCode updates through its own installer (pip); the UI never checks or installs releases.
+    if (LOCALCODE_UPDATES_DISABLED || OPENCODE_LOCAL || ["1", "true"].includes(process.env.OPENCODE_DISABLE_AUTOUPDATE?.toLowerCase() ?? "")) {
       yield* Effect.logInfo("update check skipped", {
         reason: OPENCODE_LOCAL ? "local-install" : "disabled",
         version: OPENCODE_VERSION,
@@ -574,6 +576,8 @@ const make = Effect.gen(function* () {
   })
 
   const apply = Effect.fn("cli.updater.apply")(function* (version: string) {
+    if (LOCALCODE_UPDATES_DISABLED)
+      return yield* Effect.fail(new Error("LocalCode updates with its installer: pip install -U localcode"))
     if (!(yield* install(version)))
       return yield* Effect.fail(
         new Error(
@@ -583,6 +587,11 @@ const make = Effect.gen(function* () {
   })
 
   const check = Effect.fn("cli.updater.check")(function* () {
+    if (LOCALCODE_UPDATES_DISABLED)
+      return {
+        type: "unavailable" as const,
+        message: "LocalCode updates with its installer: pip install -U localcode",
+      }
     if (OPENCODE_LOCAL)
       return {
         type: "unavailable" as const,
@@ -621,6 +630,8 @@ const make = Effect.gen(function* () {
 
   return Service.of({ run, check, apply, method, latest, upgrade, removal })
 })
+
+const LOCALCODE_UPDATES_DISABLED = true
 
 export const layer = Layer.effect(Service, make)
 

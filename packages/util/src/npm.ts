@@ -442,9 +442,7 @@ const layer = Layer.effect(
           const generation = yield* current(root)
           const selected = generation ? yield* pick(generation) : Option.none<string>()
           if (Option.isSome(selected)) return selected
-
-          yield* add(pkg)
-
+          // No install on demand: a tool that is not already present is simply unavailable.
           const installed = yield* current(root)
           if (!installed) return Option.none<string>()
           return yield* pick(installed)
@@ -455,11 +453,26 @@ const layer = Layer.effect(
       )
     })
 
+    // LocalCode never downloads packages (plugins, provider SDKs, formatters): a download needs the
+    // user to have asked for it and seen its size. Only a package that is already installed loads.
+    const localOnly = Effect.fn("Npm.localOnly")(function* (pkg: string) {
+      const found = yield* resolve(pkg)
+      if (yield* afs.existsSafe(found.directory)) return found
+      return yield* new InstallFailedError({
+        add: [pkg],
+        dir: found.directory,
+        cause: new Error(`LocalCode does not download packages; ${pkg} is not installed`),
+      })
+    })
+    void update
+    void check
+    void add
+
     return Service.of({
-      add,
+      add: localOnly,
+      update: localOnly,
+      check: () => Effect.succeed(false),
       resolve,
-      check,
-      update,
       which,
     })
   }),

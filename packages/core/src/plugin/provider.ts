@@ -9,7 +9,6 @@ import { DatabricksPlugin } from "./provider/databricks.js"
 import { DigitalOceanPlugin } from "./provider/digitalocean.js"
 import { DynamicProviderPlugin } from "./provider/dynamic.js"
 import { GithubCopilotPlugin } from "./provider/github-copilot.js"
-import { GitLabPlugin } from "./provider/gitlab.js"
 import { GoogleVertexPlugin } from "./provider/google-vertex.js"
 import { KiloPlugin } from "./provider/kilo.js"
 import { LLMGatewayPlugin } from "./provider/llmgateway.js"
@@ -20,10 +19,8 @@ import { NvidiaPlugin } from "./provider/nvidia.js"
 import { OllamaPlugin } from "./provider/ollama.js"
 import { OpenAIPlugin } from "./provider/openai.js"
 import { SnowflakeCortexPlugin } from "./provider/snowflake-cortex.js"
-import { OpencodePlugin } from "./provider/opencode.js"
 import { OpenRouterPlugin } from "./provider/openrouter.js"
 import { PerplexityPlugin } from "./provider/perplexity.js"
-import { PoePlugin } from "./provider/poe.js"
 import { PromptCacheKeyPlugin } from "./provider/prompt-cache-key.js"
 import { SapAICorePlugin } from "./provider/sap-ai-core.js"
 import { VercelPlugin } from "./provider/vercel.js"
@@ -32,6 +29,8 @@ import { XAIPlugin } from "./provider/xai.js"
 import { ZenmuxPlugin } from "./provider/zenmux.js"
 import type { PluginInternal } from "./internal.js"
 
+// LocalCode drops the OpenCode Console/Zen provider (it served "free" cloud models with no
+// configuration) and the GitLab and Poe account integrations.
 export const ProviderPlugins: PluginInternal.InternalPlugin[] = [
   AmazonBedrockPlugin,
   AzurePlugin,
@@ -43,7 +42,6 @@ export const ProviderPlugins: PluginInternal.InternalPlugin[] = [
   DatabricksPlugin,
   DigitalOceanPlugin,
   GithubCopilotPlugin,
-  GitLabPlugin,
   GoogleVertexPlugin,
   KiloPlugin,
   LLMGatewayPlugin,
@@ -52,12 +50,10 @@ export const ProviderPlugins: PluginInternal.InternalPlugin[] = [
   NeonPlugin,
   NvidiaPlugin,
   OllamaPlugin,
-  OpencodePlugin,
   SnowflakeCortexPlugin,
   OpenAIPlugin,
   OpenRouterPlugin,
   PerplexityPlugin,
-  PoePlugin,
   PromptCacheKeyPlugin,
   SapAICorePlugin,
   VercelPlugin,

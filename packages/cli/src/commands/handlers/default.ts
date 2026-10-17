@@ -4,7 +4,7 @@ import { run } from "@opencode/tui"
 import { Commands } from "../commands"
 import { Runtime } from "../../framework/runtime"
 import { Config } from "../../config"
-import { Context, Effect, FileSystem, Option, Queue, Schedule, Semaphore } from "effect"
+import { Context, Effect, FileSystem, Option, Queue, Semaphore } from "effect"
 import { ServerConnection } from "../../services/server-connection"
 import { Updater } from "../../services/updater"
 import { UpdatePreflight } from "../../services/update-preflight"
@@ -66,24 +66,7 @@ export default Runtime.handler(Commands, (input) =>
     const resultListeners = new Set<(result: Updater.RunResult) => void>()
     // Background checks, `/update` lookups, and manual installs take turns so two installs never overlap.
     const checking = yield* Semaphore.make(1)
-    yield* updater
-      .run((version) => {
-        installing = version
-        installListeners.forEach((notify) => notify(version))
-      })
-      .pipe(
-        Effect.ensuring(Effect.sync(() => (installing = undefined))),
-        Effect.tap((result) =>
-          Effect.sync(() => {
-            if (!result || (result.type === latest?.type && result.version === latest.version)) return
-            latest = result
-            resultListeners.forEach((notify) => notify(result))
-          }),
-        ),
-        checking.withPermits(1),
-        Effect.repeat(Schedule.spaced("10 minutes")),
-        Effect.forkScoped({ startImmediately: true }),
-      )
+    // No background release checks: LocalCode updates through its own installer.
     preflight.loading()
     const config = yield* Config.Service
     const npm = yield* Npm.Service
@@ -139,7 +122,8 @@ export default Runtime.handler(Commands, (input) =>
         apply: (version) => runPromise(checking.withPermits(1)(updater.apply(version))),
       },
       packages: {
-        prepare: (spec, install = true) => runPromise(install ? npm.add(spec) : npm.resolve(spec)),
+        // TUI plugin packages are never downloaded; only an installed package loads.
+        prepare: (spec) => runPromise(npm.resolve(spec)),
       },
       environment: requestedServer === undefined ? Env.session() : undefined,
       terminalHandoff: () => preflight.finish(),

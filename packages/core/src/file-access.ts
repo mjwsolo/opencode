@@ -5,6 +5,7 @@ import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
 import { Array, Context, Effect, Layer, Schema } from "effect"
 import path from "path"
+import { realpathSync } from "fs"
 import { Location } from "./location.js"
 import { Permission } from "./permission.js"
 import { Project } from "./project.js"
@@ -76,6 +77,22 @@ export const resolvePath = (directory: string, input: string, home = Global.Path
   )
 }
 
+/** Resolve symlinks on the deepest existing ancestor; keep the rest of the path as written. */
+export const canonicalPath = (input: string) => {
+  const rest: string[] = []
+  let current = path.resolve(input)
+  for (;;) {
+    try {
+      return path.join(realpathSync.native(current), ...rest.reverse())
+    } catch {
+      const parent = path.dirname(current)
+      if (parent === current) return path.resolve(input)
+      rest.push(path.basename(current))
+      current = parent
+    }
+  }
+}
+
 const slash = (value: string) => value.replaceAll("\\", "/")
 const invocation = (context: Invocation) => ({
   sessionID: context.sessionID,
@@ -91,15 +108,27 @@ const layer = Layer.effect(
     const permission = yield* Permission.Service
 
     const resolve = Effect.fn("FileAccess.resolve")(function* (input: ResolveInput) {
-      const absolute = AbsolutePath.make(resolvePath(location.directory, input.path))
+      const lexical = AbsolutePath.make(resolvePath(location.directory, input.path))
       const worktree = path.resolve(location.project.directory)
+      // LocalCode: decide containment on the real path. A symlink inside the project
+      // that points outside it must not bypass external-directory approval, and a
+      // path through a symlinked ancestor (/tmp -> /private/tmp) that lands inside
+      // the project is internal.
+      const real = canonicalPath(lexical)
+      const lexicallyInside = FSUtil.contains(location.directory, lexical)
       const internal =
-        FSUtil.contains(location.directory, absolute) ||
-        (worktree !== path.parse(worktree).root && FSUtil.contains(worktree, absolute))
+        FSUtil.contains(canonicalPath(location.directory), real) ||
+        (worktree !== path.parse(worktree).root && FSUtil.contains(canonicalPath(worktree), real))
+      // Report the path as written unless a symlink changed which side of the project it is on.
+      const absolute = internal === lexicallyInside ? lexical : AbsolutePath.make(real)
       if (internal) {
         return {
           absolute,
-          resource: slash(path.relative(location.directory, absolute) || "."),
+          resource: slash(
+            (lexicallyInside
+              ? path.relative(location.directory, absolute)
+              : path.relative(canonicalPath(location.directory), real)) || ".",
+          ),
         } satisfies Target
       }
       const type =

@@ -163,10 +163,11 @@ describe("current native and legacy parity gaps", () => {
       native: { commands: [{ resource: "git 2 status", save: "git 2 *" }], directories: [] },
     },
     {
-      name: "native keeps numeric directory names and operator-shaped arguments",
+      name: "both keep numeric directory names; native keeps operator-shaped arguments",
       shell: "bash",
       command: "cd 123; git == value",
-      legacy: { commands: [{ resource: "git == value", save: "git value *" }], directories: [] },
+      // LocalCode: legacy now reads numeric directory operands too.
+      legacy: { commands: [{ resource: "git == value", save: "git value *" }], directories: ["123"] },
       native: { commands: [{ resource: "git == value", save: "git == *" }], directories: ["123"] },
     },
     {

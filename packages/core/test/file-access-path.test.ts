@@ -110,19 +110,19 @@ describe("FileAccess.resolve", () => {
     ),
   )
 
-  it.live("resolves a prospective target below an external symlink lexically", () =>
+  // LocalCode: an in-project symlink that leads outside does not bypass approval
+  // (a cloned repository can ship a link to ~/.ssh).
+  it.live("a target below an outward symlink needs external-directory approval", () =>
     withTempDir(({ path: directory }) =>
       Effect.gen(function* () {
         if (process.platform === "win32") return
         const outside = yield* tmpdirScoped()
         yield* Effect.promise(() => fs.symlink(outside.path, path.join(directory, "escape")))
+        const real = yield* Effect.promise(() => fs.realpath(outside.path))
         const access = yield* FileAccess.Service
         const target = yield* access.resolve({ path: path.join("escape", "new.txt") })
-        expect(target).toMatchObject({
-          absolute: path.join(directory, "escape", "new.txt"),
-          resource: "escape/new.txt",
-        })
-        expect(target.externalDirectory).toBeUndefined()
+        expect(target.absolute).toBe(AbsolutePath.make(path.join(real, "new.txt")))
+        expect(target.externalDirectory?.directory).toBe(AbsolutePath.make(real))
       }).pipe(provide(directory)),
     ),
   )

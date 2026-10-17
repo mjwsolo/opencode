@@ -192,7 +192,7 @@ const scanLegacy = Effect.fnUntraced(function* (command: string, shell: string, 
             if (tokens.length === 0) return result
             const name = powershell ? tokens[0].toLowerCase() : tokens[0]
             if (CWD.has(name)) {
-              result.directories.push(...directoryArgs(command, powershell, cwd, shell))
+              result.directories.push(...directoryArgs(parts(node, true), powershell, cwd, shell))
               return result
             }
             result.commands.push({
@@ -289,7 +289,7 @@ export const scanPortable = Effect.fnUntraced(function* (command: string, shell:
   return output
 })
 
-function parts(node: Node) {
+function parts(node: Node, numbers = false) {
   return Array.from({ length: node.childCount }).flatMap((_, index): Part[] => {
     const child = node.child(index)
     if (!child) return []
@@ -299,7 +299,9 @@ function parts(node: Node) {
         if (!item || item.type === "command_argument_sep" || item.type === "redirection") return []
         return [{ type: item.type, text: item.text }]
       })
-    if (!["command_name", "command_name_expr", "word", "string", "raw_string", "concatenation"].includes(child.type))
+    // A numeric directory operand (`cd 123`) is a path; tree-sitter-bash parses it as a number.
+    // Only directory changes take it: other commands' saved approval prefixes stay unchanged.
+    if (!["command_name", "command_name_expr", "word", "string", "raw_string", "concatenation", ...(numbers ? ["number"] : [])].includes(child.type))
       return []
     return [{ type: child.type, text: child.text }]
   })

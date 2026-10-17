@@ -134,6 +134,22 @@ describe("FileAccess.authorizeRead", () => {
     }).pipe(provide(requests))
   })
 
+  it.live("a symlink inside the project that points outside still needs external-directory approval", () => {
+    const requests: Permission.AssertInput[] = []
+    return Effect.gen(function* () {
+      const external = yield* tmpdirScoped()
+      const location = yield* Location.Service
+      yield* Effect.promise(() => fs.symlink(external.path, path.join(location.directory, "linked_outside")))
+      const access = yield* FileAccess.Service
+      const target = yield* access.resolve({ path: "linked_outside/precious.txt", kind: "file" })
+      const real = yield* Effect.promise(() => fs.realpath(external.path))
+      expect(target.externalDirectory?.directory).toBe(AbsolutePath.make(real))
+      expect(target.absolute).toBe(AbsolutePath.make(path.join(real, "precious.txt")))
+      const inside = yield* access.resolve({ path: "linked_outside/../README.md" })
+      expect(inside.externalDirectory).toBeUndefined()
+    }).pipe(provide(requests))
+  })
+
   it.live("batches external resources in first-seen order and preserves broader repository saves", () => {
     const requests: Permission.AssertInput[] = []
     return Effect.gen(function* () {

@@ -15,6 +15,9 @@ import { useTheme } from "../context/theme"
 import { useUpdateNotification } from "../context/update-notification"
 import { useExit } from "../context/exit"
 import { FadeInText } from "../component/fade-in-text"
+import { useToast } from "../ui/toast"
+import { controlUrl, modelLoaded, refreshSupervisor } from "../util/localcode"
+import { visionHint } from "../component/localcode-vision"
 
 let once = false
 const placeholder = {
@@ -23,6 +26,7 @@ const placeholder = {
 }
 
 export function Home() {
+  const toast = useToast()
   const route = useRouteData("home")
   const promptRef = usePromptRef()
   const [ref, setRef] = createSignal<PromptRef | undefined>()
@@ -48,6 +52,11 @@ export function Home() {
 
   onMount(() => {
     editor.clearSelection()
+    // A loaded model that could read images with its projector gets a one-line hint.
+    if (controlUrl())
+      void refreshSupervisor().then(() => {
+        if (modelLoaded()) void visionHint(toast)
+      })
   })
 
   const bind = (r: PromptRef | undefined) => {

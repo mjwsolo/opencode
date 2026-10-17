@@ -871,7 +871,10 @@ export function Autocomplete(props: {
       width={position().width}
       zIndex={100}
       {...SplitBorder}
+      // Painted bars: no gaps between rows in any terminal font.
+      customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
       borderColor={theme.border.base}
+      backgroundColor={theme.border.base}
     >
       <scrollbox
         ref={(r: ScrollBoxRenderable) => {

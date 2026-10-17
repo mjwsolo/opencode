@@ -12,8 +12,12 @@ export { normalizePromptContent } from "./prompt/content"
 type EditorStdio = "inherit" | "pipe" | "ignore" | number | Stream
 
 export async function openEditor(input: { value: string; renderer: CliRenderer; cwd?: string; stdin?: EditorStdio }) {
-  const editor = process.env.VISUAL || process.env.EDITOR
-  if (!editor) throw new Error("Set $VISUAL or $EDITOR to open an external editor")
+  // Without $VISUAL/$EDITOR, fall back to a terminal editor every Mac has.
+  const editor =
+    process.env.VISUAL ||
+    process.env.EDITOR ||
+    ["/usr/bin/nano", "/opt/homebrew/bin/nano", "/usr/local/bin/nano"].find((file) => existsSync(file)) ||
+    "vi"
   const file = path.join(os.tmpdir(), `${Date.now()}.md`)
   await writeFile(file, input.value)
   input.renderer.suspend()

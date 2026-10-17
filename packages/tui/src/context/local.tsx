@@ -131,6 +131,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           const agent = visibleAgents()[index]
 
           if (agent?.color) return RGBA.fromHex(agent.color)
+          // LocalCode: Build is the brand blue, Plan the accent.
+          if (id === "build") return theme.hue.interactive[200]
+          if (id === "plan") return theme.hue.accent[200]
           return colors()[index % colors().length]
         },
       }

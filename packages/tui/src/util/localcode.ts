@@ -91,3 +91,10 @@ export function supervisorLine() {
   if (!st.current) return "No model loaded · /models"
   return undefined
 }
+
+export async function refreshSupervisor() {
+  if (!controlUrl()) return
+  await getJSON<Status>("/status")
+    .then(setStatus)
+    .catch(() => setStatus(undefined))
+}

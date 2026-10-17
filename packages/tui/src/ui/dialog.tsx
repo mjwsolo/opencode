@@ -106,7 +106,13 @@ export function DialogHeader(
   const row = () => (
     <box flexDirection="row" justifyContent="space-between" gap={props.gap}>
       {props.titleView ?? (
-        <text attributes={newDesigns() ? undefined : TextAttributes.BOLD} fg={theme.text.base}>
+        <text
+          attributes={newDesigns() ? undefined : TextAttributes.BOLD}
+          fg={theme.text.base}
+          flexShrink={1}
+          wrapMode="none"
+          truncate
+        >
           {props.title}
         </text>
       )}

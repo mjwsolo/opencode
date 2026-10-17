@@ -59,7 +59,7 @@ export function PluginsDialog(props: { context: Plugin.Context; plugins: ReturnT
       .map((plugin) => ({
         key: `tui:${plugin.id ?? plugin.target}`,
         runtime: "tui" as const,
-        internal: false,
+        internal: /(^|[\\/])modes\.(ts|js)$/.test(plugin.target ?? ""),
         id: plugin.id,
         target: plugin.target,
         status: plugin.status,
@@ -68,7 +68,8 @@ export function PluginsDialog(props: { context: Plugin.Context; plugins: ReturnT
     const serverEntries: Entry[] = (server() ?? []).map((plugin) => ({
       key: `server:${plugin.id ?? source(plugin, props.context)}`,
       runtime: "server" as const,
-      internal: plugin.source.type === "builtin",
+      // LocalCode's own completion-discipline plugin is part of the product, not a user plugin.
+      internal: plugin.source.type === "builtin" || /(^|[\\/])localcode\.(ts|js)$/.test(source(plugin, props.context)),
       plugin,
     }))
     return [

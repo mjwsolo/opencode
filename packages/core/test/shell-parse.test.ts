@@ -6,6 +6,15 @@ import { ShellParse } from "@opencode/core/shell/parse"
 import { shellParserWasm } from "../src/shell/parser-wasm.workerd"
 
 describe("ShellParse", () => {
+  test("scans PowerShell portably when the build has no PowerShell grammar", async () => {
+    const result = await Effect.runPromise(
+      ShellParse.scan("git status; npm test", "pwsh", "/workspace", {
+        wasm: { runtime: "runtime.wasm", bash: "bash.wasm", powershell: "" },
+      }),
+    )
+    expect(result.commands.map((command) => command.resource)).toEqual(["git status", "npm test"])
+  })
+
   test("splits bash commands and derives reusable prefixes", async () => {
     const result = await Effect.runPromise(
       ShellParse.scan("git status && npm run test -- --watch", "/bin/bash", "/workspace"),

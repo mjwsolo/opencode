@@ -6,6 +6,18 @@ import type { ServerConfig } from "@opencode/schema/mcp"
 import { Effect, Stream } from "effect"
 import { Config } from "../../config.js"
 import { Mcp } from "../../mcp/index.js"
+import { LocalContext } from "../../session/local-context.js"
+
+/**
+ * localcode: in minimal context mode a configured server connects at startup only when it is
+ * explicitly enabled (`disabled: false`, or v1 `enabled: true`); it can still be connected from
+ * /mcps. `disabled: true` never connects at startup.
+ */
+export function startupConfig(server: ServerConfig, mode?: string): ServerConfig {
+  const enabled = server.disabled === undefined ? undefined : !server.disabled
+  if (server.disabled === true || LocalContext.mcpStartupEnabled(enabled, mode)) return server
+  return { ...server, disabled: true }
+}
 
 export const Plugin = define({
   id: "opencode.config.mcp",
@@ -51,7 +63,7 @@ export const register = Effect.fn("ConfigMCPPlugin.register")(function* (
     }
     for (const [name, server] of servers) {
       if (editor.get(name)) continue
-      editor.set(name, { ...server, timeout: { ...timeout, ...server.timeout } })
+      editor.set(name, { ...startupConfig(server), timeout: { ...timeout, ...server.timeout } })
     }
   })
 })

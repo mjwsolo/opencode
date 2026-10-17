@@ -6,6 +6,8 @@ import { useWorkingDirectoryActions } from "../../ui/working-directory-actions"
 import { usePromptMove } from "../../component/prompt/move"
 import { hasConnectedProvider } from "../../util/connected-provider"
 
+const LOCALCODE = true
+
 export function SidebarOnboarding(props: { context: Plugin.Context; sessionID: string }) {
   const dimensions = useTerminalDimensions()
   const [onboarding, updateOnboarding] = props.context.storage.store("getting-started", {
@@ -15,7 +17,9 @@ export function SidebarOnboarding(props: { context: Plugin.Context; sessionID: s
   const integrations = createMemo(() =>
     props.context.data.location.integration.list(session()?.location ?? props.context.location),
   )
+  // LocalCode has no cloud providers to connect: models come from the local picker.
   const showOnboarding = createMemo(() => {
+    if (LOCALCODE) return false
     if (dimensions().height < 22) return false
     const list = integrations()
     if (!list) return false

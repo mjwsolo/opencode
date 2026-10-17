@@ -45,7 +45,6 @@ import {
   type TuiApp,
 } from "./context/runtime"
 import { DialogProvider, useDialog } from "./ui/dialog"
-import { DialogIntegration } from "./component/dialog-integration"
 import { ErrorComponent } from "./component/error-component"
 import { PluginRouteMissing } from "./component/plugin-route-missing"
 import { EditorContextProvider } from "./context/editor"
@@ -61,12 +60,10 @@ import { LocationProvider, useLocation } from "./context/location"
 import { LocalProvider, useLocal } from "./context/local"
 import { PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
-import { useConnected } from "./component/use-connected"
 import { DialogMcp } from "./component/dialog-mcp"
 import { DialogStatus } from "./component/dialog-status"
 import { DialogConfig } from "./component/dialog-config"
 import { DialogDebug } from "./component/dialog-debug"
-import { DialogPair } from "./component/dialog-pair"
 import { DialogHighlights } from "./component/dialog-highlights"
 import { claim } from "./util/highlights"
 import { DialogThemeList } from "./component/dialog-theme-list"
@@ -93,7 +90,7 @@ import { openUrl } from "@opencode/util/open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { Config, ConfigProvider, useConfig } from "./config"
 import { newSessionLocation } from "./config/new-session-location"
-import { UpdateNotificationProvider, useUpdateNotification, type UpdateSource } from "./context/update-notification"
+import { UpdateNotificationProvider, type UpdateSource } from "./context/update-notification"
 import { PluginProvider, usePlugin, type PackageSource } from "./plugin/context"
 import { localPluginDirectories } from "./plugin/discovery"
 import { PluginRoute, Slot } from "./plugin/render"
@@ -170,7 +167,6 @@ const appBindingCommands = [
   "theme.switch_mode",
   "theme.mode.lock",
   "help.show",
-  "docs.open",
   "diff.open",
   "app.debug",
   "app.console",
@@ -472,7 +468,6 @@ function App() {
   const event = useEvent()
   const client = useClient()
   const toast = useToast()
-  const updater = useUpdateNotification()
   const theme = useTheme()
   const { mode, supports, setMode, locked, lock, unlock, afterPaint } = useThemes()
   const data = useData()
@@ -607,23 +602,23 @@ function App() {
     if (!terminalTitleEnabled()) return
 
     if (route.data.type === "home") {
-      renderer.setTerminalTitle("OpenCode")
+      renderer.setTerminalTitle("localcode")
       return
     }
 
     if (route.data.type === "session") {
       const title = session?.title
       if (!title || isFallbackTitle(title)) {
-        renderer.setTerminalTitle("OpenCode")
+        renderer.setTerminalTitle("localcode")
         return
       }
 
-      renderer.setTerminalTitle(`OC | ${title.length > 40 ? title.slice(0, 37) + "…" : title}`)
+      renderer.setTerminalTitle(`lc | ${title.length > 40 ? title.slice(0, 37) + "…" : title}`)
       return
     }
 
     if (route.data.type === "plugin") {
-      renderer.setTerminalTitle(`OC | ${route.data.name}`)
+      renderer.setTerminalTitle(`lc | ${route.data.name}`)
     }
   })
 
@@ -714,7 +709,6 @@ function App() {
       .catch(toast.error)
   })
 
-  const connected = useConnected()
   const appCommands = createMemo(() =>
     [
       {
@@ -973,31 +967,6 @@ function App() {
         },
       },
       {
-        name: "provider.connect",
-        title: "Connect an integration",
-        suggested: !connected(),
-        slash: { name: "connect" },
-        run: () => {
-          dialog.replace(() => (
-            <DialogIntegration
-              onConnected={(providerID) => dialog.replace(() => <DialogModel providerID={providerID} />)}
-            />
-          ))
-        },
-        category: "Integration",
-      },
-      ...(app.highlights?.length
-        ? [
-            {
-              name: "opencode.highlights",
-              title: "Show release highlights",
-              slash: { name: "highlights" },
-              run: () => dialog.replace(() => <DialogHighlights version={app.version} items={app.highlights ?? []} />),
-              category: "System",
-            },
-          ]
-        : []),
-      {
         name: "opencode.settings",
         title: "Open settings",
         suggested: true,
@@ -1013,26 +982,6 @@ function App() {
         slash: { name: "status" },
         run: () => {
           dialog.replace(() => <DialogStatus />)
-        },
-        category: "System",
-      },
-      ...(updater.open
-        ? [
-            {
-              name: "opencode.update",
-              title: "Update OpenCode",
-              slash: { name: "update" },
-              run: () => updater.open?.("manual"),
-              category: "System",
-            },
-          ]
-        : []),
-      {
-        name: "server.pair",
-        title: "Pair device",
-        slash: { name: "pair", aliases: ["web"] },
-        run: () => {
-          dialog.replace(() => <DialogPair />)
         },
         category: "System",
       },
@@ -1119,15 +1068,6 @@ function App() {
         slash: { name: "help" },
         run: () => {
           dialog.replace(() => <DialogHelp />)
-        },
-        category: "System",
-      },
-      {
-        name: "docs.open",
-        title: "Open docs",
-        run: () => {
-          openUrl("https://opencode.ai/docs").catch(() => {})
-          dialog.clear()
         },
         category: "System",
       },

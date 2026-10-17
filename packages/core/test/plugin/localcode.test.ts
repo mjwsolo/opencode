@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { WebSearchDuckDuckGo } from "../../src/plugin/websearch/duckduckgo"
 import { inputs, loaded, localTitle, localToolSchema, pinSideRequest, variants } from "../../src/plugin/provider/localcode"
 import { LocalContext } from "../../src/session/local-context"
+import { LocalCodeTools } from "../../src/plugin/provider/localcode-tools"
 
 describe("localcode provider", () => {
   test("only a ready supervisor reports a loaded model", () => {
@@ -105,5 +106,37 @@ describe("duckduckgo web search", () => {
       { url: "https://example.org/b", title: "B", content: "Second", time: {} },
     ])
     expect(WebSearchDuckDuckGo.parse(html, 1)).toHaveLength(1)
+  })
+})
+
+describe("LocalCodeTools.lean", () => {
+  test("built-in tools get compact descriptions without changing their argument surface", () => {
+    const input = {
+      type: "object",
+      properties: {
+        command: { type: "string", description: "Shell command string to execute" },
+        workdir: { type: "string", description: "x".repeat(158) },
+      },
+      required: ["command"],
+    }
+    const tool = {
+      description: "Execute a shell command and return its output. Commands run on macOS using zsh. " + "y".repeat(400),
+      input: input as unknown,
+    }
+    LocalCodeTools.lean("shell", tool)
+    expect(tool.description).toContain("Commands run on macOS using zsh.")
+    expect(tool.description.length).toBeLessThan(300)
+    const lean = tool.input as typeof input
+    expect(lean.properties.workdir.description.length).toBeLessThan(100)
+    expect(lean.properties.command).toEqual(input.properties.command)
+    expect(lean.required).toEqual(["command"])
+    // the registry's schema is never mutated
+    expect(input.properties.workdir.description).toBe("x".repeat(158))
+  })
+
+  test("tools without a compact form are left alone", () => {
+    const tool = { description: "custom", input: { type: "object", properties: {} } as unknown }
+    LocalCodeTools.lean("my_mcp_tool", tool)
+    expect(tool.description).toBe("custom")
   })
 })

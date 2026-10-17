@@ -4,6 +4,7 @@ import { Duration, Effect, type JsonSchema } from "effect"
 import { Model } from "../../model.js"
 import { LocalContext } from "../../session/local-context.js"
 import type { PluginInternal } from "../internal.js"
+import { LocalCodeTools } from "./localcode-tools.js"
 import { SchemaCompact } from "./schema-compact.js"
 
 /** The provider id LocalCode's launcher writes into its config; its model list follows the supervisor. */
@@ -187,7 +188,11 @@ export const LocalCodeProviderPlugin = define({
       Effect.sync(() => {
         const full = LocalContext.fullContext(event.model.providerID)
         // Mutate in place: the request maps hooked definitions back to their tools by identity.
-        for (const tool of Object.values(event.tools)) tool.input = localToolSchema(tool.input, full)
+        for (const [name, tool] of Object.entries(event.tools)) {
+          tool.input = localToolSchema(tool.input, full)
+          // Compact descriptions of the built-in tools, in every context mode.
+          LocalCodeTools.lean(name, tool as { description: string; input: unknown })
+        }
       })
     yield* ctx.session.hook("context", compactTools, { providerID: PROVIDER_ID })
     yield* ctx.session.hook("compaction", compactTools, { providerID: PROVIDER_ID })

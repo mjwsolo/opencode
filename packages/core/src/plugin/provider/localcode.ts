@@ -75,6 +75,19 @@ export function pinSideRequest(body: string, slots: number) {
   }
 }
 
+/**
+ * A separate title request adds prompt reading and can displace the warmed local prefix, so a
+ * localcode session is titled from the user's own first message without an inference request.
+ */
+export function localTitle(text: string) {
+  const original = text.startsWith("Original request:\n")
+    ? text.slice("Original request:\n".length).split("\n\nRecent conversation:\n")[0]!
+    : text
+  const clean = original.replace(/[\s\x00-\x1f\x7f]+/g, " ").trim()
+  if (!clean) return undefined
+  return clean.length > 100 ? clean.substring(0, 97) + "..." : clean
+}
+
 const slotCache = new Map<string, { n: number; at: number }>()
 async function slotCount(url: string) {
   const root = new URL(url).origin
@@ -135,6 +148,20 @@ export const LocalCodeProviderPlugin = define({
       if (current || aliases.size > 0) models.remove(PROVIDER_ID, PENDING)
       if (current) models.default.set(PROVIDER_ID, current.alias)
     })
+
+    yield* ctx.session.hook(
+      "title",
+      (event) =>
+        Effect.sync(() => {
+          const text = event.messages
+            .filter((message) => message.role === "user")
+            .flatMap((message) => message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])))
+            .join(" ")
+          const title = localTitle(text)
+          if (title) event.result = title
+        }),
+      { providerID: PROVIDER_ID },
+    )
 
     // Side requests (titles, helper generations) carry no tools and a short prompt; keep them off
     // the conversation's slot. Compaction stays where its prefix is already cached.

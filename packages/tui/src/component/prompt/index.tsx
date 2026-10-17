@@ -351,23 +351,34 @@ export function Prompt(props: PromptProps) {
       setFill("")
       return
     }
+    let polling = false
+    let active = true
     const timer = setInterval(async () => {
+      if (polling) return
+      polling = true
       try {
         const r = await controlFetch("/progress", { signal: AbortSignal.timeout(900) })
-        const p = (await r.json()) as { phase?: string; done?: number; todo?: number; decoded?: number }
+        const p = (await r.json()) as { phase?: string; warmup?: boolean; done?: number; todo?: number; decoded?: number }
+        if (!active) return
         if (p.phase === "reading" && (p.todo ?? 0) > 0) {
-          // llama-server grows the prompt total while it tokenises in batches, so a percentage
-          // drifts; tokens read so far is honest and only goes up.
+          // Counts are per request, not the session's total context. Warm-up is separate.
           const k = (p.done ?? 0) / 1000
-          setFill(`reading context · ${k >= 1 ? `${k.toFixed(k >= 10 ? 0 : 1)}k` : `${p.done ?? 0}`} tokens read`)
+          setFill(
+            `${p.warmup ? "warming model" : "reading context"} · ${k >= 1 ? `${k.toFixed(k >= 10 ? 0 : 1)}k` : `${p.done ?? 0}`} tokens this request`,
+          )
         } else if (p.phase === "generating" && (p.decoded ?? 0) > 0) {
           setFill(`writing · ${p.decoded} tokens`)
         } else setFill("")
       } catch {
-        setFill("")
+        if (active) setFill("")
+      } finally {
+        polling = false
       }
     }, 500)
-    onCleanup(() => clearInterval(timer))
+    onCleanup(() => {
+      active = false
+      clearInterval(timer)
+    })
   })
 
   // Hold-space voice (see onKeyDown). 450 ms without a key repeat = released.

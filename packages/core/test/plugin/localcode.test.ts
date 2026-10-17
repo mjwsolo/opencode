@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { WebSearchDuckDuckGo } from "../../src/plugin/websearch/duckduckgo"
-import { loaded, pinSideRequest, variants } from "../../src/plugin/provider/localcode"
+import { loaded, localTitle, pinSideRequest, variants } from "../../src/plugin/provider/localcode"
 
 describe("localcode provider", () => {
   test("only a ready supervisor reports a loaded model", () => {
@@ -23,6 +23,13 @@ describe("localcode provider", () => {
   test("thinking variants switch the chat template, except for Muse Glimmer", () => {
     expect(variants("qwen3").map((item) => String(item.id))).toEqual(["none", "thinking"])
     expect(variants("muse-glimmer-q4")).toEqual([])
+  })
+
+  test("titles come from the user's first message without a model request", () => {
+    expect(localTitle("  hello\nworld  ")).toBe("hello world")
+    expect(localTitle("x".repeat(150))).toBe("x".repeat(97) + "...")
+    expect(localTitle("Original request:\nfix the bug\n\nRecent conversation:\nUser: more")).toBe("fix the bug")
+    expect(localTitle("   ")).toBeUndefined()
   })
 
   test("side requests go to the last slot", () => {

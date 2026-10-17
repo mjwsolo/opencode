@@ -37,19 +37,19 @@ describe("SkillPlugin.Plugin", () => {
 
       expect(skills).toContainEqual(
         expect.objectContaining({
-          id: "opencode",
-          name: "OpenCode",
-          description: expect.stringContaining("any question about OpenCode itself"),
+          id: "customize-localcode",
+          name: "customize-localcode",
+          description: expect.stringContaining("localcode's own configuration"),
         }),
       )
       expect(skills).toContainEqual(
         expect.objectContaining({
           id: "report",
           name: "Report",
-          description: expect.stringContaining("opencode issue"),
+          description: expect.stringContaining("localcode issue"),
         }),
       )
-      expect(report?.content).toContain("- opencode version: 1.2.3")
+      expect(report?.content).toContain("- localcode version: 1.2.3")
       expect(report?.content).toContain("- install/channel: beta")
     }),
   )

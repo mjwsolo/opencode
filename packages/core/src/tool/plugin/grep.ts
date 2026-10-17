@@ -106,6 +106,17 @@ export const Plugin = {
                   Effect.fail(new ToolFailure({ message: `Search path does not exist: ${input.path ?? "."}` })),
                 ),
               )
+              // LocalCode: grepping one file reveals its contents, so it needs the same read
+              // permission as reading it (a .env file asks first).
+              if (type === "file")
+                yield* permission.assert({
+                  action: "read",
+                  resources: [target.resource],
+                  save: ["*"],
+                  sessionID: context.sessionID,
+                  agent: context.agent,
+                  source,
+                })
               const cwd = type === "directory" ? root : path.dirname(root)
               const limit = input.limit ?? FileSystem.DEFAULT_SEARCH_LIMIT
               const matches = yield* ripgrep

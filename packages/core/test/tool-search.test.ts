@@ -271,11 +271,13 @@ describe("search tools", () => {
           ),
           Effect.tap(() =>
             Effect.sync(() => {
+              // Grepping a single file also needs read permission for it (LocalCode).
               expect(assertions.map((input) => input.action)).toEqual([
                 "external_directory",
                 "grep",
                 "external_directory",
                 "grep",
+                "read",
               ])
               expect(assertions[0]?.resources).toEqual([path.join(outside.path, "*").replaceAll("\\", "/")])
               expect(assertions[2]?.resources).toEqual([path.join(outside.path, "*").replaceAll("\\", "/")])
@@ -359,6 +361,27 @@ describe("search tools", () => {
         Effect.promise(() =>
           Promise.all([active[Symbol.asyncDispose](), outside[Symbol.asyncDispose]()]).then(() => undefined),
         ),
+    ),
+  )
+
+  it.live("grepping a .env file directly needs its read permission", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (active) => {
+        const assertions: Permission.AssertInput[] = []
+        return Effect.promise(() => fs.writeFile(path.join(active.path, ".env"), "SECRET=1\n")).pipe(
+          Effect.andThen(
+            withTools(active.path, (registry) => executeTool(registry, call("grep", { path: ".env", pattern: "SECRET" })), assertions),
+          ),
+          Effect.tap(() =>
+            Effect.sync(() => {
+              expect(assertions.map((input) => input.action)).toEqual(["grep", "read"])
+              expect(assertions[1]?.resources).toEqual([".env"])
+            }),
+          ),
+        )
+      },
+      (active) => Effect.promise(() => active[Symbol.asyncDispose]()),
     ),
   )
 

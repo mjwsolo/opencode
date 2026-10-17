@@ -11,7 +11,6 @@ import pkg from "../package.json"
 import { discoverPluginRuntimeSpecifiers, pluginRuntimeLoaderCode } from "@opencode/plugin/runtime-modules"
 import { buildAppArchive } from "./app-assets"
 import { verifyArtifact, verifySimulationGraph } from "./verify-artifact"
-import { resolveOpencodePty } from "./opencode-pty"
 import { NativeArch } from "../../../script/native-arch"
 
 const dir = path.resolve(import.meta.dirname, "..")
@@ -111,21 +110,38 @@ const pluginRuntimePlugin: BunPlugin = {
   },
 }
 
+// LocalCode ships the binary inside its Python package, whose repository caps a file at 100 MiB.
+// These keep it under that while matching the v1 fork's surface:
+// - an empty bundled models.dev catalog (models come from the launcher's config; no cloud catalog),
+// - no persistent-terminal helper (opencode-pty; v1 had no terminal panes),
+// - no PowerShell grammar outside Windows (PowerShell commands use the portable scanner),
+// - no bytecode cache (v1 builds had none; it doubled the size).
+const localcodeSlimPlugin = (os: string): BunPlugin => ({
+  name: "localcode-slim",
+  setup(build) {
+    build.onLoad({ filter: /models-dev[/\\]snapshot\.txt$/ }, () => ({
+      contents: `export default "{}"`,
+      loader: "js",
+    }))
+    if (os === "win32") return
+    build.onLoad({ filter: /shell[/\\]parser-wasm\.bun\.ts$/ }, () => ({
+      loader: "js",
+      contents: `import runtime from "web-tree-sitter/tree-sitter.wasm" with { type: "file" }
+import bash from "tree-sitter-bash/tree-sitter-bash.wasm" with { type: "file" }
+export const shellParserWasm = { runtime, bash, powershell: "" }`,
+    }))
+  },
+})
+
 for (const item of targets) {
-  const opencodePty = await resolveOpencodePty({
-    platform: item.os,
-    arch: item.arch,
-    ...(item.os === "linux" ? { libc: item.abi ?? "glibc" } : {}),
-  })
   const opencodePtyPlugin: BunPlugin = {
     name: "opencode-pty-binary",
     setup(build) {
       build.onLoad({ filter: /persistent-pty[/\\]pty-binding\.ts$/ }, () => ({
         loader: "js",
-        contents: opencodePty
-          ? `import file from ${JSON.stringify(opencodePty.source)} with { type: "file" }
-export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sha256: ${JSON.stringify(opencodePty.sha256)} }`
-          : "export default undefined",
+        // LocalCode: no persistent-terminal helper (see localcodeSlimPlugin); terminals fall back to an
+        // opencode-pty on PATH when one is installed.
+        contents: "export default undefined",
       }))
     },
   }
@@ -163,11 +179,12 @@ export default { path: file, version: ${JSON.stringify(opencodePty.version)}, sh
       opencodePtyPlugin,
       pluginRuntimePlugin,
       simulationGraphPlugin,
+      localcodeSlimPlugin(item.os),
     ],
     external: ["node-gyp"],
     format: "esm",
     minify: true,
-    bytecode: true,
+    bytecode: false,
     sourcemap: Script.channel === "dev" || Script.channel === "local" ? "inline" : "none",
     splitting: true,
     compile: {

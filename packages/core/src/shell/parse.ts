@@ -167,7 +167,9 @@ export const scan = Effect.fnUntraced(function* (
   cwd: string,
   options?: { portable?: boolean; wasm?: typeof shellParserWasm },
 ) {
-  if (options?.portable || (options?.wasm ?? shellParserWasm).bash === "")
+  const wasm = options?.wasm ?? shellParserWasm
+  // A build without the PowerShell grammar (LocalCode's macOS build) scans PowerShell portably.
+  if (options?.portable || wasm.bash === "" || (wasm.powershell === "" && ShellSelect.ps(shell)))
     return yield* scanPortable(command, shell, cwd)
   return yield* scanLegacy(command, shell, cwd)
 })
@@ -393,11 +395,11 @@ async function initialize() {
   await Parser.init({ locateFile: () => resolve(shellParserWasm.runtime) })
   const [bashLanguage, psLanguage] = await Promise.all([
     Language.load(resolve(shellParserWasm.bash)),
-    Language.load(resolve(shellParserWasm.powershell)),
+    shellParserWasm.powershell === "" ? undefined : Language.load(resolve(shellParserWasm.powershell)),
   ])
   const bash = new Parser()
   bash.setLanguage(bashLanguage)
   const ps = new Parser()
-  ps.setLanguage(psLanguage)
+  if (psLanguage) ps.setLanguage(psLanguage)
   return { bash, ps }
 }

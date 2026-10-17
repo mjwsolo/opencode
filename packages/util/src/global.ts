@@ -9,7 +9,9 @@ import { roots } from "#global-roots"
 import { Flock } from "./flock.js"
 import { makeGlobalNode } from "./effect/app-node.js"
 
-const app = "opencode"
+// "localcode-agent", not "localcode": ~/.local/share/localcode belongs to the
+// LocalCode launcher and must not be shared with this runtime.
+const app = "localcode-agent"
 const { data, cache, config, state, tmp } = roots(app)
 
 const paths = {

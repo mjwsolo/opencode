@@ -20,6 +20,7 @@ import { createStore } from "solid-js/store"
 import { useData } from "../../context/data"
 import { SplitBorder } from "../../ui/border"
 import { withSolidQuotes } from "../../ui/solid-quote"
+import { voiceSpeak } from "../../component/localcode-voice"
 import { messagePanelStyle, SENT_MESSAGE_BACKGROUND } from "../../ui/message-panel"
 import { useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner, SPINNER_FRAMES } from "../../component/spinner"
@@ -1027,19 +1028,35 @@ export function Session(props: {
     },
     {
       title: (() => {
+        // localcode: when the model offers a thinking variant, /thinking turns the model's
+        // thinking on/off (and shows the blocks when on); otherwise it only collapses or
+        // expands the blocks.
+        if (local.model.variant.list().includes("thinking"))
+          return local.model.variant.current() === "thinking" ? "Turn thinking off" : "Turn thinking on"
         const next = nextThinkingMode(thinkingMode())
-        if (next === "hide") return "Collapse thinking"
-        return "Expand thinking"
+        if (next === "hide") return "Collapse thinking display"
+        return "Expand thinking display"
       })(),
       id: "session.toggle.thinking",
       group: "Session",
-      palette: undefined,
+      palette: true as const,
+      slash: { name: "thinking", aliases: ["toggle-thinking"] },
       run: () => {
-        void configState
-          .update((draft) => {
-            draft.session = { ...draft.session, thinking: nextThinkingMode(thinkingMode()) }
-          })
-          .catch(toast.error)
+        const setDisplay = (mode: ReturnType<typeof nextThinkingMode>) =>
+          void configState
+            .update((draft) => {
+              draft.session = { ...draft.session, thinking: mode }
+            })
+            .catch(toast.error)
+        if (local.model.variant.list().includes("thinking")) {
+          const on = local.model.variant.current() === "thinking"
+          local.model.variant.set(on ? "none" : "thinking")
+          setDisplay(on ? "hide" : "show")
+          toast.show({ variant: "info", message: on ? "Thinking off" : "Thinking on — slower, shows reasoning", duration: 2500 })
+          dialog.clear()
+          return
+        }
+        setDisplay(nextThinkingMode(thinkingMode()))
         dialog.clear()
       },
     },
@@ -1133,6 +1150,37 @@ export function Session(props: {
       group: "Session",
       palette: undefined,
       run: () => scrollToMessage("prev", dialog, true),
+    },
+    {
+      title: "Read aloud / stop reading",
+      id: "messages.speak",
+      group: "Session",
+      slash: { name: "speak", aliases: ["say"] },
+      run: () => {
+        const last = messagesBeforeRevert().findLast((msg) => msg.type === "assistant")
+        const text =
+          last?.type === "assistant"
+            ? last.content
+                .filter((part) => part.type === "text")
+                .map((part) => part.text)
+                .join("\n")
+                .trim()
+            : ""
+        if (!text) {
+          toast.show({ message: "No assistant message to read", variant: "error" })
+          dialog.clear()
+          return
+        }
+        void voiceSpeak(text).then((result) => {
+          if (result.error) toast.show({ message: result.error, variant: "error" })
+          else
+            toast.show({
+              message: result.speaking === false ? "Reading stopped" : "Reading aloud… /speak to stop",
+              variant: "info",
+            })
+        })
+        dialog.clear()
+      },
     },
     {
       title: "Copy last assistant message",

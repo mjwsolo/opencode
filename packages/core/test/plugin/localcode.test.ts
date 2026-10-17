@@ -48,6 +48,10 @@ describe("localcode provider", () => {
     expect(pinSideRequest(body, 1)).toBe(body)
     expect(pinSideRequest(JSON.stringify({ id_slot: 0 }), 4)).toBe(JSON.stringify({ id_slot: 0 }))
     expect(pinSideRequest("not json", 4)).toBe("not json")
+    const tools = JSON.stringify({ messages: [], tools: [{ type: "function" }] })
+    expect(pinSideRequest(tools, 4)).toBe(tools)
+    const long = JSON.stringify({ messages: [{ role: "user", content: "x".repeat(30_000) }] })
+    expect(pinSideRequest(long, 4)).toBe(long)
   })
 })
 

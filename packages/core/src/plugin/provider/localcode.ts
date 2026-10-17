@@ -72,11 +72,15 @@ export function variants(alias: string) {
  * (title generation) landed on the conversation's slot and truncated its cache; the next turn
  * re-read the whole conversation while other slots sat idle. Side requests go to the LAST slot.
  */
+/** A side request: no tools and a short prompt (a long tool-less request keeps its cached slot). */
+export const SIDE_REQUEST_MAX_CHARS = 24_000
+
 export function pinSideRequest(body: string, slots: number) {
-  if (slots <= 1) return body
+  if (slots <= 1 || body.length > SIDE_REQUEST_MAX_CHARS) return body
   try {
     const json = JSON.parse(body)
     if (!json || typeof json !== "object" || Array.isArray(json) || json.id_slot !== undefined) return body
+    if (Array.isArray(json.tools) && json.tools.length > 0) return body
     return JSON.stringify({ ...json, id_slot: slots - 1 })
   } catch {
     return body
@@ -189,13 +193,14 @@ export const LocalCodeProviderPlugin = define({
     yield* ctx.session.hook("compaction", compactTools, { providerID: PROVIDER_ID })
     yield* ctx.session.hook("generate", compactTools, { providerID: PROVIDER_ID })
 
-    // Side requests (titles, helper generations) carry no tools and a short prompt; keep them off
-    // the conversation's slot. Compaction stays where its prefix is already cached.
+    // Side requests (titles, helper generations, a short compaction) carry no tools and a short
+    // prompt; keep them off the conversation's slot. A long tool-less request (compaction of a big
+    // conversation) stays where its prefix is already cached.
     yield* ctx.session.hook(
       "http.request",
       (event) =>
         Effect.gen(function* () {
-          if (event.kind !== "title" && event.kind !== "generate") return
+          if (event.kind === "primary") return
           const body = yield* Effect.promise(() => event.request.clone().text())
           if (!body) return
           const slots = yield* Effect.promise(() => slotCount(event.request.url))

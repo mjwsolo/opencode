@@ -199,6 +199,21 @@ export function DialogLocalcodeModel() {
   )
 }
 
+/**
+ * The row the quant list opens on. Enter there must never start a large download
+ * the user did not pick: prefer what is loaded, then what is on disk (the
+ * recommended one first), and offer the recommended download only when nothing
+ * is downloaded. (The first row is the smallest, lowest-quality quant.)
+ */
+export function defaultQuant(quants: readonly { alias: string; current?: boolean; recommended?: boolean; downloaded?: boolean }[]) {
+  return (
+    quants.find((q) => q.current)?.alias ??
+    quants.find((q) => q.downloaded && q.recommended)?.alias ??
+    quants.find((q) => q.downloaded)?.alias ??
+    quants.find((q) => q.recommended)?.alias
+  )
+}
+
 export function DialogLocalcodeQuant(props: { group: Group }) {
   const data = useData()
   const location = useLocation()
@@ -462,12 +477,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
           </box>
         }
         options={options()}
-        // Start on the loaded quant, else the recommended one: Enter on the first row
-        // used to load the smallest, lowest-quality quant.
-        current={
-          (quants()?.quants ?? []).find((q) => q.current)?.alias ??
-          (quants()?.quants ?? []).find((q) => q.recommended)?.alias
-        }
+        current={defaultQuant(quants()?.quants ?? [])}
       />
     </Show>
   )

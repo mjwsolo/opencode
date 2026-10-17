@@ -102,8 +102,6 @@ function DiffViewer(props: {
   }>("review", { initial: { bases: {} } })
   const sessionID = () => props.sessionID
   const sources = (): readonly DiffMode[] => (sessionID() ? [...VCS_SOURCES, "turn"] : VCS_SOURCES)
-  const initialMode = props.initialMode ?? memory.source ?? config.data.diffs?.source ?? "branch"
-  const [mode, setMode] = createSignal(sources().includes(initialMode) ? initialMode : "branch")
   const location = createMemo(
     () => {
       const id = sessionID()
@@ -114,6 +112,12 @@ function DiffViewer(props: {
     undefined,
     { equals: (a, b) => a.directory === b.directory },
   )
+  // Outside Git there is no branch to compare against: open on the latest turn's changes.
+  const outsideGit = () =>
+    !!sessionID() && !props.context.data.location.vcs.info(location())?.branch.current
+  const initialMode =
+    props.initialMode ?? memory.source ?? config.data.diffs?.source ?? (outsideGit() ? "turn" : "branch")
+  const [mode, setMode] = createSignal(sources().includes(initialMode) ? initialMode : "branch")
   const baseKey = createMemo(() =>
     JSON.stringify([locationKey(location()), props.context.data.location.vcs.info(location())?.branch.current]),
   )

@@ -72,7 +72,7 @@ describe("CommandPlugin.Plugin", () => {
 
       expect(yield* command.get("init")).toMatchObject({
         name: "init",
-        description: "guided AGENTS.md setup",
+        description: "guided LOCALCODE.md setup",
       })
       expect(yield* command.get("review")).toMatchObject({
         name: "review",

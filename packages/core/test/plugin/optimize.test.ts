@@ -53,6 +53,7 @@ describe("OptimizePlugin", () => {
       "opencode.prompt.kimi",
       "opencode.prompt.arcee",
       "opencode.prompt.meta",
+      "localcode.prompt",
     ])
   })
 

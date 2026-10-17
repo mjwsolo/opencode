@@ -2,7 +2,7 @@ export * as Snapshot from "./snapshot.js"
 
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import path from "path"
-import { Clock, Context, Effect, Fiber, Layer, Schema, Scope } from "effect"
+import { Clock, Context, Duration, Effect, Fiber, Layer, Option, Schema, Scope } from "effect"
 import { FileDiff } from "@opencode/schema/file-diff"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Git } from "./git.js"
@@ -69,6 +69,12 @@ export interface Interface extends State.Transformable<Editor> {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Snapshot") {}
 
+/**
+ * localcode: a capture shadow-indexes the whole worktree before the first answer. When one takes
+ * longer than this, snapshots turn off for the directory instead of minutes of scanning per turn.
+ */
+export const CAPTURE_BUDGET = Duration.seconds(15)
+
 /** localcode writes its runtime logs into the project; they are not the user's file changes. */
 const RUNTIME_LOG_EXCLUDE = "**/.localcode-agent/*.log"
 export const isRuntimeLog = (file: string) => /(^|\/)\.localcode-agent\/[^/]+\.log$/.test(file)
@@ -98,8 +104,8 @@ const layer = Layer.effect(
         const source = yield* git.repo.discover(location.project.directory)
         // localcode: a folder without Git snapshots the opened directory, so undo restores its files too.
         const worktree = AbsolutePath.make(yield* real(source?.worktree ?? location.directory))
-        // The filesystem root is too large to index before every answer.
-        if (worktree === path.parse(worktree).root) return undefined
+        // The filesystem root and the home directory are too large to index before every answer.
+        if (worktree === path.parse(worktree).root || worktree === (yield* real(global.home))) return undefined
         const gitDirectory = AbsolutePath.make(
           path.join(global.data, "snapshot", location.project.id, Hash.fast(worktree)),
         )
@@ -132,7 +138,8 @@ const layer = Layer.effect(
       )
     })
 
-    const enabled = () => state.get().enabled
+    let overBudget = false
+    const enabled = () => !overBudget && state.get().enabled
     const unavailable = (operation: Error["operation"]) =>
       new Error({ operation, message: "Snapshots are disabled for this directory" })
 
@@ -162,6 +169,15 @@ const layer = Layer.effect(
         yield* packWhenDue(repo.snapshotRepository)
         return ID.make(tree)
       }).pipe(
+        Effect.timeoutOption(CAPTURE_BUDGET),
+        Effect.flatMap((result) => {
+          if (Option.isSome(result)) return Effect.succeed(result.value)
+          overBudget = true
+          return Effect.logWarning(
+            "snapshot capture exceeded its time budget; undo/diff snapshots disabled for this directory",
+            { directory: location.directory, budgetSeconds: Duration.toSeconds(CAPTURE_BUDGET) },
+          ).pipe(Effect.as(undefined))
+        }),
         Effect.catch((cause) => Effect.logWarning("failed to capture snapshot", { cause }).pipe(Effect.as(undefined))),
       )
     })

@@ -3,6 +3,7 @@ import { describe, expect } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import { Deferred, Effect, Fiber, Layer, Logger } from "effect"
+import { TestClock } from "effect/testing"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { Git } from "@opencode/core/git"
 import { Global } from "@opencode/util/global"
@@ -416,6 +417,66 @@ describe("Snapshot", () => {
             expect(yield* read(file)).toContain("return a + b")
             expect(yield* exists(path.join(directory, ".git"))).toBe(false)
           }).pipe(Effect.provide(snapshotLayer(tmp.path, directory)))
+        }),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ),
+  )
+
+  testEffect(Layer.empty).live("does not snapshot the home directory", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) =>
+        Effect.gen(function* () {
+          const home = path.join(tmp.path, "home")
+          yield* Effect.promise(() => fs.mkdir(home))
+          const layer = AppNodeBuilder.build(Snapshot.node, [
+            Location.node.replace(Location.boundNode(Location.Ref.make({ directory: AbsolutePath.make(home) }))),
+            Global.node.replace(Global.layerWith({ data: tmp.path, config: path.join(tmp.path, "config"), home })),
+          ])
+          expect(
+            yield* Effect.gen(function* () {
+              return yield* (yield* Snapshot.Service).capture()
+            }).pipe(Effect.provide(layer)),
+          ).toBeUndefined()
+          expect(yield* exists(path.join(tmp.path, "snapshot"))).toBe(false)
+        }),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ),
+  )
+
+  testEffect(Layer.empty).effect("turns snapshots off when a capture exceeds its time budget", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) =>
+        Effect.gen(function* () {
+          const directory = path.join(tmp.path, "project")
+          yield* Effect.promise(() => fs.mkdir(directory))
+          const git = yield* Git.Service.pipe(Effect.provide(AppNodeBuilder.build(Git.node)))
+          let captures = 0
+          const slow = Git.Service.of({
+            ...git,
+            tree: {
+              ...git.tree,
+              capture: () => {
+                captures++
+                return Effect.never
+              },
+            },
+          })
+          const layer = AppNodeBuilder.build(Snapshot.node, [
+            Location.node.replace(Location.boundNode(Location.Ref.make({ directory: AbsolutePath.make(directory) }))),
+            Global.node.replace(Global.layerWith({ data: tmp.path, config: path.join(tmp.path, "config") })),
+            Git.node.replace(Layer.succeed(Git.Service, slow)),
+          ])
+          yield* Effect.gen(function* () {
+            const snapshot = yield* Snapshot.Service
+            const first = yield* snapshot.capture().pipe(Effect.forkChild)
+            while (captures === 0) yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)))
+            yield* TestClock.adjust(Snapshot.CAPTURE_BUDGET)
+            expect(yield* Fiber.join(first)).toBeUndefined()
+            expect(yield* snapshot.capture()).toBeUndefined()
+            expect(captures).toBe(1)
+          }).pipe(Effect.provide(layer))
         }),
       (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
     ),

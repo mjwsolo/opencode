@@ -100,6 +100,15 @@ const convert = (content: string, contentType: string, format: Format) => {
   return content
 }
 
+// A fetched page goes straight into a local model's context, where megabytes are minutes of
+// prompt reading. Cap what the model sees (LOCALCODE_WEBFETCH_MAX_CHARS can lower it).
+export function clip(text: string) {
+  const cap = Math.min(20_000, Math.max(128, Number.parseInt(process.env.LOCALCODE_WEBFETCH_MAX_CHARS ?? "", 10) || 20_000))
+  if (text.length <= cap) return text
+  const suffix = `\n…[truncated from ${text.length} characters]`
+  return text.slice(0, cap - suffix.length) + suffix
+}
+
 export const Plugin = {
   id: "opencode.tool.webfetch",
   effect: Effect.fn("WebFetchTool.Plugin")(function* (ctx: Context) {
@@ -157,7 +166,7 @@ export const Plugin = {
                 url: input.url,
                 contentType,
                 format: input.format,
-                output,
+                output: clip(output),
               }
               return { output: result, content: result.output, metadata: { contentType: result.contentType } }
             }).pipe(Effect.mapError((error) => new ToolFailure({ message: `Unable to fetch ${input.url}`, error }))),

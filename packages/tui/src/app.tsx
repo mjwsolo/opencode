@@ -45,6 +45,8 @@ import {
   type TuiApp,
 } from "./context/runtime"
 import { DialogProvider, useDialog } from "./ui/dialog"
+import { DialogLocalcodeModel } from "./component/dialog-localcode-model"
+import { controlUrl, watchSupervisor } from "./util/localcode"
 import { ErrorComponent } from "./component/error-component"
 import { PluginRouteMissing } from "./component/plugin-route-missing"
 import { EditorContextProvider } from "./context/editor"
@@ -625,6 +627,7 @@ function App() {
   const args = useArgs()
   const startupPrompt = args.prompt ? { text: args.prompt, files: [], agents: [], pasted: [] } : undefined
   onMount(() => {
+    watchSupervisor()
     batch(() => {
       if (args.agent) local.agent.set(args.agent)
       if (args.model) {
@@ -866,7 +869,9 @@ function App() {
         category: "Agent",
         slash: { name: "models" },
         run: () => {
-          dialog.replace(() => <DialogModel />)
+          // Under the localcode launcher the picker lists the local catalog, not provider models.
+          if (controlUrl()) dialog.replace(() => <DialogLocalcodeModel />)
+          else dialog.replace(() => <DialogModel />)
         },
       },
       {

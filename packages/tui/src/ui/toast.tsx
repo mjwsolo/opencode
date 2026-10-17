@@ -45,15 +45,20 @@ function ToastSurface(props: {
 
   return (
     <box
+      id="notification-toast"
       position="absolute"
+      // Above dialog overlays (3000): a failure reported while a dialog is open must stay visible.
+      zIndex={4000}
       top={1}
       right={2}
       maxWidth={Math.min(60, dimensions().width - 6)}
       justifyContent="center"
       alignItems="flex-start"
       borderColor={theme.text.feedback[props.toast.variant].base}
+      // Solid painted bars: no glyph gaps between rows in any terminal font.
+      backgroundColor={theme.text.feedback[props.toast.variant].base}
       border={["left", "right"]}
-      customBorderChars={SplitBorder.customBorderChars}
+      customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
       onMouseOver={() => hover(true)}
       onMouseOut={() => hover(false)}
       onMouseUp={() => {

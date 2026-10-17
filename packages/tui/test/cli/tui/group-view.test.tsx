@@ -196,7 +196,7 @@ test("expanded instructions stay adjacent to their summary and each other", asyn
         .split("\n")
         .map((line) => line.trim())
         .join("\n"),
-    ).toContain("◈ Instructions: 2 files\nLoaded AGENTS.md\nLoaded packages/tui/AGENTS.md")
+    ).toContain("Instructions: 2 files\nLoaded AGENTS.md\nLoaded packages/tui/AGENTS.md")
   } finally {
     app.renderer.destroy()
   }

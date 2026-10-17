@@ -226,7 +226,7 @@ test("SIGHUP clears title and disposes scoped resources once", async () => {
   const setTitle = setup.renderer.setTerminalTitle.bind(setup.renderer)
   setup.renderer.setTerminalTitle = (title) => {
     titles.push(title)
-    if (title === "OpenCode") started()
+    if (title === "localcode") started()
     setTitle(title)
   }
   const listeners = new Set(process.listeners("SIGHUP"))
@@ -272,8 +272,8 @@ test("session lifecycle updates the terminal title and prints the epilogue after
   })
   const setTitle = setup.renderer.setTerminalTitle.bind(setup.renderer)
   setup.renderer.setTerminalTitle = (title) => {
-    if (title === "OC | Demo session") initialTitle()
-    if (title === "OC | Renamed session") renamedTitle()
+    if (title === "lc | Demo session") initialTitle()
+    if (title === "lc | Renamed session") renamedTitle()
     setTitle(title)
   }
   const events = createEventStream()
@@ -337,7 +337,7 @@ test("session lifecycle updates the terminal title and prints the epilogue after
     await task
 
     expect(stdout).toContain("Renamed session")
-    expect(stdout).toContain("opencode -s dummy")
+    expect(stdout).toContain("localcode --resume dummy")
     expect(promptRequests).toBe(0)
   } finally {
     process.stdout.write = originalWrite
@@ -354,7 +354,7 @@ test("session title generated while an untitled session is loading remains visib
   const generatedTitle = Promise.withResolvers<void>()
   setup.renderer.setTerminalTitle = (title) => {
     titles.push(title)
-    if (title === "OC | Generated title") generatedTitle.resolve()
+    if (title === "lc | Generated title") generatedTitle.resolve()
     setTitle(title)
   }
   const sessionRequested = Promise.withResolvers<void>()
@@ -422,9 +422,9 @@ test("session title generated while an untitled session is loading remains visib
     ])
     await Bun.sleep(20)
 
-    const generated = titles.lastIndexOf("OC | Generated title")
+    const generated = titles.lastIndexOf("lc | Generated title")
     expect(generated).toBeGreaterThan(-1)
-    expect(titles.slice(generated + 1)).not.toContain("OpenCode")
+    expect(titles.slice(generated + 1)).not.toContain("localcode")
     setup.renderer.destroy()
     await task
   } finally {
@@ -551,7 +551,7 @@ test("automatic rename refreshes the displayed title before settling, even witho
   })
 
   try {
-    await setup.waitForFrame((frame) => frame.includes(session.title) && frame.includes("Build · Model Provider"))
+    await setup.waitForFrame((frame) => frame.includes(session.title) && frame.includes("localcode · Model Provider"))
     await setup.mockInput.typeText("/rename")
     setup.mockInput.pressEscape()
     setup.mockInput.pressEnter()
@@ -677,7 +677,7 @@ test.each([80, 120])("completes custom Markdown and ordinary fences in a session
   expect(frame).not.toContain("```")
 })
 
-test("keeps assistant footer metrics current after prepend, same-length refresh, and revert", async () => {
+test("keeps assistant footer durations current after prepend, same-length refresh, and revert", async () => {
   await using state = await tmpdir()
   const session = {
     id: "ses_footer",
@@ -759,10 +759,10 @@ test("keeps assistant footer metrics current after prepend, same-length refresh,
 
   const initial = await waitForHighlightedFrame(
     setup,
-    (frame) => frame.includes("Original answer") && frame.includes("20.0 tok/s"),
+    (frame) => frame.includes("Original answer") && frame.includes("Completed in 4.0s"),
   )
   expect(initial).toContain("Current input")
-  expect(initial).toContain("4.0s \u00b7 20.0 tok/s")
+  expect(initial).toContain("Completed in 4.0s")
   expect(initial).not.toContain("Prepended input")
 
   setup.mockInput.pressKey("g", { ctrl: true })
@@ -772,12 +772,12 @@ test("keeps assistant footer metrics current after prepend, same-length refresh,
       frame.includes("Prepended input") &&
       frame.includes("Prepended instructions") &&
       frame.includes("Original answer") &&
-      frame.includes("20.0 tok/s") &&
+      frame.includes("Completed in 4.0s") &&
       !frame.includes("Loading session history…"),
   )
   expect(prepended).toContain("Current input")
   expect(prepended).toContain("Original answer")
-  expect(prepended).toContain("4.0s \u00b7 20.0 tok/s")
+  expect(prepended).toContain("Completed in 4.0s")
 
   // Refresh the latest page: length stays four, but the retained assistant moves from index three to one.
   refresh = true
@@ -793,8 +793,8 @@ test("keeps assistant footer metrics current after prepend, same-length refresh,
   )
   expect(refreshed).toContain("Current input")
   expect(refreshed).toContain("Original answer")
-  expect(refreshed).toContain("4.0s \u00b7 20.0 tok/s")
-  expect(refreshed).toContain("3.0s \u00b7 50.0 tok/s")
+  expect(refreshed).toContain("Completed in 4.0s")
+  expect(refreshed).toContain("Completed in 3.0s")
 
   setup.events.emit({
     id: "evt_footer_reverted",
@@ -808,7 +808,7 @@ test("keeps assistant footer metrics current after prepend, same-length refresh,
     (frame) => frame.includes("Original answer") && !frame.includes("Later input") && !frame.includes("Later answer"),
   )
   expect(reverted).toContain("Current input")
-  expect(reverted).toContain("4.0s \u00b7 20.0 tok/s")
+  expect(reverted).toContain("Completed in 4.0s")
   expect(reverted).not.toContain("50.0 tok/s")
 })
 
@@ -990,7 +990,7 @@ test.each([false, true])("uses the resolved launch directory for new prompts (fa
   })
 
   await setup.ready
-  await setup.waitForFrame((frame) => frame.includes("Build · Remote Model Provider"))
+  await setup.waitForFrame((frame) => frame.includes("localcode · Remote Model Provider"))
   setup.mockInput.pressKey("F6")
   await setup.renderOnce()
   await setup.mockInput.typeText("REMOTE_READY")
@@ -1162,7 +1162,7 @@ test("completed user shell output replaces a partial live read when the final re
   })
   const terminal = await setup.waitForFrame((frame) => frame.includes("last persisted output"))
   expect(terminal).toContain(partial.trim())
-  expect(terminal).toContain(`$ ${shell.command}`)
+  expect(terminal).toContain(`Run ${shell.command}`)
   expect(terminal).not.toContain("Background")
 })
 
@@ -1275,12 +1275,12 @@ test("keeps the prompt display stable while a new location catalog loads", async
 
   try {
     await setup.ready
-    await setup.waitForFrame((frame) => frame.includes("Build · Source Model Provider"))
+    await setup.waitForFrame((frame) => frame.includes("localcode · Source Model Provider"))
     const agentSpan = () =>
       setup
         .captureSpans()
         .lines.flatMap((line) => line.spans)
-        .find((span) => span.text.trim() === "Build")
+        .find((span) => span.text.trim() === "localcode")
     const sourceAgentColor = agentSpan()?.fg.toInts()
     expect(sourceAgentColor).toBeDefined()
     await setup.mockInput.typeText(`/cd ${target}`)
@@ -1306,15 +1306,15 @@ test("keeps the prompt display stable while a new location catalog loads", async
     ])
     await setup.renderOnce()
 
-    expect(setup.captureCharFrame()).toContain("Build · Source Model Provider")
+    expect(setup.captureCharFrame()).toContain("localcode · Source Model Provider")
     expect(agentSpan()?.fg.toInts()).toEqual(sourceAgentColor)
 
     catalog.resolve()
-    const resolved = await setup.waitForFrame((frame) => frame.includes("Build · Target Model provider"))
+    const resolved = await setup.waitForFrame((frame) => frame.includes("localcode · Target Model provider"))
     expect(resolved).not.toContain("Source Model")
 
     providerCatalog.resolve()
-    await setup.waitForFrame((frame) => frame.includes("Build · Target Model Provider"))
+    await setup.waitForFrame((frame) => frame.includes("localcode · Target Model Provider"))
   } finally {
     locationCatalog.resolve()
     catalog.resolve()

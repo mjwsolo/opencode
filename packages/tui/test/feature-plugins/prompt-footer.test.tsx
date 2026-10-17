@@ -6,7 +6,7 @@ import type { Context } from "@opencode/plugin/tui/context"
 import { createSignal } from "solid-js"
 import { PromptFooter } from "../../src/feature-plugins/prompt/footer"
 
-test("prompt footer separates simultaneous subagent, shell, and usage status", async () => {
+test("prompt footer separates shell and usage status without subagent navigation", async () => {
   const color = RGBA.fromInts(200, 200, 200)
   const subdued = RGBA.fromInts(100, 100, 100)
   const dispatched: string[] = []
@@ -36,6 +36,7 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
       },
       location: {
         model: { list: () => [] },
+        agent: { list: () => [{ id: "build", mode: "primary" }] },
       },
     },
   } as unknown as Context
@@ -49,8 +50,9 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
 
   try {
     await app.renderOnce()
-    expect(app.captureCharFrame()).toContain("ctrl+j 1 subagent · 1 shell · $1.00")
-    expect(app.captureCharFrame()).toContain("ctrl+p commands")
+    expect(app.captureCharFrame()).toContain("1 shell · $1.00")
+    expect(app.captureCharFrame()).not.toContain("subagent")
+    expect(app.captureCharFrame()).toContain("/ commands")
 
     await app.mockMouse.moveTo(2, 0)
     const live = app.renderer.root.getChildren()[0]?.getChildren()[0]?.getChildren()[0]
@@ -58,7 +60,7 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
     expect((live as TextRenderable).fg.toInts()).toEqual(color.toInts())
 
     await app.mockMouse.click(2, 0)
-    expect(dispatched).toEqual(["session.child.first"])
+    expect(dispatched).toEqual([])
   } finally {
     app.renderer.destroy()
   }
@@ -66,6 +68,7 @@ test("prompt footer separates simultaneous subagent, shell, and usage status", a
 
 test("prompt footer can hide details", async () => {
   const color = RGBA.fromInts(200, 200, 200)
+  const [status, setStatus] = createSignal("idle")
   const context = {
     location: { directory: "/workspace" },
     theme: {
@@ -84,7 +87,7 @@ test("prompt footer can hide details", async () => {
     data: {
       session: {
         family: () => ["session"],
-        status: () => "running",
+        status: () => status(),
         get: () => ({ id: "session", location: { directory: "/workspace" } }),
         cost: () => 1,
         message: {
@@ -101,6 +104,7 @@ test("prompt footer can hide details", async () => {
       shell: { list: () => [] },
       location: {
         model: { list: () => [{ providerID: "provider", id: "model", limit: { context: 10_000 } }] },
+        agent: { list: () => [{ id: "build", mode: "primary" }] },
       },
     },
   } as unknown as Context
@@ -126,14 +130,22 @@ test("prompt footer can hide details", async () => {
   try {
     await app.renderOnce()
     expect(app.captureCharFrame()).toContain("1.0K (10%) · $1.00")
-    expect(app.captureCharFrame()).toContain("ctrl+p commands")
+    expect(app.captureCharFrame()).toContain("/ commands")
+
+    // Shortcut hints step aside while a reply runs; a single agent has no switch hint.
+    setStatus("running")
+    await app.renderOnce()
+    expect(app.captureCharFrame()).not.toContain("/ commands")
+    expect(app.captureCharFrame()).not.toContain("build / plan")
+    setStatus("idle")
+    await app.renderOnce()
 
     setShowDetails(false)
     await app.renderOnce()
     const frame = app.captureCharFrame()
     expect(frame).not.toContain("1.0K (10%)")
     expect(frame).not.toContain("$1.00")
-    expect(frame).not.toContain("ctrl+p commands")
+    expect(frame).not.toContain("/ commands")
 
     setSessionID(undefined)
     await app.renderOnce()

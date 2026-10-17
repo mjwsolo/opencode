@@ -11,13 +11,18 @@ export { normalizePromptContent } from "./prompt/content"
 
 type EditorStdio = "inherit" | "pipe" | "ignore" | number | Stream
 
-export async function openEditor(input: { value: string; renderer: CliRenderer; cwd?: string; stdin?: EditorStdio }) {
-  // Without $VISUAL/$EDITOR, fall back to a terminal editor every Mac has.
-  const editor =
-    process.env.VISUAL ||
-    process.env.EDITOR ||
-    ["/usr/bin/nano", "/opt/homebrew/bin/nano", "/usr/local/bin/nano"].find((file) => existsSync(file)) ||
+/** $VISUAL, then $EDITOR, then a terminal editor every Mac has (nano, else vi). */
+export function editorCommand(env: NodeJS.ProcessEnv = process.env, exists: (file: string) => boolean = existsSync) {
+  return (
+    env.VISUAL ||
+    env.EDITOR ||
+    ["/usr/bin/nano", "/opt/homebrew/bin/nano", "/usr/local/bin/nano"].find((file) => exists(file)) ||
     "vi"
+  )
+}
+
+export async function openEditor(input: { value: string; renderer: CliRenderer; cwd?: string; stdin?: EditorStdio }) {
+  const editor = editorCommand()
   const file = path.join(os.tmpdir(), `${Date.now()}.md`)
   await writeFile(file, input.value)
   input.renderer.suspend()

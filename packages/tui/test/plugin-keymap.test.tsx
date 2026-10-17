@@ -110,7 +110,7 @@ test("failed setup reports batched layer errors and disposes earlier and later s
     config: { animations: false, plugins: [{ package: plugin.directory, options: { fail: true } }] },
   })
   await setup.ready
-  await setup.waitForFrame((frame) => frame.includes("ctrl+p commands"))
+  await setup.waitForFrame((frame) => frame.includes("/ commands"))
 
   await openPlugin(setup)
   await setup.waitForFrame((frame) => frame.includes("view error"))

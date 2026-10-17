@@ -235,8 +235,14 @@ export function InlineToolRow(props: {
         <Match when={true}>
           <Show when={props.complete || props.failed}>
             <box flexDirection="row">
-              {/* A plain action heading: no tool glyphs. */}
-              <box width={INLINE_TOOL_ICON_WIDTH} />
+              {/* A plain action heading: no tool glyphs. Group disclosure marks (+ / −) stay. */}
+              <text
+                width={INLINE_TOOL_ICON_WIDTH}
+                fg={props.failed ? props.errorColor : (props.iconColor ?? props.color)}
+                attributes={props.denied ? TextAttributes.STRIKETHROUGH : undefined}
+              >
+                {props.icon === "+" || props.icon === "−" ? props.icon : ""}
+              </text>
               <Show
                 when={props.status}
                 fallback={

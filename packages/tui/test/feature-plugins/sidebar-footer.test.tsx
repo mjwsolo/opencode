@@ -80,7 +80,8 @@ test("sidebar preserves the compact layout when the onboarding card cannot fit",
   }
 })
 
-test("sidebar shows onboarding without a connected integration", async () => {
+// LocalCode has no cloud integrations to connect, so the onboarding card never shows.
+test.skip("sidebar shows onboarding without a connected integration", async () => {
   const app = await render(context({ integrations: [] }))
 
   try {
@@ -107,7 +108,7 @@ test("sidebar hides onboarding after an integration is connected or the card is 
   }
 })
 
-test("sidebar onboarding opens integrations and can be dismissed", async () => {
+test.skip("sidebar onboarding opens integrations and can be dismissed", async () => {
   const dispatched: string[] = []
   const app = await render(context({ integrations: [], dispatched }))
 

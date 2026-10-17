@@ -120,13 +120,12 @@ export function configured(options?: Options) {
 
 export const node = configured()
 
-function render(files: ReadonlyArray<File>) {
-  return files
-    .map(
-      (file) =>
-        `Instructions from: ${file.path}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\n${file.content}`,
-    )
-    .join("\n\n")
+// LocalCode: loaded instructions say so, so a small model does not reread them to "discover" guidance.
+const LOADED_NOTE =
+  "[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\n"
+
+function render(files: ReadonlyArray<File>, note = true) {
+  return files.map((file) => `Instructions from: ${file.path}\n${note ? LOADED_NOTE : ""}${file.content}`).join("\n\n")
 }
 
 function renderUpdate(previous: ReadonlyArray<File>, current: ReadonlyArray<File>) {
@@ -148,7 +147,8 @@ function renderUpdate(previous: ReadonlyArray<File>, current: ReadonlyArray<File
         "```",
       ].join("\n")
       const replacement = `The instructions changed:\n${render([after])}`
-      return diff.length < replacement.length ? diff : replacement
+      // Choose between diff and full text on the content alone, as without the loaded note.
+      return diff.length < `The instructions changed:\n${render([after], false)}`.length ? diff : replacement
     }),
   ].join("\n\n")
 }

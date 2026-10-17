@@ -110,10 +110,10 @@ describe("InstructionDiscovery", () => {
     Effect.gen(function* () {
       const discovery = yield* InstructionDiscovery.Service
       yield* discovery.transform((editor) => {
-        editor.add(file("/repo/AGENTS.md", "first"))
-        editor.add(file("/repo/packages/AGENTS.md", "package"))
-        editor.add(file("/repo/AGENTS.md", "last"))
-        editor.update("/repo/packages/AGENTS.md", (current) => {
+        editor.add(file("/repo/LOCALCODE.md", "first"))
+        editor.add(file("/repo/packages/LOCALCODE.md", "package"))
+        editor.add(file("/repo/LOCALCODE.md", "last"))
+        editor.update("/repo/packages/LOCALCODE.md", (current) => {
           current.content = "updated"
           current.path = AbsolutePath.make("/ignored")
         })
@@ -121,8 +121,8 @@ describe("InstructionDiscovery", () => {
       })
 
       expect(yield* discovery.list()).toEqual([
-        file("/repo/AGENTS.md", "last"),
-        file("/repo/packages/AGENTS.md", "updated"),
+        file("/repo/LOCALCODE.md", "last"),
+        file("/repo/packages/LOCALCODE.md", "updated"),
       ])
     }).pipe(Effect.provide(AppNodeBuilder.build(LayerNode.group([InstructionDiscovery.node, Bus.node])))),
   )
@@ -134,7 +134,7 @@ describe("InstructionDiscovery", () => {
       expect(
         (yield* readUpdate(
           yield* discovery.load(),
-          state({ "core/instructions": [{ path: "/repo/AGENTS.md", content: "old" }] }),
+          state({ "core/instructions": [{ path: "/repo/LOCALCODE.md", content: "old" }] }),
         )).changed,
       ).toBe(false)
     }).pipe(Effect.provide(AppNodeBuilder.build(LayerNode.group([InstructionDiscovery.node, Bus.node])))),
@@ -144,43 +144,43 @@ describe("InstructionDiscovery", () => {
     Effect.gen(function* () {
       const discovery = yield* InstructionDiscovery.Service
       yield* discovery.transform((editor) => {
-        editor.add(file("/global/AGENTS.md", "global"))
+        editor.add(file("/global/LOCALCODE.md", "global"))
         editor.add(
-          file("/repo/AGENTS.md", ["old", ...Array.from({ length: 20 }, (_, index) => `keep ${index}`)].join("\n")),
+          file("/repo/LOCALCODE.md", ["old", ...Array.from({ length: 20 }, (_, index) => `keep ${index}`)].join("\n")),
         )
       })
       const initial = yield* readInitial(yield* discovery.load())
 
       yield* discovery.transform((editor) => {
-        editor.update("/repo/AGENTS.md", (current) => {
+        editor.update("/repo/LOCALCODE.md", (current) => {
           current.content = ["new", ...Array.from({ length: 20 }, (_, index) => `keep ${index}`)].join("\n")
         })
       })
       const modified = (yield* readUpdate(yield* discovery.load(), initial)).text
-      expect(modified).toContain("The instructions from /repo/AGENTS.md changed. Here's the diff:")
+      expect(modified).toContain("The instructions from /repo/LOCALCODE.md changed. Here's the diff:")
       expect(modified).toContain("-old\n+new")
       expect(modified).not.toContain("global")
 
       const rewritten = state({
-        "core/instructions": [{ path: "/repo/AGENTS.md", content: "old one\nold two\nold three\nold four" }],
+        "core/instructions": [{ path: "/repo/LOCALCODE.md", content: "old one\nold two\nold three\nold four" }],
       })
       yield* discovery.transform((editor) => {
-        editor.remove("/global/AGENTS.md")
-        editor.update("/repo/AGENTS.md", (current) => {
+        editor.remove("/global/LOCALCODE.md")
+        editor.update("/repo/LOCALCODE.md", (current) => {
           current.content = "new"
         })
       })
       expect((yield* readUpdate(yield* discovery.load(), rewritten)).text).toBe(
-        "The instructions changed:\nInstructions from: /repo/AGENTS.md\nnew",
+        "The instructions changed:\nInstructions from: /repo/LOCALCODE.md\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nnew",
       )
 
       yield* discovery.transform((editor) => {
-        editor.add(file("/repo/packages/AGENTS.md", "package"))
+        editor.add(file("/repo/packages/LOCALCODE.md", "package"))
       })
       const structural = (yield* readUpdate(yield* discovery.load(), initial)).text
-      expect(structural).toContain("The instructions from /global/AGENTS.md no longer apply.")
-      expect(structural).toContain("New instructions apply from:\nInstructions from: /repo/packages/AGENTS.md\npackage")
-      expect(structural).not.toContain("Instructions from: /global/AGENTS.md\nglobal")
+      expect(structural).toContain("The instructions from /global/LOCALCODE.md no longer apply.")
+      expect(structural).toContain("New instructions apply from:\nInstructions from: /repo/packages/LOCALCODE.md\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\npackage")
+      expect(structural).not.toContain("Instructions from: /global/LOCALCODE.md\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nglobal")
     }).pipe(Effect.provide(AppNodeBuilder.build(LayerNode.group([InstructionDiscovery.node, Bus.node])))),
   )
 })
@@ -197,11 +197,11 @@ describe("ConfigInstructionPlugin.Plugin", () => {
         const shared = path.join(home, "code")
         const project = path.join(shared, "repo")
         const directory = path.join(project, "packages", "core")
-        const outside = path.join(tmp.path, "AGENTS.md")
-        const globalFile = path.join(global, "AGENTS.md")
-        const sharedFile = path.join(shared, "AGENTS.md")
-        const projectFile = path.join(project, "AGENTS.md")
-        const packageFile = path.join(directory, "AGENTS.md")
+        const outside = path.join(tmp.path, "LOCALCODE.md")
+        const globalFile = path.join(global, "LOCALCODE.md")
+        const sharedFile = path.join(shared, "LOCALCODE.md")
+        const projectFile = path.join(project, "LOCALCODE.md")
+        const packageFile = path.join(directory, "LOCALCODE.md")
         return Effect.gen(function* () {
           yield* Effect.promise(async () => {
             await fs.mkdir(global, { recursive: true })
@@ -218,22 +218,22 @@ describe("ConfigInstructionPlugin.Plugin", () => {
           expect(yield* watcher.subscriptions()).toEqual([
             { path: globalFile, type: "file" },
             { path: packageFile, type: "file" },
-            { path: path.join(project, "packages", "AGENTS.md"), type: "file" },
+            { path: path.join(project, "packages", "LOCALCODE.md"), type: "file" },
             { path: projectFile, type: "file" },
             { path: sharedFile, type: "file" },
-            { path: path.join(home, "AGENTS.md"), type: "file" },
+            { path: path.join(home, "LOCALCODE.md"), type: "file" },
           ])
           expect(yield* watcher.subscriptions()).not.toContainEqual({
-            path: path.join(tmp.path, "AGENTS.md"),
+            path: path.join(tmp.path, "LOCALCODE.md"),
             type: "file",
           })
           const initialized = yield* readInitial(yield* discovery.load())
           expect(initialized.text).toBe(
             [
-              `Instructions from: ${globalFile}\nglobal`,
-              `Instructions from: ${packageFile}\npackage`,
-              `Instructions from: ${projectFile}\nproject`,
-              `Instructions from: ${sharedFile}\nshared`,
+              `Instructions from: ${globalFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nglobal`,
+              `Instructions from: ${packageFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\npackage`,
+              `Instructions from: ${projectFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nproject`,
+              `Instructions from: ${sharedFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nshared`,
             ].join("\n\n"),
           )
           expect(initialized.text).not.toContain("outside")
@@ -241,14 +241,14 @@ describe("ConfigInstructionPlugin.Plugin", () => {
           yield* Effect.promise(() => fs.writeFile(packageFile, "changed"))
           yield* emitAndWait({ type: "update", path: packageFile })
           const changed = (yield* readUpdate(yield* discovery.load(), initialized)).text
-          expect(changed).toContain(`The instructions changed:\nInstructions from: ${packageFile}\nchanged`)
-          expect(changed).not.toContain(`Instructions from: ${globalFile}\nglobal`)
+          expect(changed).toContain(`The instructions changed:\nInstructions from: ${packageFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nchanged`)
+          expect(changed).not.toContain(`Instructions from: ${globalFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nglobal`)
 
           yield* Effect.promise(() => fs.rm(packageFile))
           yield* emitAndWait({ type: "delete", path: packageFile })
           const removed = (yield* readUpdate(yield* discovery.load(), initialized)).text
           expect(removed).toContain(`The instructions from ${packageFile} no longer apply.`)
-          expect(removed).not.toContain(`Instructions from: ${globalFile}\nglobal`)
+          expect(removed).not.toContain(`Instructions from: ${globalFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nglobal`)
 
           yield* Effect.promise(() => fs.rm(globalFile))
           yield* emitAndWait({ type: "delete", path: globalFile })
@@ -280,7 +280,7 @@ describe("ConfigInstructionPlugin.Plugin", () => {
     ),
   )
 
-  it.live("loads configured files, globs, home paths, and URLs alongside AGENTS.md", () =>
+  it.live("loads configured files, globs, home paths, and URLs alongside LOCALCODE.md", () =>
     Effect.acquireRelease(
       Effect.promise(() => tmpdir()),
       (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
@@ -288,7 +288,7 @@ describe("ConfigInstructionPlugin.Plugin", () => {
       Effect.flatMap((tmp) => {
         const project = path.join(tmp.path, "repo")
         const directory = path.join(project, "packages", "core")
-        const agents = path.join(project, "AGENTS.md")
+        const agents = path.join(project, "LOCALCODE.md")
         const first = path.join(project, "rules", "a.md")
         const second = path.join(project, "rules", "b.md")
         const absolute = path.join(tmp.path, "absolute.md")
@@ -310,22 +310,22 @@ describe("ConfigInstructionPlugin.Plugin", () => {
 
           const discovery = yield* start()
           const initialized = yield* readInitial(yield* discovery.load())
-          // The unreachable URL and missing file are skipped without making AGENTS.md unavailable.
+          // The unreachable URL and missing file are skipped without making LOCALCODE.md unavailable.
           expect(initialized.text).toBe(
             [
-              `Instructions from: ${agents}\nagents`,
-              `Instructions from: ${first}\nfirst`,
-              `Instructions from: ${second}\nsecond`,
-              `Instructions from: ${absolute}\nabsolute`,
-              `Instructions from: ${homeFile}\nhome`,
-              `Instructions from: ${remote}\nremote`,
+              `Instructions from: ${agents}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nagents`,
+              `Instructions from: ${first}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nfirst`,
+              `Instructions from: ${second}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nsecond`,
+              `Instructions from: ${absolute}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nabsolute`,
+              `Instructions from: ${homeFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nhome`,
+              `Instructions from: ${remote}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nremote`,
             ].join("\n\n"),
           )
 
           yield* Effect.promise(() => fs.writeFile(first, "changed"))
           yield* emitAndWait({ type: "update", path: first })
           expect((yield* readUpdate(yield* discovery.load(), initialized)).text).toBe(
-            `The instructions changed:\nInstructions from: ${first}\nchanged`,
+            `The instructions changed:\nInstructions from: ${first}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nchanged`,
           )
           // File rescans reuse fetched URLs instead of requesting them again.
           expect(requests).toHaveLength(2)
@@ -382,13 +382,13 @@ describe("ConfigInstructionPlugin.Plugin", () => {
           const discovery = yield* start(host({ event: { subscribe: () => Stream.fromPubSub(events) } }))
           const initialized = yield* readInitial(yield* discovery.load())
           expect(initialized.text).toBe(
-            [`Instructions from: ${first}\nfirst`, `Instructions from: ${remote}\nremote`].join("\n\n"),
+            [`Instructions from: ${first}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nfirst`, `Instructions from: ${remote}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nremote`].join("\n\n"),
           )
 
           yield* config.setEntries([configured([second, remote])])
           yield* triggerAndWait(PubSub.publish(events, configUpdated()).pipe(Effect.asVoid))
           expect((yield* readInitial(yield* discovery.load())).text).toBe(
-            [`Instructions from: ${second}\nsecond`, `Instructions from: ${remote}\nremote`].join("\n\n"),
+            [`Instructions from: ${second}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nsecond`, `Instructions from: ${remote}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nremote`].join("\n\n"),
           )
         }).pipe(
           Effect.provide(
@@ -407,17 +407,17 @@ describe("ConfigInstructionPlugin.Plugin", () => {
     ),
   )
 
-  it.live("keeps an empty AGENTS.md as available context", () =>
+  it.live("keeps an empty LOCALCODE.md as available context", () =>
     Effect.acquireRelease(
       Effect.promise(() => tmpdir()),
       (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
     ).pipe(
       Effect.flatMap((tmp) =>
         Effect.gen(function* () {
-          const file = path.join(tmp.path, "AGENTS.md")
+          const file = path.join(tmp.path, "LOCALCODE.md")
           yield* Effect.promise(() => fs.writeFile(file, ""))
           const discovery = yield* start()
-          expect((yield* readInitial(yield* discovery.load())).text).toBe(`Instructions from: ${file}\n`)
+          expect((yield* readInitial(yield* discovery.load())).text).toBe(`Instructions from: ${file}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\n`)
         }).pipe(
           Effect.provide(
             instructionLayer({
@@ -442,20 +442,20 @@ describe("ConfigInstructionPlugin.Plugin", () => {
         const home = path.join(tmp.path, "home")
         const shared = path.join(home, "code")
         const project = path.join(shared, "repo")
-        const intermediate = path.join(shared, "AGENTS.md")
+        const intermediate = path.join(shared, "LOCALCODE.md")
         const directory = path.join(project, "core")
-        const projectFile = path.join(project, "AGENTS.md")
+        const projectFile = path.join(project, "LOCALCODE.md")
         return Effect.gen(function* () {
           yield* Effect.promise(() => fs.mkdir(directory, { recursive: true }))
           yield* Effect.promise(() => fs.writeFile(projectFile, "project"))
           const discovery = yield* start()
-          expect((yield* readInitial(yield* discovery.load())).text).toBe(`Instructions from: ${projectFile}\nproject`)
+          expect((yield* readInitial(yield* discovery.load())).text).toBe(`Instructions from: ${projectFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nproject`)
 
           yield* Effect.promise(() => fs.writeFile(intermediate, "intermediate"))
           yield* emitAndWait({ type: "create", path: intermediate })
 
           expect((yield* readInitial(yield* discovery.load())).text).toBe(
-            [`Instructions from: ${projectFile}\nproject`, `Instructions from: ${intermediate}\nintermediate`].join(
+            [`Instructions from: ${projectFile}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nproject`, `Instructions from: ${intermediate}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nintermediate`].join(
               "\n\n",
             ),
           )
@@ -495,10 +495,10 @@ describe("ConfigInstructionPlugin.Plugin", () => {
           yield* start()
           const watcher = yield* Watcher.Test
           expect(yield* watcher.subscriptions()).toEqual([
-            { path: path.join(global, "AGENTS.md"), type: "file" },
-            { path: path.join(directory, "AGENTS.md"), type: "file" },
-            { path: path.join(project, "packages", "AGENTS.md"), type: "file" },
-            { path: path.join(project, "AGENTS.md"), type: "file" },
+            { path: path.join(global, "LOCALCODE.md"), type: "file" },
+            { path: path.join(directory, "LOCALCODE.md"), type: "file" },
+            { path: path.join(project, "packages", "LOCALCODE.md"), type: "file" },
+            { path: path.join(project, "LOCALCODE.md"), type: "file" },
           ])
         }).pipe(
           Effect.provide(
@@ -536,16 +536,16 @@ describe("ConfigInstructionPlugin.Plugin", () => {
           const directory = project[0].toLowerCase() + project.slice(1)
           return Effect.gen(function* () {
             yield* Effect.promise(() => fs.mkdir(project, { recursive: true }))
-            yield* Effect.promise(() => fs.writeFile(path.join(project, "AGENTS.md"), "project"))
-            yield* Effect.promise(() => fs.writeFile(path.join(tmp.path, "AGENTS.md"), "outside"))
+            yield* Effect.promise(() => fs.writeFile(path.join(project, "LOCALCODE.md"), "project"))
+            yield* Effect.promise(() => fs.writeFile(path.join(tmp.path, "LOCALCODE.md"), "outside"))
             const discovery = yield* start()
             const watcher = yield* Watcher.Test
             expect(yield* watcher.subscriptions()).toEqual([
-              { path: path.join(global, "AGENTS.md"), type: "file" },
-              { path: path.join(directory, "AGENTS.md"), type: "file" },
+              { path: path.join(global, "LOCALCODE.md"), type: "file" },
+              { path: path.join(directory, "LOCALCODE.md"), type: "file" },
             ])
             expect((yield* readInitial(yield* discovery.load())).text).toBe(
-              `Instructions from: ${path.join(directory, "AGENTS.md")}\nproject`,
+              `Instructions from: ${path.join(directory, "LOCALCODE.md")}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\nproject`,
             )
           }).pipe(
             Effect.provide(
@@ -582,7 +582,7 @@ describe("ConfigInstructionPlugin.Plugin", () => {
       expect(
         (yield* readUpdate(
           yield* discovery.load(),
-          state({ "core/instructions": [{ path: "/repo/AGENTS.md", content: "old" }] }),
+          state({ "core/instructions": [{ path: "/repo/LOCALCODE.md", content: "old" }] }),
         )).changed,
       ).toBe(false)
     }).pipe(
@@ -599,7 +599,7 @@ describe("ConfigInstructionPlugin.Plugin", () => {
   })
 
   it.effect("marks a discovered file that disappears before read as unavailable", () => {
-    const discovered = AbsolutePath.make("/repo/AGENTS.md")
+    const discovered = AbsolutePath.make("/repo/LOCALCODE.md")
     const racingFS = Layer.effect(
       FSUtil.Service,
       FSUtil.Service.pipe(
@@ -691,7 +691,7 @@ describe("ConfigInstructionPlugin.Plugin", () => {
       )
 
       const repo = path.resolve("/repo")
-      expect(observed.values).toEqual([{ targets: ["AGENTS.md"], start: repo, stop: repo, type: "file" }])
+      expect(observed.values).toEqual([{ targets: ["LOCALCODE.md"], start: repo, stop: repo, type: "file" }])
     }),
   )
 })

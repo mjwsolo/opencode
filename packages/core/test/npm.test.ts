@@ -111,6 +111,18 @@ async function createRegistryFixture(directory: string) {
   }
 }
 
+describe("Npm local-only (LocalCode)", () => {
+  test("add refuses to download a package that is not installed", async () => {
+    await using tmp = await tmpdir()
+    const result = await Effect.gen(function* () {
+      const npm = yield* Npm.Service
+      return yield* npm.add("left-pad@1.3.0")
+    }).pipe(Effect.scoped, Effect.provide(npmLayer(path.join(tmp.path, "cache"))), Effect.runPromiseExit)
+    expect(result._tag).toBe("Failure")
+    expect(await fs.readdir(path.join(tmp.path, "cache")).catch(() => [])).not.toContain("npm")
+  })
+})
+
 describe("Npm.sanitize", () => {
   test("keeps normal scoped package specs unchanged", () => {
     expect(Npm.sanitize("@opencode/acme")).toBe("@opencode/acme")
@@ -165,7 +177,8 @@ describe("Npm.cacheKey", () => {
   })
 })
 
-describe("Npm.add", () => {
+// LocalCode never downloads packages: add/check/update only return what is already installed.
+describe.skip("Npm.add", () => {
   test("locates cached scoped package specs without reifying", async () => {
     await using tmp = await tmpdir()
     const spec = "@fixture/provider@1.0.0"
@@ -365,7 +378,7 @@ describe("Npm.resolve", () => {
   })
 })
 
-describe("Npm.check and Npm.update", () => {
+describe.skip("Npm.check and Npm.update", () => {
   test("installs and updates without requesting registry audits", async () => {
     await using tmp = await tmpdir()
     await using registry = await createRegistryFixture(tmp.path)

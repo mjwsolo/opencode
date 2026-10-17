@@ -82,7 +82,7 @@ describe("Instance vanilla", () => {
               const directory = path.join(dir.path, name)
               await fs.mkdir(directory)
               await fs.writeFile(path.join(directory, "opencode.json"), "{}")
-              await fs.writeFile(path.join(directory, "AGENTS.md"), "planted instructions")
+              await fs.writeFile(path.join(directory, "LOCALCODE.md"), "planted instructions")
               return Location.Ref.make({ directory: AbsolutePath.make(directory) })
             })
 
@@ -118,7 +118,7 @@ describe("Instance vanilla", () => {
           expect(discovery.documents.length).toBeGreaterThan(0)
           expect(
             Array.isArray(discovery.instructions) &&
-              discovery.instructions.some((file) => file.path.endsWith("AGENTS.md")),
+              discovery.instructions.some((file) => file.path.endsWith("LOCALCODE.md")),
           ).toBe(true)
         }),
       ),

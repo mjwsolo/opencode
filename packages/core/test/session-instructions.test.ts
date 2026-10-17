@@ -123,14 +123,14 @@ const seedSynthetic = (sessionID: Session.ID, paths: string[]) =>
   })
 
 describe("SessionInstructions", () => {
-  it.live("injects AGENTS.md files above a read, excludes the Location root, and dedups across reads", () =>
+  it.live("injects LOCALCODE.md files above a read, excludes the Location root, and dedups across reads", () =>
     Effect.gen(function* () {
       const location = yield* Location.Service
       const dir = location.directory
-      const rootPath = path.resolve(dir, "AGENTS.md")
-      const subPath = path.resolve(dir, "sub", "AGENTS.md")
-      const deepPath = path.resolve(dir, "sub", "deep", "AGENTS.md")
-      const otherPath = path.resolve(dir, "sub", "other", "AGENTS.md")
+      const rootPath = path.resolve(dir, "LOCALCODE.md")
+      const subPath = path.resolve(dir, "sub", "LOCALCODE.md")
+      const deepPath = path.resolve(dir, "sub", "deep", "LOCALCODE.md")
+      const otherPath = path.resolve(dir, "sub", "other", "LOCALCODE.md")
       yield* mkdir(path.dirname(deepPath))
       yield* mkdir(path.dirname(otherPath))
       yield* writeAgents(rootPath, "root-instructions")
@@ -144,7 +144,7 @@ describe("SessionInstructions", () => {
       const registry = yield* Tool.Service
       const sessionID = (yield* session.create({ location: Location.Ref.make({ directory: dir }) })).id
 
-      // A read deep under sub/ discovers deep and sub AGENTS.md, walking up to but
+      // A read deep under sub/ discovers deep and sub LOCALCODE.md, walking up to but
       // excluding the Location root (already supplied by core initial instructions).
       yield* executeTool(registry, readCall(sessionID, "call-deep", "sub/deep/file.txt"))
 
@@ -161,16 +161,16 @@ describe("SessionInstructions", () => {
       expect(firstInjected[0]!.text).not.toContain("root-instructions")
 
       // Neither a full nor a partial read adds an automatic copy of the file itself.
-      const read = yield* executeTool(registry, readCall(sessionID, "call-direct", "sub/other/AGENTS.md"))
+      const read = yield* executeTool(registry, readCall(sessionID, "call-direct", "sub/other/LOCALCODE.md"))
       expect(read.content?.[0]).toMatchObject({ type: "text", text: expect.stringContaining("more rules") })
       const partial = yield* executeTool(
         registry,
-        readCall(sessionID, "call-partial", "sub/other/AGENTS.md", { limit: 1 }),
+        readCall(sessionID, "call-partial", "sub/other/LOCALCODE.md", { limit: 1 }),
       )
       expect(partial.metadata).toEqual({ truncated: true })
       expect(yield* synthetics(sessionID)).toHaveLength(1)
 
-      // A sibling read under sub/other discovers only the new AGENTS.md; sub is already
+      // A sibling read under sub/other discovers only the new LOCALCODE.md; sub is already
       // injected for this session so it is not re-emitted, and the root is still excluded.
       yield* executeTool(registry, readCall(sessionID, "call-other", "sub/other/file2.txt"))
 
@@ -187,8 +187,8 @@ describe("SessionInstructions", () => {
     Effect.gen(function* () {
       const location = yield* Location.Service
       const dir = location.directory
-      const rootPath = path.resolve(dir, "AGENTS.md")
-      const subPath = path.resolve(dir, "sub", "AGENTS.md")
+      const rootPath = path.resolve(dir, "LOCALCODE.md")
+      const subPath = path.resolve(dir, "sub", "LOCALCODE.md")
       yield* mkdir(path.resolve(dir, "sub"))
       yield* writeAgents(rootPath, "root-instructions")
       yield* writeAgents(subPath, "sub-instructions")
@@ -198,7 +198,7 @@ describe("SessionInstructions", () => {
       const registry = yield* Tool.Service
       const sessionID = (yield* session.create({ location: Location.Ref.make({ directory: dir }) })).id
 
-      // Seed the durable history with a prior synthetic that already claims sub's AGENTS.md
+      // Seed the durable history with a prior synthetic that already claims sub's LOCALCODE.md
       // via the instruction metadata ledger.
       yield* seedSynthetic(sessionID, [subPath])
       expect(yield* synthetics(sessionID)).toHaveLength(1)
@@ -211,13 +211,13 @@ describe("SessionInstructions", () => {
   )
 
   it.live(
-    "discovers AGENTS.md on a directory listing, including the listed directory's own, and dedups with a later file read",
+    "discovers LOCALCODE.md on a directory listing, including the listed directory's own, and dedups with a later file read",
     () =>
       Effect.gen(function* () {
         const location = yield* Location.Service
         const dir = location.directory
-        const rootPath = path.resolve(dir, "AGENTS.md")
-        const pkgPath = path.resolve(dir, "packages", "foo", "AGENTS.md")
+        const rootPath = path.resolve(dir, "LOCALCODE.md")
+        const pkgPath = path.resolve(dir, "packages", "foo", "LOCALCODE.md")
         yield* mkdir(path.resolve(dir, "packages", "foo"))
         yield* writeAgents(rootPath, "root-instructions")
         yield* writeAgents(pkgPath, "pkg-instructions")
@@ -227,7 +227,7 @@ describe("SessionInstructions", () => {
         const registry = yield* Tool.Service
         const sessionID = (yield* session.create({ location: Location.Ref.make({ directory: dir }) })).id
 
-        // Listing packages/foo/ discovers its own AGENTS.md, walking up to but excluding
+        // Listing packages/foo/ discovers its own LOCALCODE.md, walking up to but excluding
         // the Location root (already supplied by core initial instructions).
         yield* executeTool(registry, readCall(sessionID, "call-list", "packages/foo"))
 
@@ -238,7 +238,7 @@ describe("SessionInstructions", () => {
         expect(firstInjected[0]!.metadata).toEqual({ instruction: { paths: [pkgPath] } })
         expect(firstInjected[0]!.text).not.toContain("root-instructions")
 
-        // A subsequent file read under the listed directory is a dedup: pkg's AGENTS.md is
+        // A subsequent file read under the listed directory is a dedup: pkg's LOCALCODE.md is
         // already injected for this session, so nothing new is emitted.
         yield* executeTool(registry, readCall(sessionID, "call-file", "packages/foo/file.txt"))
 
@@ -250,9 +250,9 @@ describe("SessionInstructions", () => {
     Effect.gen(function* () {
       const location = yield* Location.Service
       const dir = location.directory
-      const subPath = path.resolve(dir, "sub", "AGENTS.md")
+      const subPath = path.resolve(dir, "sub", "LOCALCODE.md")
       yield* mkdir(path.resolve(dir, "sub"))
-      yield* writeAgents(path.resolve(dir, "AGENTS.md"), "root-instructions")
+      yield* writeAgents(path.resolve(dir, "LOCALCODE.md"), "root-instructions")
       yield* writeAgents(subPath, "sub-instructions")
       yield* Effect.promise(() => fs.writeFile(path.resolve(dir, "sub", "file.txt"), "content"))
 
@@ -281,8 +281,8 @@ describe("SessionInstructions", () => {
     Effect.gen(function* () {
       const location = yield* Location.Service
       const dir = location.directory
-      const rootPath = path.resolve(dir, "AGENTS.md")
-      const subPath = path.resolve(dir, "sub", "AGENTS.md")
+      const rootPath = path.resolve(dir, "LOCALCODE.md")
+      const subPath = path.resolve(dir, "sub", "LOCALCODE.md")
       yield* mkdir(path.resolve(dir, "sub"))
       yield* writeAgents(rootPath, "root-instructions")
       yield* writeAgents(subPath, "sub-instructions")
@@ -291,7 +291,7 @@ describe("SessionInstructions", () => {
       const registry = yield* Tool.Service
       const sessionID = (yield* session.create({ location: Location.Ref.make({ directory: dir }) })).id
 
-      // The walk starts and stops at the Location root: the root AGENTS.md is searched but
+      // The walk starts and stops at the Location root: the root LOCALCODE.md is searched but
       // dropped by the dirname filter, and up() only walks upward so nested dirs are unseen.
       yield* executeTool(registry, readCall(sessionID, "call-root-list", "."))
 
@@ -303,7 +303,7 @@ describe("SessionInstructions", () => {
     Effect.gen(function* () {
       const location = yield* Location.Service
       const dir = location.directory
-      const subPath = path.resolve(dir, "sub", "AGENTS.md")
+      const subPath = path.resolve(dir, "sub", "LOCALCODE.md")
       yield* mkdir(path.resolve(dir, "sub"))
       yield* writeAgents(subPath, "sub-instructions")
 
@@ -327,15 +327,15 @@ describe("SessionInstructions", () => {
     const synthetic = SessionMessage.Synthetic.make({
       id: SessionMessage.ID.make("msg_synthetic"),
       type: "synthetic",
-      text: "Instructions from: /repo/sub/AGENTS.md\ncontent",
-      description: "Loaded /repo/sub/AGENTS.md",
-      metadata: { instruction: { paths: ["/repo/sub/AGENTS.md"] } },
+      text: "Instructions from: /repo/sub/LOCALCODE.md\ncontent",
+      description: "Loaded /repo/sub/LOCALCODE.md",
+      metadata: { instruction: { paths: ["/repo/sub/LOCALCODE.md"] } },
       time: { created },
     })
     const messages = toLLMMessages([synthetic], model)
     expect(messages).toHaveLength(1)
     expect(messages[0]!.role).toBe("user")
-    expect(messages[0]!.content).toEqual([{ type: "text", text: "Instructions from: /repo/sub/AGENTS.md\ncontent" }])
+    expect(messages[0]!.content).toEqual([{ type: "text", text: "Instructions from: /repo/sub/LOCALCODE.md\ncontent" }])
     // Metadata is bookkeeping for the dedup ledger; the model must not see it.
     expect(messages[0]!.metadata).toBeUndefined()
   })

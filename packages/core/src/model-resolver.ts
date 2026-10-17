@@ -423,8 +423,23 @@ export const layer = Layer.effect(
                       ),
                 ),
               )
-        if (!selected) return undefined
-        return yield* load(selected, requested?.variant)
+        // LocalCode accepts any alias: a session that names a model the supervisor no longer serves
+        // runs on the one that is loaded now.
+        const fallback =
+          !selected && requested?.providerID === "localcode"
+            ? yield* models
+                .default()
+                .pipe(
+                  Effect.flatMap((model) =>
+                    model?.providerID === "localcode"
+                      ? Effect.succeed(model)
+                      : Effect.map(models.available(), (items) => items.find((item) => item.providerID === "localcode")),
+                  ),
+                )
+            : undefined
+        const chosen = selected ?? fallback
+        if (!chosen) return undefined
+        return yield* load(chosen, chosen === selected ? requested?.variant : undefined)
       }),
       resolveModel: load,
     })

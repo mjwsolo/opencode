@@ -381,6 +381,8 @@ export function reduceSessionRows(
         return rows
       }
       if (message.type === "synthetic" && !message.description?.trim()) return rows
+      // LocalCode's completion nudges are hidden continuations of the task, as in v1.
+      if (continuation(message)) return rows
       if (message.type === "compaction" && message.status === "completed" && usage) usage.previousTurnCache = undefined
       rows.push({
         entry: { type: "message", messageID: message.id },

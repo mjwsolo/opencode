@@ -25,6 +25,15 @@ test("measures turn duration from the user prompt across assistant steps", () =>
   expect(turnDuration(final, messages)).toBe(29_000)
 })
 
+test("a LocalCode completion nudge is not shown as a transcript row", () => {
+  const nudge = { type: "synthetic", id: "nudge-1", text: "SYSTEM: run a check", description: "LocalCode", metadata: { localcode: { nudge: true } }, time: { created: 2_000 } } as SessionMessageInfo
+  const other = { type: "synthetic", id: "note-1", text: "Shell finished", description: "Shell finished", time: { created: 3_000 } } as SessionMessageInfo
+  const rows = reduceSessionRows([{ type: "user", id: "user-1", text: "Build it", time: { created: 1_000 } }, nudge, other])
+  const ids = JSON.stringify(rows)
+  expect(ids).not.toContain("nudge-1")
+  expect(ids).toContain("note-1")
+})
+
 test("a LocalCode completion nudge continues the task instead of restarting its duration", () => {
   const first = assistant("assistant-1", [])
   first.time = { created: 2_000, completed: 40_000 }

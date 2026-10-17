@@ -379,17 +379,43 @@ describe("Snapshot", () => {
     ),
   )
 
-  testEffect(Layer.empty).live("treats capture outside Git as unavailable", () =>
+  testEffect(Layer.empty).live("captures and restores a folder without Git, leaving runtime logs out", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),
       (tmp) =>
         Effect.gen(function* () {
-          expect(
-            yield* Effect.gen(function* () {
-              const snapshot = yield* Snapshot.Service
-              return yield* snapshot.capture()
-            }).pipe(Effect.provide(snapshotLayer(tmp.path, tmp.path))),
-          ).toBeUndefined()
+          const directory = path.join(tmp.path, "project")
+          const sibling = path.join(tmp.path, "outside.txt")
+          const log = path.join(directory, ".localcode-agent", "localcode-plugin.log")
+          const file = path.join(directory, "hello.py")
+          yield* Effect.promise(async () => {
+            await fs.mkdir(path.dirname(log), { recursive: true })
+            await fs.writeFile(sibling, "outside")
+            await fs.writeFile(log, "before\n")
+          })
+          yield* Effect.gen(function* () {
+            const snapshot = yield* Snapshot.Service
+            const before = yield* snapshot.capture()
+            expect(before).toBeDefined()
+            if (!before) return
+            yield* Effect.promise(async () => {
+              await fs.writeFile(file, "def add(a, b): return a + b\n")
+              await fs.writeFile(log, "before\nafter\n")
+            })
+            const after = yield* snapshot.capture()
+            expect(after).toBeDefined()
+            if (!after) return
+            expect(yield* snapshot.files({ from: before, to: after })).toEqual([RelativePath.make("hello.py")])
+            expect((yield* snapshot.diff({ from: before, to: after })).map((item) => item.file)).toEqual(["hello.py"])
+
+            yield* snapshot.restore({ files: new Map([[RelativePath.make("hello.py"), before]]) })
+            expect(yield* exists(file)).toBe(false)
+            expect(yield* read(sibling)).toBe("outside")
+            expect(yield* read(log)).toBe("before\nafter\n")
+            yield* snapshot.restore({ files: new Map([[RelativePath.make("hello.py"), after]]) })
+            expect(yield* read(file)).toContain("return a + b")
+            expect(yield* exists(path.join(directory, ".git"))).toBe(false)
+          }).pipe(Effect.provide(snapshotLayer(tmp.path, directory)))
         }),
       (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
     ),

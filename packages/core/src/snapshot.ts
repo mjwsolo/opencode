@@ -69,6 +69,10 @@ export interface Interface extends State.Transformable<Editor> {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Snapshot") {}
 
+/** localcode writes its runtime logs into the project; they are not the user's file changes. */
+const RUNTIME_LOG_EXCLUDE = "**/.localcode-agent/*.log"
+export const isRuntimeLog = (file: string) => /(^|\/)\.localcode-agent\/[^/]+\.log$/.test(file)
+
 const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
@@ -86,12 +90,16 @@ const layer = Layer.effect(
         },
       }),
     })
+    const real = (directory: string) =>
+      fs.realPath(directory).pipe(Effect.orElseSucceed(() => path.resolve(directory)))
     // Cache a scope-owned fiber so caller cancellation stops waiting without poisoning shared initialization.
     const repositoryFiber = yield* Effect.cached(
       Effect.gen(function* () {
         const source = yield* git.repo.discover(location.project.directory)
-        if (!source) return yield* new Error({ operation: "capture", message: "Project is not a Git repository" })
-        const worktree = AbsolutePath.make(yield* fs.realPath(source.worktree).pipe(Effect.orDie))
+        // localcode: a folder without Git snapshots the opened directory, so undo restores its files too.
+        const worktree = AbsolutePath.make(yield* real(source?.worktree ?? location.directory))
+        // The filesystem root is too large to index before every answer.
+        if (worktree === path.parse(worktree).root) return undefined
         const gitDirectory = AbsolutePath.make(
           path.join(global.data, "snapshot", location.project.id, Hash.fast(worktree)),
         )
@@ -100,6 +108,7 @@ const layer = Layer.effect(
           : yield* git.repo
               .create({ worktree, gitDirectory, seed: source })
               .pipe(Effect.mapError((cause) => failure("capture", cause)))
+        yield* excludeRuntimeLogs(gitDirectory)
         return { source, worktree, snapshotRepository }
       }).pipe(Effect.forkIn(lifetime)),
     )
@@ -111,7 +120,21 @@ const layer = Layer.effect(
       return RelativePath.make(path.relative(worktree, location.directory).replaceAll("\\", "/") || ".")
     })
 
-    const enabled = () => location.vcs?.type === "git" && state.get().enabled
+    const excludeRuntimeLogs = Effect.fnUntraced(function* (gitDirectory: string) {
+      const file = path.join(gitDirectory, "info", "exclude")
+      const current = (yield* fs.readFileStringSafe(file).pipe(Effect.orElseSucceed(() => undefined))) ?? ""
+      if (current.split("\n").includes(RUNTIME_LOG_EXCLUDE)) return
+      yield* fs.ensureDir(path.dirname(file)).pipe(
+        Effect.andThen(
+          fs.writeFileString(file, `${current}${current === "" || current.endsWith("\n") ? "" : "\n"}${RUNTIME_LOG_EXCLUDE}\n`),
+        ),
+        Effect.catch((cause) => Effect.logWarning("failed to exclude runtime logs from snapshots", { cause })),
+      )
+    })
+
+    const enabled = () => state.get().enabled
+    const unavailable = (operation: Error["operation"]) =>
+      new Error({ operation, message: "Snapshots are disabled for this directory" })
 
     // `objects.pack` takes a cross-process lock, so a run that outlasts the interval never overlaps the next.
     let lastPackCheck = Number.NEGATIVE_INFINITY
@@ -129,6 +152,7 @@ const layer = Layer.effect(
       if (!enabled()) return undefined
       return yield* Effect.gen(function* () {
         const repo = yield* repository
+        if (!repo) return undefined
         const tree = yield* git.tree.capture({
           repository: repo.snapshotRepository,
           scopes: [yield* scope(repo.worktree)],
@@ -144,8 +168,10 @@ const layer = Layer.effect(
 
     const comparison = Effect.fnUntraced(function* (operation: "files" | "diff", input: CompareInput) {
       const repo = yield* repository.pipe(Effect.mapError((cause) => failure(operation, cause)))
+      if (!repo) return yield* unavailable(operation)
       return {
-        source: repo.source,
+        // A folder without Git answers ignore questions from its own snapshot repository.
+        source: repo.source ?? repo.snapshotRepository,
         repository: repo.snapshotRepository,
         from: Git.TreeID.make(input.from),
         to: Git.TreeID.make(input.to),
@@ -169,7 +195,7 @@ const layer = Layer.effect(
         .files({ repository: compared.repository, from: compared.from, to: compared.to })
         .pipe(Effect.mapError((cause) => failure("files", cause)))
       const skipped = yield* ignored("files", compared.source, changed)
-      return changed.filter((file) => !skipped.has(file))
+      return changed.filter((file) => !skipped.has(file) && !isRuntimeLog(file))
     })
 
     const diff = Effect.fn("Snapshot.diff")(function* (input: DiffInput) {
@@ -190,7 +216,7 @@ const layer = Layer.effect(
         compared.source,
         diffs.map((file) => RelativePath.make(file.file)),
       )
-      return diffs.filter((file) => !skipped.has(RelativePath.make(file.file)))
+      return diffs.filter((file) => !skipped.has(RelativePath.make(file.file)) && !isRuntimeLog(file.file))
     })
 
     const plan = Effect.fnUntraced(function* (worktree: AbsolutePath, input: RestoreInput) {
@@ -207,6 +233,7 @@ const layer = Layer.effect(
     const restore = Effect.fn("Snapshot.restore")(function* (input: RestoreInput) {
       if (!enabled()) return yield* new Error({ operation: "restore", message: "Snapshots are disabled" })
       const repo = yield* repository.pipe(Effect.mapError((cause) => failure("restore", cause)))
+      if (!repo) return yield* unavailable("restore")
       yield* git.tree
         .restore({ repository: repo.snapshotRepository, files: yield* plan(repo.worktree, input) })
         .pipe(Effect.mapError((cause) => failure("restore", cause)))

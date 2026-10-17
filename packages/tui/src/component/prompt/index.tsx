@@ -23,12 +23,9 @@ import { usePromptRef } from "../../context/prompt"
 import { useSessionTabs } from "../../context/session-tabs"
 import { useEvent } from "../../context/event"
 import { editorSelectionKey, useEditorContext, type EditorSelection } from "../../context/editor"
-import { normalizePromptContent, openEditor } from "../../editor"
 import { useExit } from "../../context/exit"
 import { promptOffsetWidth } from "../../prompt/display"
-import { expandPromptInputPastedText, realignPromptInputMentions } from "../../prompt/mention"
 import { parseSlashHead } from "../../prompt/parse"
-import { stringWidth } from "../../util/string-width"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { emptyPrompt, usePromptHistory, type PromptInfo, type PromptPartRef } from "../../prompt/history"
 import { saveDraft, takeDraft } from "./draft-stash"
@@ -45,6 +42,9 @@ import { createColors, createFrames } from "../../ui/spinner"
 import { useDialog } from "../../ui/dialog"
 import { DialogIntegration } from "../dialog-integration"
 import { DialogLocalcodeModel } from "../dialog-localcode-model"
+import { DialogProjectContext } from "../dialog-project-context"
+import { loadProjectContext } from "../../util/project-context"
+import { ensureVision } from "../localcode-vision"
 import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
 import {
   controlFetch,
@@ -712,36 +712,30 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Open editor",
+        title: "Edit project context",
         category: "Session",
-        name: "prompt.editor",
-        slash: { name: "editor" },
+        name: "prompt.project_context",
+        slash: { name: "project-context" },
+        run: async () => {
+          try {
+            const document = await loadProjectContext(
+              data.location.info()?.project.directory || data.location.default().directory || paths.cwd,
+            )
+            dialog.replace(() => <DialogProjectContext document={document} />)
+          } catch (error) {
+            toast.show({ variant: "error", title: "Could not open project context", message: String(error) })
+          }
+        },
+      },
+      {
+        title: "Vision: download this model's image projector",
+        category: "Session",
+        name: "prompt.vision",
+        slash: { name: "vision" },
+        enabled: !!controlUrl(),
         run: async () => {
           dialog.clear()
-
-          const editorPrompt = expandPromptInputPastedText(store.prompt, store.prompt.pasted)
-          const value = editorPrompt.text
-          const content = await openEditor({
-            renderer,
-            value,
-            cwd:
-              (data.location.info()?.project.directory === "/" ? undefined : data.location.info()?.project.directory) ||
-              data.location.default().directory ||
-              paths.cwd,
-          }).catch((error) => {
-            toast.show({ title: "Failed to open editor", message: errorMessage(error), variant: "error" })
-          })
-          if (!content) return
-          const normalized = normalizePromptContent(content)
-
-          input.setText(normalized)
-
-          setStore("prompt", {
-            ...realignPromptInputMentions(normalized, editorPrompt),
-            pasted: [],
-          })
-          restoreExtmarksFromPrompt(store.prompt)
-          input.cursorOffset = stringWidth(normalized)
+          await ensureVision(dialog, toast)
         },
       },
       {
@@ -820,7 +814,6 @@ export function Prompt(props: PromptProps) {
     enabled: !disabled(),
     bindings: [
       "prompt.submit",
-      "prompt.editor",
       "prompt.editor_context.clear",
       "prompt.images.view",
       "prompt.stash",

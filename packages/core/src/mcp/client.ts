@@ -149,7 +149,7 @@ export const connect = Effect.fnUntraced(function* (
   // Remote only. A provider with no stored token and a no-op redirect ends in UnauthorizedError → needs_auth.
   authProvider?: OAuthClientProvider,
   elicitation?: ElicitationHandler,
-  clientInfo: Implementation = { name: "opencode", version: "unknown" },
+  clientInfo: Implementation = { name: "localcode", version: "unknown" },
 ) {
   // The SDK takes list-changed handlers at construction, but consumers register after connect. On a
   // modern connection the SDK opens the subscriptions/listen stream behind these itself.

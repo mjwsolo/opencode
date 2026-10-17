@@ -16,9 +16,9 @@ export const LLMGatewayPlugin = define({
         evt.update(item.provider.id, (provider) => {
           provider.headers = {
             ...provider.headers,
-            "HTTP-Referer": "https://opencode.ai/",
-            "X-Title": "opencode",
-            "X-Source": "opencode",
+           
+            "X-Title": "localcode",
+            "X-Source": "localcode",
           }
         })
       }

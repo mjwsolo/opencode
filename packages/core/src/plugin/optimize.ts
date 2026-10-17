@@ -12,6 +12,9 @@ import PROMPT_KIMI from "./system-prompt/kimi.txt"
 import PROMPT_META from "./system-prompt/meta.txt"
 import PROMPT_TRINITY from "./system-prompt/trinity.txt"
 import PROMPT_ANTHROPIC from "./system-prompt/anthropic.txt"
+import PROMPT_LOCALCODE from "./system-prompt/localcode.txt"
+import PROMPT_LOCALCODE_WORKSPACE from "./system-prompt/localcode-workspace.txt"
+import { LocalContext } from "../session/local-context.js"
 
 export const OpenAIPlugin = make("opencode.prompt.openai", (model) => {
   const id = model.id.toLowerCase()
@@ -59,7 +62,15 @@ export const MetaPlugin = make("opencode.prompt.meta", (model) => {
   return PROMPT_META.replaceAll("{{MODEL_NAME}}", model.name)
 })
 
-export const Plugins = [OpenAIPlugin, AnthropicPlugin, KimiPlugin, ArceePlugin, MetaPlugin] as const
+// Every local model (Gemma, Qwen, Muse, ...) gets LocalCode's own prompt: shorter than the default
+// and written for finishing tasks. The workspace workflow joins it only with full project context,
+// and it stays the same for the whole session so the cached prompt prefix holds.
+export const LocalCodePlugin = make("localcode.prompt", (model) => {
+  if (model.providerID !== "localcode") return undefined
+  return LocalContext.fullContext(model.providerID) ? `${PROMPT_LOCALCODE.trimEnd()}\n\n${PROMPT_LOCALCODE_WORKSPACE}` : PROMPT_LOCALCODE
+})
+
+export const Plugins = [OpenAIPlugin, AnthropicPlugin, KimiPlugin, ArceePlugin, MetaPlugin, LocalCodePlugin] as const
 
 function make(
   id: string,

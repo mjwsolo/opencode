@@ -8,6 +8,7 @@ import { CodeModeInstructions } from "../codemode/instructions.js"
 import { Database } from "../database/database.js"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { InstructionDiscovery } from "../instruction-discovery.js"
+import { LocalContext } from "./local-context.js"
 import { Instructions } from "../instructions/index.js"
 import { InstructionBuiltIns } from "../instructions/builtins.js"
 import { Location } from "../location.js"
@@ -151,8 +152,8 @@ const layer = Layer.effect(
           CodeModeInstructions.make(loaded.tools.codeModeCatalog),
           loaded.mcp,
           loaded.references,
-          loaded.skills,
-          loaded.discovery,
+          // A local model's skills and project instructions are opt-in (LOCALCODE_CONTEXT=full).
+          ...(LocalContext.fullContext(session.model?.providerID) ? [loaded.skills, loaded.discovery] : []),
           loaded.builtins,
           loaded.entries,
         ]),

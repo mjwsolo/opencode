@@ -296,6 +296,8 @@
         "mime-types": "3.0.2",
         "tree-sitter-bash": "0.25.0",
         "tree-sitter-powershell": "0.25.10",
+        "vscode-jsonrpc": "8.2.1",
+        "vscode-languageserver-types": "3.17.5",
         "web-tree-sitter": "0.25.10",
         "which": "6.0.1",
         "zod": "catalog:",

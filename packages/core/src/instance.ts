@@ -1,3 +1,4 @@
+import { LSP } from "./lsp/lsp.js"
 import { Context, Effect, Layer } from "effect"
 import { Agent } from "./agent.js"
 import { AISDK } from "./aisdk.js"
@@ -88,6 +89,7 @@ const nodes = [
   FileAccess.node,
   FileMutation.node,
   Formatter.node,
+  LSP.node,
   Mcp.node,
   Permission.node,
   Tool.node,

@@ -91,6 +91,8 @@ import BrowserPlugin from "@opencode/plugin-browser"
 import { CommandPlugin } from "./command.js"
 import { IdentityPlugin } from "./identity.js"
 import { PlanPlugin } from "./plan.js"
+import { LspPlugin } from "./lsp.js"
+import { LSP } from "../lsp/lsp.js"
 import { DoomLoopPlugin } from "./doom-loop.js"
 import { ModelsDevPlugin } from "./models-dev.js"
 import { McpCodeModeDefaultsPlugin } from "./mcp-codemode-defaults.js"
@@ -131,6 +133,7 @@ const services = [
   KV.Service,
   LLMClient.Service,
   Location.Service,
+  LSP.Service,
   ManagedPolicy.Service,
   ModelsDev.Service,
   Mcp.Service,
@@ -185,6 +188,7 @@ export const requirements = LayerNode.group([
   KV.node,
   llmClient,
   Location.node,
+  LSP.node,
   ManagedPolicy.node,
   ModelsDev.node,
   Mcp.node,
@@ -248,6 +252,7 @@ const pre = [
   WebFetchTool.Plugin,
   WebSearchTool.Plugin,
   WriteTool.Plugin,
+  LspPlugin.Plugin,
   WarmingPlugin.Plugin,
 ] as const satisfies readonly InternalPlugin[]
 

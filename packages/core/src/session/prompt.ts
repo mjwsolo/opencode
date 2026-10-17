@@ -6,10 +6,11 @@ import { SessionInbox } from "@opencode/schema/session-inbox"
 import type { Session } from "@opencode/schema/session"
 import type { SessionMessage } from "@opencode/schema/session-message"
 import { FSUtil } from "@opencode/util/fs-util"
-import { Effect } from "effect"
+import { Effect, Option } from "effect"
 import path from "path"
-import { fileURLToPath } from "url"
+import { fileURLToPath, pathToFileURL } from "url"
 import { Image } from "../image.js"
+import { LSP } from "../lsp/lsp.js"
 import { Instance } from "../instance/service.js"
 import { Mime } from "../mime.js"
 import { Plugin } from "../plugin/service.js"
@@ -197,7 +198,33 @@ const readFileAttachment = Effect.fn("SessionPrompt.readFileAttachment")(functio
   const bytes = yield* fs
     .readFile(target)
     .pipe(Effect.mapError(() => new AttachmentError({ uri, message: `Unable to read attachment: ${uri}` })))
-  return { bytes, source: { type: "uri" as const, uri }, start, end, name: path.basename(target), mime: undefined }
+  const range = start !== undefined && start === end ? yield* symbolRange(target, start) : { start, end }
+  return {
+    bytes,
+    source: { type: "uri" as const, uri },
+    start: range.start,
+    end: range.end,
+    name: path.basename(target),
+    mime: undefined,
+  }
+})
+
+/**
+ * A one-line mention (`file#12-12`) on a symbol's first line expands to the whole symbol when a
+ * language server knows the file, as in opencode v1.
+ */
+const symbolRange = Effect.fnUntraced(function* (file: string, line: number) {
+  const lsp = yield* Effect.serviceOption(LSP.Service)
+  if (Option.isNone(lsp)) return { start: line, end: line }
+  const symbols = yield* lsp.value
+    .documentSymbol(pathToFileURL(file).href)
+    .pipe(Effect.catchCause(() => Effect.succeed([] as (LSP.DocumentSymbol | LSP.Symbol)[])))
+  for (const symbol of symbols) {
+    const range = "range" in symbol ? symbol.range : "location" in symbol ? symbol.location.range : undefined
+    if (range?.start?.line && range.start.line === line)
+      return { start: Math.max(range.start.line, 1), end: range.end?.line ?? range.start.line }
+  }
+  return { start: line, end: line }
 })
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024

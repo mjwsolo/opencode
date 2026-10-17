@@ -473,8 +473,20 @@ export function Autocomplete(props: {
 
   const commands = createMemo((): AutocompleteOption[] => {
     const results: AutocompleteOption[] = keymapCommands().flatMap((command) => {
-      const slash = command.slash
-      if (!slash) return []
+      // LocalCode has one menu: "/" also lists palette actions, named from their titles.
+      const slash =
+        command.slash ??
+        (command.palette && command.title
+          ? {
+              name: command.title
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, ""),
+              aliases: undefined,
+              arguments: undefined,
+            }
+          : undefined)
+      if (!slash?.name) return []
       return [slash.name, ...(slash.aliases ?? [])].map((name) => ({
         display: `/${name}`,
         description: command.description ?? command.title,

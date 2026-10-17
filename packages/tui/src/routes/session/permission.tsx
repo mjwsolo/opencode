@@ -200,7 +200,6 @@ export function PermissionPrompt(props: { request: PermissionRequest; directory?
           const header = () => (
             <box flexDirection="column" gap={0}>
               <box flexDirection="row" gap={1} flexShrink={0}>
-                <text fg={theme.text.feedback.warning.base}>{"△"}</text>
                 <text fg={theme.text.base}>Permission required</text>
               </box>
               <Show when={props.request.action !== "shell" && current.title}>
@@ -314,14 +313,21 @@ function RejectPrompt(props: {
         role: "dialog",
         label: `Reject permission: ${props.action}`,
       }))}
-      backgroundColor={theme.background.raised.base}
+      // A solid painted bar: no glyph gaps between rows.
+      backgroundColor={theme.text.feedback.error.base}
       border={["left"]}
       borderColor={theme.text.feedback.error.base}
-      customBorderChars={SplitBorder.customBorderChars}
+      customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
     >
-      <box gap={1} paddingLeft={1} paddingRight={3} paddingTop={1} paddingBottom={1}>
+      <box
+        gap={1}
+        paddingLeft={1}
+        paddingRight={3}
+        paddingTop={1}
+        paddingBottom={1}
+        backgroundColor={theme.background.raised.base}
+      >
         <box flexDirection="row" gap={1} paddingLeft={1}>
-          <text fg={theme.text.feedback.error.base}>{"△"}</text>
           <text fg={theme.text.base}>Reject permission</text>
         </box>
         <box paddingLeft={1}>
@@ -507,10 +513,10 @@ export function SessionQuestion<const T extends Record<string, string>>(props: {
         label: props.semanticLabel ?? props.title,
         expanded: store.expanded,
       }))}
-      backgroundColor={theme.background.raised.base}
+      backgroundColor={theme.background.action.primary.focused}
       border={["left"]}
       borderColor={theme.background.action.primary.focused}
-      customBorderChars={SplitBorder.customBorderChars}
+      customBorderChars={{ ...SplitBorder.customBorderChars, vertical: " " }}
       {...(store.expanded
         ? { top: dimensions().height * -1 + 1, bottom: 1, left: 2, right: 2, position: "absolute" }
         : {
@@ -522,12 +528,19 @@ export function SessionQuestion<const T extends Record<string, string>>(props: {
             position: "relative",
           })}
     >
-      <box gap={1} paddingLeft={1} paddingRight={3} paddingTop={1} paddingBottom={1} flexGrow={1}>
+      <box
+        gap={1}
+        paddingLeft={1}
+        paddingRight={3}
+        paddingTop={1}
+        paddingBottom={1}
+        flexGrow={1}
+        backgroundColor={theme.background.raised.base}
+      >
         <Show
           when={props.header}
           fallback={
             <box flexDirection="row" gap={1} paddingLeft={1} flexShrink={0}>
-              <text fg={theme.text.feedback.warning.base}>{"△"}</text>
               <text fg={theme.text.base}>{props.title}</text>
             </box>
           }

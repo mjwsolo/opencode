@@ -987,6 +987,15 @@ function App() {
         category: "System",
       },
       {
+        name: "localcode.permissions",
+        title: "Permission preferences",
+        slash: { name: "permissions" },
+        run: () => {
+          dialog.replace(() => <DialogConfig current="session.permissions" />)
+        },
+        category: "System",
+      },
+      {
         name: "opencode.status",
         title: "View status",
         slash: { name: "status" },

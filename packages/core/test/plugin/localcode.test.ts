@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { WebSearchDuckDuckGo } from "../../src/plugin/websearch/duckduckgo"
-import { loaded, localTitle, pinSideRequest, variants } from "../../src/plugin/provider/localcode"
+import { loaded, localTitle, localToolSchema, pinSideRequest, variants } from "../../src/plugin/provider/localcode"
+import { LocalContext } from "../../src/session/local-context"
 
 describe("localcode provider", () => {
   test("only a ready supervisor reports a loaded model", () => {
@@ -38,6 +39,44 @@ describe("localcode provider", () => {
     expect(pinSideRequest(body, 1)).toBe(body)
     expect(pinSideRequest(JSON.stringify({ id_slot: 0 }), 4)).toBe(JSON.stringify({ id_slot: 0 }))
     expect(pinSideRequest("not json", 4)).toBe("not json")
+  })
+})
+
+describe("local tool schemas", () => {
+  const schema = {
+    $schema: "http://json-schema.org/draft-07/schema#",
+    title: "Edit",
+    type: "object",
+    properties: {
+      path: { type: "string", description: "d".repeat(200), default: "x", examples: ["a"] },
+      mode: { anyOf: [{ type: "string", enum: ["a", "b"], title: "Mode" }, { type: "null" }] },
+      title: { type: "string" },
+    },
+    required: ["path"],
+  }
+
+  test("documentation keywords go and long descriptions are capped", () => {
+    const out = LocalContext.compactToolSchema(schema) as any
+    expect(out.$schema).toBeUndefined()
+    expect(out.title).toBeUndefined()
+    expect(out.properties.path).toEqual({ type: "string", description: "d".repeat(157) + "…" })
+    expect(out.properties.mode.anyOf[0]).toEqual({ type: "string", enum: ["a", "b"] })
+    // A property that happens to be named "title" is part of the argument surface.
+    expect(out.properties.title).toEqual({ type: "string" })
+    expect(out.required).toEqual(["path"])
+    expect(schema.properties.path.default).toBe("x")
+  })
+
+  test("full context keeps documentation; the size budget always applies", () => {
+    expect(localToolSchema(schema as any, true)).toBe(schema as any)
+    expect((localToolSchema(schema as any, false) as any).properties.path.default).toBeUndefined()
+    const big = {
+      type: "object",
+      properties: Object.fromEntries(
+        Array.from({ length: 30 }, (_, i) => [`arg${i}`, { type: "string", description: "x".repeat(100) }]),
+      ),
+    }
+    expect(JSON.stringify(localToolSchema(big as any, true)).length).toBeLessThanOrEqual(2000)
   })
 })
 

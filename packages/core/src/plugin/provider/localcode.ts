@@ -1,7 +1,10 @@
 import { define } from "@opencode/plugin/effect/plugin"
-import { Duration, Effect, Schedule } from "effect"
+import type { SessionHooks } from "@opencode/plugin/effect/session"
+import { Duration, Effect, Schedule, type JsonSchema } from "effect"
 import { Model } from "../../model.js"
+import { LocalContext } from "../../session/local-context.js"
 import type { PluginInternal } from "../internal.js"
+import { SchemaCompact } from "./schema-compact.js"
 
 /** The provider id LocalCode's launcher writes into its config; its model list follows the supervisor. */
 export const PROVIDER_ID = "localcode"
@@ -88,6 +91,16 @@ export function localTitle(text: string) {
   return clean.length > 100 ? clean.substring(0, 97) + "..." : clean
 }
 
+/**
+ * Small local models pay for every tool-schema byte on every turn. Unless the user launched with
+ * full context, documentation-only keywords go first; then any schema still over the per-tool
+ * budget is compacted the way Codex does (see schema-compact.ts).
+ */
+export function localToolSchema(input: JsonSchema.JsonSchema, full = LocalContext.fullContext(PROVIDER_ID)) {
+  const lean = full ? input : LocalContext.compactToolSchema(input)
+  return SchemaCompact.compactToolSchema(lean as Record<string, unknown>) as JsonSchema.JsonSchema
+}
+
 const slotCache = new Map<string, { n: number; at: number }>()
 async function slotCount(url: string) {
   const root = new URL(url).origin
@@ -162,6 +175,16 @@ export const LocalCodeProviderPlugin = define({
         }),
       { providerID: PROVIDER_ID },
     )
+
+    const compactTools = (event: SessionHooks["context"]) =>
+      Effect.sync(() => {
+        const full = LocalContext.fullContext(event.model.providerID)
+        // Mutate in place: the request maps hooked definitions back to their tools by identity.
+        for (const tool of Object.values(event.tools)) tool.input = localToolSchema(tool.input, full)
+      })
+    yield* ctx.session.hook("context", compactTools, { providerID: PROVIDER_ID })
+    yield* ctx.session.hook("compaction", compactTools, { providerID: PROVIDER_ID })
+    yield* ctx.session.hook("generate", compactTools, { providerID: PROVIDER_ID })
 
     // Side requests (titles, helper generations) carry no tools and a short prompt; keep them off
     // the conversation's slot. Compaction stays where its prefix is already cached.

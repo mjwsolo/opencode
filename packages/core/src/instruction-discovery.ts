@@ -121,7 +121,12 @@ export function configured(options?: Options) {
 export const node = configured()
 
 function render(files: ReadonlyArray<File>) {
-  return files.map((file) => `Instructions from: ${file.path}\n${file.content}`).join("\n\n")
+  return files
+    .map(
+      (file) =>
+        `Instructions from: ${file.path}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\n${file.content}`,
+    )
+    .join("\n\n")
 }
 
 function renderUpdate(previous: ReadonlyArray<File>, current: ReadonlyArray<File>) {

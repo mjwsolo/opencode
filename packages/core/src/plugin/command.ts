@@ -28,7 +28,7 @@ export const Plugin = define({
     yield* ctx.command.transform((editor) => {
       editor.add({
         name: "init",
-        description: "guided AGENTS.md setup",
+        description: "guided LOCALCODE.md setup",
         execute: (input) =>
           ctx.session
             .prompt({

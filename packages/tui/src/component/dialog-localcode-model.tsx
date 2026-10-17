@@ -18,6 +18,9 @@ import { useLocal } from "../context/local"
 import { useData } from "../context/data"
 import { useLocation } from "../context/location"
 import { useTheme } from "../context/theme"
+import { useRoute } from "../context/route"
+import { usePromptRef } from "../context/prompt"
+import { unwrap } from "solid-js/store"
 import {
   controlFetch,
   getJSON,
@@ -38,6 +41,7 @@ type Group = {
   hf_repo: string
   recommended: boolean
   current: boolean
+  loaded?: boolean
   installed_count?: number
   downloading?: boolean
   pct?: number | null
@@ -52,6 +56,7 @@ type Quant = {
   recommended: boolean
   downloaded: boolean
   current: boolean
+  loaded?: boolean
   downloading?: boolean
   pct?: number | null
 }
@@ -67,13 +72,13 @@ const pctLabel = (pct: number | null | undefined) => (pct != null ? `${Math.roun
 let escapeStepsBack = true
 
 /** Re-fetch a resource every second while a download runs, so rows show live progress. */
-function pollWhileDownloading(refetch: () => void) {
+function pollWhileDownloading(refetch: () => void, listing = () => false) {
   onMount(() => {
     let active = false
     const timer = setInterval(async () => {
       try {
         const st = await getJSON<Status>("/status")
-        const next = st.state === "downloading" || st.state === "loading"
+        const next = st.state === "downloading" || st.state === "loading" || listing()
         if (next || active) refetch()
         active = next
       } catch {}
@@ -130,9 +135,11 @@ export function DialogLocalcodeModel() {
             {dimensions().width >= 80 ? g.maker.padEnd(12) : ""}
             {g.downloading
               ? `⇣ ${pctLabel(g.pct)}`
-              : g.current
+              : (g.loaded ?? g.current)
                 ? "Loaded"
-                : g.installed_count
+                : g.current
+                  ? "Selected"
+                  : g.installed_count
                   ? `${g.installed_count} on disk`
                   : "Download"}
           </span>
@@ -199,6 +206,8 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
   onMount(() => dialog.setSize("large"))
   const toast = useToast()
   const local = useLocal()
+  const route = useRoute()
+  const prompt = usePromptRef()
   const theme = useTheme()
   const dimensions = useTerminalDimensions()
   const [selected, setSelected] = createSignal<string>()
@@ -210,11 +219,15 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       maker: string
       ram_gb: number
       quants: Quant[]
+      listing?: boolean
       vision_size_gb?: number
       error?: string
     }>(`/quants?group=${encodeURIComponent(props.group.key)}`),
   )
-  pollWhileDownloading(() => void refetch())
+  pollWhileDownloading(
+    () => void refetch(),
+    () => !!quants()?.listing,
+  )
 
   async function cancel(q: Quant) {
     try {
@@ -249,7 +262,15 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
                       : theme.text.muted,
             }}
           >
-            {q.downloading ? `⇣ ${pctLabel(q.pct)}` : q.current ? "Loaded" : q.downloaded ? "Ready" : "Download"}
+            {q.downloading
+              ? `⇣ ${pctLabel(q.pct)}`
+              : (q.loaded ?? q.current)
+                ? "Loaded"
+                : q.downloaded
+                  ? "Ready"
+                  : q.current
+                    ? "Selected"
+                    : "Download"}
           </span>
         </span>
       ),
@@ -263,12 +284,49 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
 
   function select(q: Quant) {
     escapeStepsBack = false
+    // A no-op selection can be acknowledged during an active reply. The supervisor verifies
+    // liveness before returning already_loaded.
+    if (q.current && lastStatus()?.state === "ready" && lastStatus()?.current === q.alias) {
+      dialog.clear()
+      modelChangeQueue.cancel()
+      setQueuedModel(undefined)
+      void load(q, true)
+      return
+    }
+    if (route.data.type === "session" && !q.current) {
+      const sessionID = route.data.sessionID
+      dialog.replace(() => (
+        <DialogSelect
+          title="Switch model"
+          current="fresh"
+          options={[
+            {
+              value: "fresh",
+              title: "Start a new chat",
+              description: "Keep this conversation saved; the new model starts without its history.",
+              onSelect: () => queue(q, false, sessionID),
+            },
+            {
+              value: "continue",
+              title: "Continue this chat",
+              description: "The new model will process this conversation before replying.",
+              onSelect: () => queue(q, true, sessionID),
+            },
+          ]}
+        />
+      ))
+      return
+    }
+    queue(q, true)
+  }
+
+  function queue(q: Quant, keepHistory: boolean, sessionID?: string) {
     dialog.clear()
     const label = `${props.group.display_name} · ${q.label}`
     setQueuedModel(undefined)
     const queued = modelChangeQueue.request(busy, () => {
       setQueuedModel(undefined)
-      void load(q)
+      void load(q, keepHistory, sessionID)
     })
     if (queued) {
       setQueuedModel(label)
@@ -288,15 +346,22 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
     )
   }
 
-  async function load(q: Quant) {
+  async function load(q: Quant, keepHistory: boolean, sessionID?: string) {
     try {
       const r = await controlFetch("/select", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ group: props.group.key, filename: q.filename }),
       })
-      const res = (await r.json()) as { ok?: boolean; error?: string; model?: string }
+      const res = (await r.json()) as { ok?: boolean; error?: string; model?: string; already_loaded?: boolean }
       if (!r.ok || res.error) throw new Error(res.error ?? `HTTP ${r.status}`)
+      if (res.already_loaded) {
+        // Another window may have changed the shared model. Synchronize this client's selection
+        // without restarting the server or dropping history.
+        local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: q.alias }, { recent: true })
+        toast.show({ variant: "info", title: "Model already loaded", message: `${props.group.display_name} · ${q.label}` })
+        return
+      }
       setLastStatus({ ...lastStatus(), state: q.downloaded ? "loading" : "downloading", model: q.alias })
     } catch (e) {
       toast.show({ variant: "error", title: "Model switch failed", message: String(e) })
@@ -319,6 +384,10 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         if (!listed(q.alias) && Date.now() - ready < 10_000) return
         clearInterval(timer)
         local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: q.alias }, { recent: true })
+        if (!keepHistory && route.data.type === "session" && route.data.sessionID === sessionID) {
+          const draft = prompt.current ? structuredClone(unwrap(prompt.current.current)) : undefined
+          route.navigate({ type: "home", prompt: draft })
+        }
         toast.show({ variant: "success", title: "Model loaded", message: label })
         void import("./localcode-vision").then((m) => m.visionHint(toast))
         return
@@ -380,6 +449,9 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         footer={
           <box gap={1}>
             <text fg={theme.text.muted}>★ Recommended · {props.group.hf_repo}</text>
+            <Show when={quants()?.listing}>
+              <text fg={theme.text.muted}>Checking available downloads… Installed models can be loaded now.</text>
+            </Show>
             <text fg={theme.text.muted}>
               {"Size".padEnd(10)}
               {"Memory".padEnd(12)}State {"   "}enter load / download / cancel ⇣{"   "}esc back

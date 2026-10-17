@@ -13,7 +13,7 @@ import { ReadToolFileSystem } from "../read-filesystem.js"
 import { Environment } from "../../environment/index.js"
 
 export const name = "read"
-const FILENAME = "AGENTS.md"
+const FILENAME = "LOCALCODE.md"
 const LocationInput = Schema.Struct({
   path: Schema.String.annotate({ description: "File or directory to read" }),
   offset: ReadToolFileSystem.PageInput.fields.offset.annotate({
@@ -46,6 +46,10 @@ export const Plugin = {
           output: Output,
           execute: (input, context) => {
             return Effect.gen(function* () {
+              if (basename(input.path).toLowerCase() === "agents.md")
+                return yield* new ToolFailure({
+                  message: "Legacy instruction files are not supported. Project instructions use LOCALCODE.md.",
+                })
               const read = (target: FileAccess.Target) =>
                 reader.read(target.absolute, target.resource, {
                   offset: input.offset,

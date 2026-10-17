@@ -38,7 +38,8 @@ export const Plugin = define({
       const home = yield* fs.resolve(global.home)
       const project = discovery.project && FSUtil.contains(root, start)
       const stop = FSUtil.contains(home, start) ? home : root
-      const globalFile = yield* fs.resolve(join(global.config, "AGENTS.md"))
+      // LocalCode: project instructions live in LOCALCODE.md; legacy instruction files are not read.
+      const globalFile = yield* fs.resolve(join(global.config, "LOCALCODE.md"))
       const loaded: { current: Loaded } = { current: { type: "available", files: [] } }
       const configured: { sources: string[]; remote: Map<string, InstructionDiscovery.File> } = {
         sources: [],
@@ -52,7 +53,7 @@ export const Plugin = define({
         ...(discovery.global ? [globalFile] : []),
         ...(project
           ? ancestorDirectories(start, stop)
-              .map((directory) => join(directory, "AGENTS.md"))
+              .map((directory) => join(directory, "LOCALCODE.md"))
               .filter((file) => discovery.global || file !== globalFile)
           : []),
       ]
@@ -76,7 +77,7 @@ export const Plugin = define({
       const projectSource = Effect.fn("ConfigInstructionPlugin.projectSource")(function* () {
         if (!project) return []
         const walked = yield* Effect.forEach(
-          yield* fs.up({ targets: ["AGENTS.md"], start, stop, type: "file" }),
+          yield* fs.up({ targets: ["LOCALCODE.md"], start, stop, type: "file" }),
           fs.resolve,
         )
         const discovered = new Set(walked.filter((file) => discovery.global || file !== globalFile))

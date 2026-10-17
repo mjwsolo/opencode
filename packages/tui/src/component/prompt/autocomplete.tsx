@@ -484,6 +484,8 @@ export function Autocomplete(props: {
     const commandNames = new Set<string>()
 
     for (const serverCommand of data.location.command.list(location.current) ?? []) {
+      // LocalCode edits project instructions with /project-context instead of /init.
+      if (serverCommand.name === "init") continue
       commandNames.add(serverCommand.name)
       results.push({
         display: "/" + serverCommand.name,

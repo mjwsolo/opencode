@@ -81,6 +81,31 @@ const label = (entry: LspRpc.CatalogEntry) =>
           ? "installed"
           : "not installed"
 
+/** The download size from what a server fetches ("npm: pyright (~15 MB)" -> "≈ 15 MB"). */
+export function downloadSize(download: string) {
+  const size = /~\s*(\d+(?:\.\d+)?)\s*([KMG]B)/.exec(download)
+  if (size) return `≈ ${size[1]} ${size[2]}`
+  if (/nothing downloaded/i.test(download)) return "no download"
+  return "size varies"
+}
+
+/**
+ * One row per server. The status and, for a server that is not installed, its download size sit
+ * in the row's right column, which is never truncated; what the download fetches follows the
+ * extensions and is shown in full when installing asks for confirmation.
+ */
+export function lspOptions(catalog: readonly LspRpc.CatalogEntry[]) {
+  return catalog.map((entry) => {
+    const missing = !entry.installed && entry.status !== "connected"
+    return {
+      title: entry.id,
+      value: entry.id,
+      footer: missing ? `${label(entry)} · ${downloadSize(entry.download)}` : label(entry),
+      description: `${entry.extensions.slice(0, 6).join(" ")}${entry.extensions.length > 6 ? " …" : ""}   ${entry.download}`,
+    }
+  })
+}
+
 /**
  * /lsp: every language server this build knows, whether it is installed, and what installing it
  * would fetch. LocalCode never downloads one on its own; choosing one asks first, showing the download.
@@ -95,12 +120,7 @@ export async function chooseLsp(context: Plugin.Context, location?: LocationRef)
   }
   const id = await context.ui.dialog.select<string>({
     title: "Language servers  (enter installs or starts one)",
-    options: catalog.map((entry) => ({
-      title: entry.id,
-      value: entry.id,
-      footer: label(entry),
-      description: `${entry.extensions.slice(0, 6).join(" ")}${entry.extensions.length > 6 ? " …" : ""}   ${entry.download}`,
-    })),
+    options: lspOptions(catalog),
   })
   const entry = catalog.find((item) => item.id === id)
   if (!entry) return

@@ -44,7 +44,7 @@ test("/lsp lists install state and what each download fetches, and installs only
   const declined = fake({ pick: "pyright", confirm: false })
   await chooseLsp(declined.context)
   expect(declined.options().map((option) => [option.title, option.footer])).toEqual([
-    ["pyright", "not installed"],
+    ["pyright", "not installed · ≈ 15 MB"],
     ["gopls", "running"],
   ])
   expect(declined.options()[0].description).toContain("npm: pyright (~15 MB)")

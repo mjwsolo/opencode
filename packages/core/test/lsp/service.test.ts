@@ -225,3 +225,11 @@ describe("LSP.Diagnostic", () => {
     ).toBe("ERROR [1:1] Something wrong")
   })
 })
+
+describe("LSP catalog sizes", () => {
+  test("every server says what installing it downloads, with a size or that nothing is downloaded", async () => {
+    const catalog = await withLsp({ lsp: true }, ({ lsp }) => lsp.catalog())
+    for (const entry of catalog)
+      expect(/~\s*\d+(?:\.\d+)?\s*[KMG]B|nothing downloaded/i.test(entry.download), `${entry.id}: ${entry.download}`).toBe(true)
+  })
+})

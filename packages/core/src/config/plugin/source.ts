@@ -148,8 +148,11 @@ const scan = Effect.fn("ConfigPluginSource.scan")(function* (
   const resolved = yield* Effect.forEach(configured, (operation) =>
     Effect.gen(function* () {
       if (operation.type === "remove" || !path.isAbsolute(operation.target)) return Option.some(operation)
-      if (yield* fs.isFile(operation.target)) {
-        yield* Effect.logWarning("configured plugin path must be a directory", { target: operation.target })
+      // LocalCode's launcher configures its plugin as a single source file.
+      if ((yield* fs.isFile(operation.target)) && !/\.(?:[cm]?[jt]s)$/.test(operation.target)) {
+        yield* Effect.logWarning("configured plugin path must be a directory or a .ts/.js file", {
+          target: operation.target,
+        })
         return Option.none<Operation>()
       }
       return Option.some<Operation>(operation)

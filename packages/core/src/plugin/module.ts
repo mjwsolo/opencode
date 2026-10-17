@@ -104,9 +104,8 @@ const load = Effect.fn("PluginModule.load")(function* (
   const npm = yield* Npm.Service
   const installed = local
     ? undefined
-    : options?.install === false
-      ? yield* npm.resolve(operation.target)
-      : yield* npm.add(operation.target)
+    : // LocalCode never downloads plugin packages: only an already installed package loads.
+      yield* npm.resolve(operation.target)
   // Legacy auto-discovery still admits standalone server sources. Configured
   // local plugins always arrive here as directories.
   const entrypoints: Host.Entrypoints =
@@ -114,7 +113,7 @@ const load = Effect.fn("PluginModule.load")(function* (
       ? { server: pathToFileURL(operation.target).href }
       : yield* Effect.sync(() => Host.resolve(installed ?? { directory: operation.target }))
   const entrypoint = entrypoints.server
-  if (!local && options?.install === false && !entrypoint) return { pending: true as const }
+  if (!local && !entrypoint) return { pending: true as const }
   if (!entrypoint) return yield* new LoadError({ message: `Plugin entrypoint not found: ${operation.target}` })
   yield* Effect.log({ msg: "loading plugin", id: operation.target, entrypoint })
   const loaded = yield* Effect.promise(() =>

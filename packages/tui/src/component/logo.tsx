@@ -1,79 +1,59 @@
-import { RGBA, TextAttributes } from "@opentui/core"
-import { For, type JSX } from "solid-js"
+import { TextAttributes } from "@opentui/core"
+import { For, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { tint } from "../theme/color"
-import { go, logo } from "../logo"
+import { logo, slogan } from "../logo"
 
 export function Logo() {
   const theme = useTheme()
   const dimensions = useTerminalDimensions()
-
-  const renderLine = (line: string, fg: RGBA, bold: boolean): JSX.Element[] => {
-    const shadow = tint(theme.background.base, fg, 0.25)
-    const attrs = bold ? TextAttributes.BOLD : undefined
-    return Array.from(line).map((char) => {
-      if (char === "_") {
-        return (
-          <text fg={fg} bg={shadow} attributes={attrs} selectable={false}>
-            {" "}
-          </text>
-        )
-      }
-      if (char === "^") {
-        return (
-          <text fg={fg} bg={shadow} attributes={attrs} selectable={false}>
-            ▀
-          </text>
-        )
-      }
-      if (char === "~") {
-        return (
-          <text fg={shadow} attributes={attrs} selectable={false}>
-            ▀
-          </text>
-        )
-      }
-      if (char === ",") {
-        return (
-          <text fg={shadow} attributes={attrs} selectable={false}>
-            ▄
-          </text>
-        )
-      }
-      return (
-        <text fg={fg} attributes={attrs} selectable={false}>
-          {char}
-        </text>
-      )
-    })
-  }
+  const rows = logo.left.map((line, index) => `${line} ${logo.right[index]}`)
+  // The wordmark is the brand blue in every theme mode.
+  const brand = () => theme.hue.interactive[200]
 
   return (
-    <box>
-      {dimensions().height < 12 ? null : dimensions().width < 22 ? (
-        <For each={go.right.slice(1)}>
-          {(line) => <box flexDirection="row">{renderLine(line, theme.text.base, true)}</box>}
-        </For>
-      ) : dimensions().width < 44 ? (
-        <>
-          <For each={logo.left.slice(1)}>
-            {(line) => <box flexDirection="row">{renderLine(line, theme.text.muted, false)}</box>}
-          </For>
-          <For each={logo.right}>
-            {(line) => <box flexDirection="row">{renderLine(line, theme.text.base, true)}</box>}
-          </For>
-        </>
-      ) : (
-        <For each={logo.left}>
-          {(line, index) => (
-            <box flexDirection="row" gap={1}>
-              <box flexDirection="row">{renderLine(line, theme.text.muted, false)}</box>
-              <box flexDirection="row">{renderLine(logo.right[index()], theme.text.base, true)}</box>
+    <Show when={dimensions().height >= 12}>
+      <box alignItems="center" gap={1}>
+        <Show
+          when={dimensions().width >= 54}
+          fallback={
+            <text fg={brand()} attributes={TextAttributes.BOLD} selectable={false}>
+              localcode
+            </text>
+          }
+        >
+          <box flexDirection="row" gap={2}>
+            <box>
+              <For each={rows}>
+                {(line) => (
+                  <text selectable={false}>
+                    <For each={Array.from(line)}>
+                      {(char) => {
+                        const shadow = () => tint(theme.background.base, brand(), 0.2)
+                        return (
+                          <span
+                            style={{
+                              fg: "~,".includes(char) ? shadow() : brand(),
+                              bg: "_^".includes(char) ? shadow() : undefined,
+                            }}
+                          >
+                            {char === "_" ? " " : char === "^" || char === "~" ? "▀" : char === "," ? "▄" : char}
+                          </span>
+                        )
+                      }}
+                    </For>
+                  </text>
+                )}
+              </For>
             </box>
-          )}
-        </For>
-      )}
-    </box>
+            <text fg={brand()} selectable={false}>
+              ✦
+            </text>
+          </box>
+        </Show>
+        <text fg={theme.text.muted}>{slogan}</text>
+      </box>
+    </Show>
   )
 }

@@ -3,6 +3,10 @@ import { resolveThemeColors } from "./resolve"
 import { DEFAULT_THEMES, type Theme, type ThemeV1Json } from "./v1"
 import opencode from "./assets/v2/opencode.json" with { type: "json" }
 import opencode2 from "./assets/v2/opencode2.json" with { type: "json" }
+import localcode from "./assets/v2/localcode.json" with { type: "json" }
+
+/** The built-in theme every fallback resolves to. */
+export const DEFAULT_THEME = "localcode"
 
 export { DEFAULT_THEMES, type Theme, type ThemeV1Json } from "./v1"
 
@@ -24,6 +28,13 @@ export function getOpenCodeTheme() {
   return document
 }
 
+let localcodeTheme: ThemeDocument | undefined
+
+export function getLocalCodeTheme() {
+  localcodeTheme ??= parseThemeDocument(localcode, "localcode")
+  return localcodeTheme
+}
+
 let opencode2Theme: ThemeDocument | undefined
 
 // Temporary theme for the "new-designs" experiment. It is not part of allThemes(), so only the
@@ -38,11 +49,12 @@ function listThemes(): Record<string, ThemeDocumentSource> {
   const themes: Record<string, ThemeDocumentSource> = {
     ...DEFAULT_THEMES,
     opencode: getOpenCodeTheme(),
+    localcode: getLocalCodeTheme(),
     ...customThemes,
   }
   return {
     ...themes,
-    system: systemTheme ?? themes.system ?? themes.opencode,
+    system: systemTheme ?? themes.system ?? themes[DEFAULT_THEME],
   }
 }
 

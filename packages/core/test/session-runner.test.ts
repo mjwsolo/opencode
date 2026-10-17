@@ -6230,7 +6230,7 @@ describe("SessionRunnerLLM", () => {
       const guidance =
         finish === "length"
           ? "The tool call was not executed because the output token limit (stop reason: length) was reached before you could complete the arguments. Break large payloads into smaller tool calls and reissue the call with complete arguments."
-          : "The tool input could not be parsed as JSON, so the call was not executed. Reissue the call with valid JSON arguments."
+          : "The tool input could not be parsed as JSON, so the call was not executed. Reissue the call with valid JSON arguments. Split large writes into small files or separate edits; do not repeat the rejected payload."
       const message = [
         guidance,
         "",

@@ -42,7 +42,7 @@ const INPUT_FAILURES = {
   malformed: {
     type: "tool.input-json",
     message:
-      "The tool input could not be parsed as JSON, so the call was not executed. Reissue the call with valid JSON arguments.",
+      "The tool input could not be parsed as JSON, so the call was not executed. Reissue the call with valid JSON arguments. Split large writes into small files or separate edits; do not repeat the rejected payload.",
   },
   length: {
     type: "tool.input-incomplete",

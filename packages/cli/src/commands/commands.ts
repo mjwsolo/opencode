@@ -55,6 +55,11 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       Flag.optional,
     ),
     prompt: Flag.String("prompt").pipe(Flag.withDescription("Prompt to use"), Flag.optional),
+    model: Flag.String("model").pipe(
+      Flag.withAlias("m"),
+      Flag.withDescription("Model to use in the format provider/model"),
+      Flag.optional,
+    ),
   },
   commands: [
     Spec.make("upgrade", {

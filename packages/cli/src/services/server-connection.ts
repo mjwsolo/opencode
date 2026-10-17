@@ -38,7 +38,9 @@ export const resolve = Effect.fn("cli.server-connection.resolve")(function* (arg
       )
     return { endpoint } satisfies Resolved
   }
-  if (args.standalone || (yield* ServiceConfig.read()).disabled === true) {
+  // LocalCode never starts or reuses a background service: every client gets a
+  // private server that exits with it.
+  if (args.standalone || args.server === undefined) {
     return { endpoint: yield* Standalone.start() } satisfies Resolved
   }
 

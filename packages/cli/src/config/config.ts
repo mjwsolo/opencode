@@ -6,6 +6,7 @@ import { Context, Effect, FileSystem, Layer, Option, Schema } from "effect"
 import { produce, type Draft } from "immer"
 import { applyEdits, modify, parse, type ParseError } from "jsonc-parser"
 import path from "path"
+import { readFileSync } from "node:fs"
 import { ConfigMigration } from "./migrate"
 import { Info, normalizeLegacyTabs, SchemaURL } from "./schema"
 
@@ -32,6 +33,7 @@ export const layer = Layer.effect(
     const content = process.env.OPENCODE_CLI_CONFIG_CONTENT
       ? Option.getOrUndefined(decode(parseRecord(process.env.OPENCODE_CLI_CONFIG_CONTENT)))
       : undefined
+    const overlay = tuiConfigFile(process.env.OPENCODE_TUI_CONFIG)
 
     const readJson = Effect.fnUntraced(function* () {
       const text = yield* fs.readFileString(file).pipe(Effect.orElseSucceed(() => undefined))
@@ -62,7 +64,7 @@ export const layer = Layer.effect(
         ),
       )
     const load = Effect.fnUntraced(function* (migration?: Info) {
-      return merge(migration ?? Option.getOrUndefined(decode(yield* readJson())), content)
+      return merge(migration ?? Option.getOrUndefined(decode(yield* readJson())), overlay, content)
     })
 
     const get = Effect.fn("cli.config.get")(() =>
@@ -104,7 +106,7 @@ export const layer = Layer.effect(
           const config = Option.getOrUndefined(decode(parse(updated, errors, { allowTrailingComma: true })))
           if (errors.length || config === undefined) return yield* Effect.fail(new Error("Invalid CLI config update"))
           yield* write(updated.endsWith("\n") ? updated : updated + "\n")
-          return merge(config, content)
+          return merge(config, overlay, content)
         }),
       ).pipe(Effect.mapError((cause) => new Error("Failed to update CLI config", { cause }))),
     )
@@ -112,6 +114,24 @@ export const layer = Layer.effect(
     return Service.of({ path: file, get, update })
   }),
 )
+
+// A launcher-owned TUI config file (LOCALCODE_TUI_CONFIG / OPENCODE_TUI_CONFIG), applied over
+// cli.json for this process only. The v1 `plugin` key is accepted as `plugins`.
+function tuiConfigFile(file: string | undefined) {
+  if (!file) return undefined
+  let text: string
+  try {
+    text = readFileSync(file, "utf8")
+  } catch {
+    return undefined
+  }
+  const record = parseRecord(text)
+  if (!record) return undefined
+  const { plugin, ...rest } = record
+  return Option.getOrUndefined(
+    decode(Array.isArray(plugin) && rest.plugins === undefined ? { ...rest, plugins: plugin } : rest),
+  )
+}
 
 type Edit = { readonly path: (string | number)[]; readonly value: any }
 

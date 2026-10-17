@@ -97,7 +97,8 @@ function SidebarFooter(props: { context: Plugin.Context; sessionID: string }) {
   return (
     <box gap={1}>
       <SidebarOnboarding context={props.context} sessionID={props.sessionID} />
-      <Show when={directory()}>
+      {/* LocalCode: the path already shows under the prompt; the sidebar does not repeat it. */}
+      <Show when={LOCALCODE ? undefined : directory()}>
         {(value) => (
           <box
             id="sidebar.footer.location"

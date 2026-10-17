@@ -6,6 +6,7 @@ import { LspRpc } from "@opencode/schema/lsp-rpc"
 import { Effect, Schema, Stream } from "effect"
 import { LspEvent } from "@opencode/schema/lsp-event"
 import { Bus } from "../bus.js"
+import { realpathSync } from "fs"
 import path from "path"
 import { pathToFileURL } from "url"
 import { FileAccess } from "../file-access.js"
@@ -104,7 +105,15 @@ export const Plugin = {
     const location = yield* Location.Service
     const access = yield* FileAccess.Service
     const permission = yield* Permission.Service
-    const resolve = (file: string) => FileAccess.resolvePath(location.directory, file)
+    // Language servers see canonical paths (macOS /var is /private/var), as the location does.
+    const resolve = (file: string) => {
+      const absolute = FileAccess.resolvePath(location.directory, file)
+      try {
+        return realpathSync(absolute)
+      } catch {
+        return absolute
+      }
+    }
 
     const bus = yield* Bus.Service
     const registration = yield* ctx.rpc.register(LspRpc.Definition, {

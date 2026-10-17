@@ -158,12 +158,12 @@ export const LocalCodeProviderPlugin = define({
           // Image input follows the gguf the supervisor loaded (its projector), not the config template.
           if (supervised) model.capabilities = { ...model.capabilities, input: inputs(alias, current) }
           if (current?.alias !== alias) return
-          if (current.context)
-            model.limit = {
-              context: current.context,
-              output: Math.min(model.limit.output || 8192, Math.max(1, Math.floor(current.context / 4))),
-              ...(current.budget ? { input: current.budget } : {}),
-            }
+          if (current.context) {
+            const output = Math.min(model.limit.output || 8192, Math.max(1, Math.floor(current.context / 4)))
+            // The launcher sets no compaction buffer: the supervisor's budget already holds one
+            // step's headroom. Without a budget, leave room for one response, as opencode v1 did.
+            model.limit = { context: current.context, output, input: current.budget ?? current.context - output }
+          }
         })
       }
       if (current || aliases.size > 0) models.remove(PROVIDER_ID, PENDING)

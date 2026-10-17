@@ -6,6 +6,7 @@ import {
   PasteEvent,
   decodePasteBytes,
   type KeyEvent,
+  TextAttributes,
 } from "@opentui/core"
 import { createEffect, createMemo, onMount, createSignal, onCleanup, on, Show, Switch, Match, For } from "solid-js"
 import path from "path"
@@ -1838,6 +1839,31 @@ export function Prompt(props: PromptProps) {
   return (
     <>
       <box ref={(r: BoxRenderable) => (anchor = r)} visible={props.visible !== false} width="100%">
+        {/* Generation activity sits above the input; the model status sits below it. */}
+        <Show when={status() === "running"}>
+          <box paddingLeft={2} marginBottom={1} flexDirection="row">
+            <box flexDirection="row" gap={1} flexGrow={1} justifyContent="flex-start">
+                            <box marginLeft={1}>
+                              <Show when={config.animations ?? true} fallback={<text fg={theme.text.muted}>[⋯]</text>}>
+                                <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
+                              </Show>
+                            </box>
+                            <PromptInterruptStatus
+                              armed={store.interrupt > 0}
+                              animations={animationsEnabled()}
+                              text={theme.text.base}
+                              subdued={theme.text.muted}
+                              warning={theme.text.feedback.warning.base}
+                              flash={theme.decrease(theme.text.feedback.warning.base, 2)}
+                            />
+                            <Show when={fill()}>
+                              <text fg={theme.text.muted} wrapMode="none" truncate flexShrink={1}>
+                                {fill()}
+                              </text>
+                            </Show>
+                          </box>
+          </box>
+        </Show>
         <Show when={preparationNote()}>
           <box paddingLeft={3} paddingRight={2} marginBottom={1}>
             <text fg={theme.text.muted}>{preparationNote()}</text>
@@ -2034,22 +2060,6 @@ export function Prompt(props: PromptProps) {
               cursorColor={disabled() ? theme.background.raised.base : theme.text.base}
               syntaxStyle={syntax()}
             />
-            <box flexDirection="row" flexShrink={0} paddingTop={1} gap={1} justifyContent="space-between">
-              <PromptMetadataRow
-                mode={store.mode}
-                // A single agent (Build only) needs no label.
-                agent={store.mode === "shell" || local.agent.list().length > 1 ? agentLabel() : ""}
-                auto={local.permission.mode === "autoaccept"}
-                model={localModelLabel() ?? promptDisplay().modelLabel}
-                provider={promptDisplay().providerLabel === "localcode" ? "" : promptDisplay().providerLabel}
-                variant={promptDisplay().variant}
-                muted={!!muted()}
-                highlight={highlight()}
-                agentAlpha={agentMetaAlpha()}
-                modelAlpha={modelMetaAlpha()}
-                variantAlpha={variantMetaAlpha()}
-              />
-            </box>
           </box>
         </box>
         <box
@@ -2091,28 +2101,6 @@ export function Prompt(props: PromptProps) {
                 }}
               >
                 <Switch>
-                  <Match when={status() === "running"}>
-                    <box flexDirection="row" gap={1} flexGrow={1} justifyContent="flex-start">
-                      <box marginLeft={1}>
-                        <Show when={config.animations ?? true} fallback={<text fg={theme.text.muted}>[⋯]</text>}>
-                          <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
-                        </Show>
-                      </box>
-                      <PromptInterruptStatus
-                        armed={store.interrupt > 0}
-                        animations={animationsEnabled()}
-                        text={theme.text.base}
-                        subdued={theme.text.muted}
-                        warning={theme.text.feedback.warning.base}
-                        flash={theme.decrease(theme.text.feedback.warning.base, 2)}
-                      />
-                      <Show when={fill()}>
-                        <text fg={theme.text.muted} wrapMode="none" truncate flexShrink={1}>
-                          {fill()}
-                        </text>
-                      </Show>
-                    </box>
-                  </Match>
                   <Match when={move.progress()}>
                     {(progress) => (
                       <box paddingLeft={3} height={1} minHeight={0} flexShrink={1}>
@@ -2131,6 +2119,28 @@ export function Prompt(props: PromptProps) {
                     </box>
                   </Match>
                   <Match when={true}>
+                    <box flexDirection="row" gap={1} flexShrink={1} minWidth={0} paddingLeft={1}>
+                      <text fg={theme.hue.interactive[200]} flexShrink={0} attributes={TextAttributes.BOLD}>
+                        localcode
+                      </text>
+                      <text fg={theme.text.muted} flexShrink={0}>
+                        ·
+                      </text>
+                      <PromptMetadataRow
+                      mode={store.mode}
+                      // A single agent (Build only) needs no label.
+                      agent={store.mode === "shell" || local.agent.list().length > 1 ? agentLabel() : ""}
+                      auto={local.permission.mode === "autoaccept"}
+                      model={localModelLabel() ?? promptDisplay().modelLabel}
+                      provider={promptDisplay().providerLabel === "localcode" ? "" : promptDisplay().providerLabel}
+                      variant={promptDisplay().variant}
+                      muted={!!muted()}
+                      highlight={highlight()}
+                      agentAlpha={agentMetaAlpha()}
+                      modelAlpha={modelMetaAlpha()}
+                      variantAlpha={variantMetaAlpha()}
+                    />
+                    </box>
                     <Show when={locationLabelDisplay()} fallback={<text />}>
                       {(location) => (
                         <text

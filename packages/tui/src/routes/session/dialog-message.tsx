@@ -5,7 +5,6 @@ import { useClipboard } from "../../context/clipboard"
 import { useToast } from "../../ui/toast"
 import { useClient } from "../../context/client"
 import { errorMessage } from "../../util/error"
-import { DialogFork } from "./dialog-fork"
 import type { PromptInfo } from "../../prompt/history"
 import { projectedPromptInput } from "../../prompt/codec"
 import { useNewDesigns } from "../../config"
@@ -75,16 +74,6 @@ export function DialogMessage(props: {
             } catch (error) {
               toast.error(error)
             }
-          },
-        },
-        {
-          title: "Fork",
-          value: "session.fork",
-          description: "create a new session",
-          onSelect: (dialog) => {
-            const value = message()
-            if (!value || value.type !== "user") return
-            dialog.replace(() => <DialogFork sessionID={props.sessionID} messageID={props.messageID} />)
           },
         },
       ]}

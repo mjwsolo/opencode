@@ -918,7 +918,8 @@ function App() {
         name: "agent.list",
         title: "Switch agent",
         category: "Agent",
-        slash: { name: "agents" },
+        // Agent switching stays on its key (Tab); it is not a slash command.
+        palette: undefined,
         run: () => {
           dialog.replace(() => <DialogAgent />)
         },

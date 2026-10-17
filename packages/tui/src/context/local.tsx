@@ -399,8 +399,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           const value = currentSelection()
           if (!value) {
             return {
-              provider: "Connect a provider",
-              model: "No provider selected",
+              provider: "",
+              model: "No model loaded · /models",
               reasoning: false,
             }
           }

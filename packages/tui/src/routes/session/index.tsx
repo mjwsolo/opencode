@@ -70,8 +70,6 @@ import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { DialogImagePreview } from "../../component/dialog-image-preview"
 import { statusLabel } from "../../component/dialog-workspace-file-changes"
 import { DialogMessage } from "./dialog-message"
-import { DialogFork } from "./dialog-fork"
-import { DialogTimeline } from "./dialog-timeline"
 import { Composer } from "./composer"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
@@ -922,38 +920,6 @@ export function Session(props: {
       },
     },
     {
-      title: "Jump to message",
-      id: "session.timeline",
-      group: "Session",
-      slash: { name: "timeline" },
-      run: () => {
-        dialog.replace(() => (
-          <DialogTimeline
-            sessionID={route.sessionID}
-            onMove={jumpToMessage}
-            setPrompt={(value) => promptRef.current?.set(value)}
-          />
-        ))
-      },
-    },
-    {
-      title: "Fork session",
-      id: "session.fork",
-      group: "Session",
-      slash: { name: "fork" },
-      run: () => {
-        dialog.replace(() => (
-          <DialogFork
-            sessionID={route.sessionID}
-            onMove={(messageID) => {
-              if (!messageID) return
-              jumpToMessage(messageID)
-            }}
-          />
-        ))
-      },
-    },
-    {
       title: "Compact session",
       id: "session.compact",
       group: "Session",
@@ -1310,38 +1276,11 @@ export function Session(props: {
       },
     },
     {
-      title: "Toggle subagent picker",
-      id: "session.child.first",
-      group: "Session",
-      run: () => {
-        if (composer.open || session()?.parentID) setComposer("open", false)
-        else setComposer({ open: true, tab: "subagents" })
-        dialog.clear()
-      },
-    },
-    {
       title: "View queued prompts",
       id: "session.queued_prompts",
       group: "Prompt",
       enabled: queuedPrompts().length > 0,
       run: openQueuedPrompts,
-    },
-    {
-      title: "Go to parent session",
-      id: "session.parent",
-      group: "Session",
-      palette: undefined,
-      enabled: !!session()?.parentID,
-      run: () => {
-        const parentID = session()?.parentID
-        if (parentID) {
-          navigate({
-            type: "session",
-            sessionID: parentID,
-          })
-        }
-        dialog.clear()
-      },
     },
   ])
 

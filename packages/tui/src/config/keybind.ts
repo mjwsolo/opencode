@@ -54,8 +54,7 @@ export const Definitions = {
   "app.toggle.file_context": keybind("none", "Toggle file context"),
   "app.toggle.diffwrap": keybind("none", "Toggle diff wrapping"),
   "app.toggle.paste_summary": keybind("none", "Toggle paste summary"),
-  // LocalCode: "/" is the one command menu; the palette key is unbound by default.
-  "command.palette.show": keybind("none", "List available commands"),
+  "command.palette.show": keybind("ctrl+p", "List available commands"),
   "help.show": keybind("none", "Open help dialog"),
   "docs.open": keybind("none", "Open documentation"),
   "opencode.settings": keybind("none", "Open settings"),

@@ -51,6 +51,11 @@ export function loaded(status: Status | undefined) {
   return { alias: status.current, vision: status.vision === true, context, budget }
 }
 
+/** Only the ready, loaded model with a vision projector accepts images; every other alias is text-only. */
+export function inputs(alias: string, current: ReturnType<typeof loaded>) {
+  return current?.alias === alias && current.vision ? ["text", "image"] : ["text"]
+}
+
 /** llama-server reasoning is off by default; a per-request template switch turns it on or off. */
 export function variants(alias: string) {
   // Muse's backend permits its self-reasoning channel even with thinking disabled.
@@ -127,6 +132,7 @@ export const LocalCodeProviderPlugin = define({
       seen: new Set<string>(),
     }
 
+    const supervised = controlURL() !== ""
     yield* ctx.model.transform((models) => {
       const configured = models.list(PROVIDER_ID)
       const template = models.get(PROVIDER_ID, PENDING) ?? configured[0]
@@ -144,6 +150,8 @@ export const LocalCodeProviderPlugin = define({
           // A picked model's wire id is its alias.
           model.modelID = Model.ID.make(alias)
           model.variants = variants(alias)
+          // Image input follows the gguf the supervisor loaded (its projector), not the config template.
+          if (supervised) model.capabilities = { ...model.capabilities, input: inputs(alias, current) }
           if (current?.alias !== alias) return
           if (current.context)
             model.limit = {
@@ -151,11 +159,6 @@ export const LocalCodeProviderPlugin = define({
               output: Math.min(model.limit.output || 8192, Math.max(1, Math.floor(current.context / 4))),
               ...(current.budget ? { input: current.budget } : {}),
             }
-          // Image input follows the gguf the supervisor loaded (its projector), not the config template.
-          model.capabilities = {
-            ...model.capabilities,
-            input: current.vision ? ["text", "image"] : ["text"],
-          }
         })
       }
       if (current || aliases.size > 0) models.remove(PROVIDER_ID, PENDING)

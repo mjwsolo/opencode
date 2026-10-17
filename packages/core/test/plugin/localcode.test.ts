@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { WebSearchDuckDuckGo } from "../../src/plugin/websearch/duckduckgo"
-import { loaded, localTitle, localToolSchema, pinSideRequest, variants } from "../../src/plugin/provider/localcode"
+import { inputs, loaded, localTitle, localToolSchema, pinSideRequest, variants } from "../../src/plugin/provider/localcode"
 import { LocalContext } from "../../src/session/local-context"
 
 describe("localcode provider", () => {
@@ -19,6 +19,15 @@ describe("localcode provider", () => {
       context: undefined,
       budget: undefined,
     })
+  })
+
+  test("only the ready loaded model with a projector accepts images", () => {
+    const ready = loaded({ current: "gemma", state: "ready", vision: true })
+    expect(inputs("gemma", ready)).toEqual(["text", "image"])
+    expect(inputs("qwen", ready)).toEqual(["text"])
+    expect(inputs("gemma", loaded({ current: "gemma", state: "loading", vision: true }))).toEqual(["text"])
+    expect(inputs("gemma", loaded({ current: "gemma", state: "ready", vision: false }))).toEqual(["text"])
+    expect(inputs("gemma", undefined)).toEqual(["text"])
   })
 
   test("thinking variants switch the chat template, except for Muse Glimmer", () => {

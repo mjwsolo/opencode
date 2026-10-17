@@ -4,6 +4,7 @@ import { useData } from "../context/data"
 import { useClient } from "../context/client"
 import { LspRpc } from "@opencode/schema/lsp-rpc"
 import { For, Match, Switch, Show, createMemo, createResource } from "solid-js"
+import { controlUrl, lastStatus, supervisorLine } from "../util/localcode"
 
 export function DialogStatus() {
   const data = useData()
@@ -26,6 +27,15 @@ export function DialogStatus() {
   }
   return (
     <DialogLayout header={<DialogHeader title="Status" />}>
+      <Show when={controlUrl()}>
+        <text fg={theme.text.base}>
+          Model{" "}
+          <span style={{ fg: theme.text.muted }}>
+            {supervisorLine() ??
+              `${lastStatus()?.current}${lastStatus()?.ctx ? ` · ${lastStatus()!.ctx!.toLocaleString()} token context` : ""}`}
+          </span>
+        </text>
+      </Show>
       <Show when={mcp().length > 0} fallback={<text fg={theme.text.base}>No MCP servers</text>}>
         <box>
           <text fg={theme.text.base}>
@@ -55,7 +65,10 @@ export function DialogStatus() {
           </For>
         </box>
       </Show>
-      <Show when={(lsp() ?? []).length > 0}>
+      <Show
+        when={(lsp() ?? []).length > 0}
+        fallback={<text fg={theme.text.base}>No language servers running · /lsp</text>}
+      >
         <box>
           <text fg={theme.text.base}>{lsp()!.length} LSP Servers</text>
           <For each={lsp()}>

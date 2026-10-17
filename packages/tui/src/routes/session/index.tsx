@@ -1124,15 +1124,18 @@ export function Session(props: {
       group: "Session",
       slash: { name: "speak", aliases: ["say"] },
       run: () => {
-        const last = messagesBeforeRevert().findLast((msg) => msg.type === "assistant")
+        // The last reply with text: an interrupted or tool-only turn has none.
         const text =
-          last?.type === "assistant"
-            ? last.content
+          messagesBeforeRevert()
+            .filter((msg) => msg.type === "assistant")
+            .map((msg) =>
+              msg.content
                 .filter((part) => part.type === "text")
                 .map((part) => part.text)
                 .join("\n")
-                .trim()
-            : ""
+                .trim(),
+            )
+            .findLast((reply) => reply !== "") ?? ""
         if (!text) {
           toast.show({ message: "No assistant message to read", variant: "error" })
           dialog.clear()

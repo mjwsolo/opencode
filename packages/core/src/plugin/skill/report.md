@@ -111,16 +111,15 @@ Examples: `tui: skills dialog crashes outside location provider`,
 
 ## Publishing With GitHub CLI
 
-Use GitHub CLI from the repository checkout when available:
+localcode issues go to the localcode repository, never the user's own project.
+Always pass the repository explicitly:
 
 ```sh
-gh issue create --title "<title>" --body-file <file>
+gh issue create --repo mjwsolo/localcode --title "<title>" --body-file <file>
 ```
 
 Write the body to a temporary markdown file first so quoting, newlines, logs,
-and code fences are preserved. If the issue belongs in a specific repository,
-use `--repo owner/name`. If labels are obvious and the repo accepts them, add
-`--label bug`; otherwise omit labels rather than guessing.
+and code fences are preserved. Omit labels rather than guessing.
 
 After publishing, report the created issue URL to the user and mention any
 diagnostics that were unavailable.

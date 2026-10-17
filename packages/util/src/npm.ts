@@ -31,6 +31,11 @@ export interface Interface {
   readonly check: (pkg: string) => Effect.Effect<boolean, InstallFailedError>
   readonly update: (pkg: string) => Effect.Effect<Package, InstallFailedError | EffectFlock.LockError>
   readonly which: (pkg: string, bin?: string) => Effect.Effect<string | undefined>
+  /**
+   * Download and install a package the user explicitly asked for, after seeing what it fetches
+   * (LocalCode's /lsp install). Nothing else may download; add and update stay local-only.
+   */
+  readonly installOnRequest?: (pkg: string) => Effect.Effect<Package, InstallFailedError | EffectFlock.LockError>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Npm") {}
@@ -448,7 +453,9 @@ const layer = Layer.effect(
           return yield* pick(installed)
         }).pipe(
           Effect.scoped,
-          Effect.orElseSucceed(() => Option.none<string>()),
+          Effect.catch((error) =>
+            Effect.logWarning("package executable setup failed", { pkg, error }).pipe(Effect.as(Option.none<string>())),
+          ),
         ),
       )
     })
@@ -466,7 +473,6 @@ const layer = Layer.effect(
     })
     void update
     void check
-    void add
 
     return Service.of({
       add: localOnly,
@@ -474,6 +480,7 @@ const layer = Layer.effect(
       check: () => Effect.succeed(false),
       resolve,
       which,
+      installOnRequest: add,
     })
   }),
 )
@@ -500,6 +507,13 @@ export async function check(...args: Parameters<Interface["check"]>) {
 
 export async function update(...args: Parameters<Interface["update"]>) {
   return runPromise((svc) => svc.update(...args))
+}
+
+/** Only for an install the user explicitly asked for and confirmed (see Interface.installOnRequest). */
+export async function installOnRequest(pkg: string) {
+  return runPromise((svc) =>
+    svc.installOnRequest ? svc.installOnRequest(pkg) : Effect.die(new Error("Package installs are not available")),
+  )
 }
 
 export async function which(...args: Parameters<Interface["which"]>) {

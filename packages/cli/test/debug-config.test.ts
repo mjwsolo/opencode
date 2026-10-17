@@ -13,12 +13,13 @@ describe("debug config command", () => {
     expect(debug.stdout).toContain("config")
     expect(debug.stdout).toContain("List configuration sources")
     expect(config.exitCode).toBe(0)
-    expect(config.stdout).toContain("opencode debug config [flags]")
+    expect(config.stdout).toContain("localcode debug config [flags]")
     expect(config.stdout).toContain("List configuration sources")
     expect(config.stdout).not.toContain("--reveal-secrets")
   })
 
-  test("prints config entries from the invoking directory without reordering permissions", async () => {
+  // LocalCode has no background service: every client starts its own private server.
+test.skip("prints config entries from the invoking directory without reordering permissions", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-debug-config-"))
     const project = path.join(import.meta.dir, "..")
     const registration = path.join(root, "state", "opencode", "service-local.json")

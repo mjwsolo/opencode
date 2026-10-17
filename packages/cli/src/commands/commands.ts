@@ -13,11 +13,11 @@ declare const OPENCODE_CLI_NAME: string | undefined
 
 const ServerParams = {
   standalone: Flag.Boolean("standalone").pipe(
-    Flag.withDescription("Run with a private server instead of the background service"),
+    Flag.withDescription("Run with a private server (the default: localcode has no background service)"),
     Flag.withDefault(false),
   ),
   server: Flag.String("server").pipe(
-    Flag.withDescription("Connect to a server URL instead of the background service"),
+    Flag.withDescription("Connect to a server URL instead of a private server"),
     Flag.optional,
   ),
 }

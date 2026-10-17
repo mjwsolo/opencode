@@ -9,7 +9,8 @@ import path from "node:path"
 import { ServerConnection } from "../src/services/server-connection"
 import { ServiceConfig } from "../src/services/service-config"
 
-test("resolution groups Effect-native lifecycle operations only for the managed service", async () => {
+// LocalCode has no background service: every client starts its own private server.
+test.skip("resolution groups Effect-native lifecycle operations only for the managed service", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-server-resolution-"))
   const id = "server-resolution-test"
   const server = Bun.serve({

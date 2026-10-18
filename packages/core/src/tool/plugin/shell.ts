@@ -20,10 +20,7 @@ import { ShellParse } from "../../shell/parse.js"
 import { ShellSelect } from "../../shell/select.js"
 import { ShellResult } from "../../shell/result.js"
 import { Global } from "@opencode/util/global"
-import path from "path"
-import { Location } from "../../location.js"
 import { Sandbox } from "../../sandbox.js"
-import { ToolOutput } from "../../tool-output.js"
 
 export const name = "shell"
 export const DEFAULT_TIMEOUT_MS = 2 * 60 * 1_000
@@ -123,7 +120,6 @@ export const Plugin = {
     const permission = yield* Permission.Service
     const config = yield* Config.Service
     const global = yield* Global.Service
-    const location = yield* Location.Service
     const guarded = Sandbox.guardedPaths({ home: global.home, config: global.config, cache: global.cache })
 
     const prepare = Effect.fn("ShellTool.prepare")(function* (invocation: ShellCreateBefore, context: Tool.Context) {
@@ -152,12 +148,11 @@ export const Plugin = {
         access.resolve({ path: FileAccess.resolvePath(target.absolute, file) }),
       )
       const external = [target, ...directories, ...fileTargets]
-      const approved = [
-        ...new Set(external.flatMap((item) => (item.externalDirectory ? [item.externalDirectory.directory] : []))),
-      ]
       yield* access.authorizeExternal(external, context, {
         command: invocation.command,
-        directories: approved,
+        directories: [
+          ...new Set(external.flatMap((item) => (item.externalDirectory ? [item.externalDirectory.directory] : []))),
+        ],
       })
       if (parsed.commands.length > 0)
         yield* permission.assert({
@@ -178,19 +173,7 @@ export const Plugin = {
       ))
         .map((item) => item.absolute)
         .filter((file) => Sandbox.selfConfig(file, { home: global.home, guarded }))
-      invocation.prefix = yield* Sandbox.wrap(
-        Sandbox.profile({
-          home: global.home,
-          project: [location.directory, location.project.directory],
-          writable: [
-            path.join(global.data, ToolOutput.DIRECTORY),
-            global.tmp,
-            ...Sandbox.gitDirectories(location.project.directory),
-            ...Sandbox.gitDirectories(location.directory),
-          ],
-          approved,
-        }),
-      )
+      invocation.prefix = yield* Sandbox.wrap(Sandbox.profile({ home: global.home }))
       // Approval can outlive the directory, so validate immediately before spawning.
       const workdir = yield* Environment.typeFollowing(environment.files, target.absolute).pipe(
         Effect.catchTag("Environment.NotFound", () =>
@@ -277,7 +260,7 @@ export const Plugin = {
                 const result = yield* shell.result(info)
                 if (!result.capture) return yield* new Shell.NotFoundError({ id: info.id })
                 const output = ShellResult.output(result)
-                const blocked = sandboxed && output.exit !== 0 ? Sandbox.explain(output.output) : undefined
+                const blocked = sandboxed && output.exit !== 0 ? Sandbox.explain(output.output, global.home) : undefined
                 return {
                   ...output,
                   output: [

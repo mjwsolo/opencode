@@ -140,7 +140,6 @@ const shellPluginSupervisor = makeLocationNode({
     ShellSelect.node,
     Tool.node,
     Global.node,
-    Location.node,
   ],
 })
 
@@ -847,30 +846,45 @@ describe("ShellTool sandbox", () => {
       ? it.live
       : it.live.skip
 
-  test("a command cannot read SSH keys and says why it failed", () =>
+  test("a command can read SSH keys but not browser cookies, and says why it failed", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),
       (tmp) => {
         reset()
-        const ssh = path.join(process.env.OPENCODE_TEST_HOME!, ".ssh")
-        return Effect.promise(() =>
-          fs.mkdir(ssh, { recursive: true }).then(() => fs.writeFile(path.join(ssh, "id_sandbox_test"), "SECRET-KEY")),
-        ).pipe(
+        const home = process.env.OPENCODE_TEST_HOME!
+        const ssh = path.join(home, ".ssh")
+        const chrome = path.join(home, "Library", "Application Support", "Google", "Chrome", "Default")
+        return Effect.promise(async () => {
+          await fs.mkdir(ssh, { recursive: true })
+          await fs.writeFile(path.join(ssh, "id_sandbox_test"), "SSH-KEY")
+          await fs.mkdir(chrome, { recursive: true })
+          await fs.writeFile(path.join(chrome, "Cookies"), "SECRET-COOKIES")
+        }).pipe(
           Effect.andThen(
             withSession(tmp.path, (registry) =>
               Effect.gen(function* () {
-                const result = yield* executeTool(registry, call({ command: "cat ~/.ssh/id_sandbox_test" }))
-                expect(result.status).toBe("completed")
-                const text = result.content?.map((part) => ("text" in part ? part.text : "")).join("\n") ?? ""
-                expect(text).not.toContain("SECRET-KEY")
-                expect(text).toContain("localcode sandbox:")
-                const ok = yield* executeTool(registry, call({ command: "printf ok > made.txt && cat made.txt" }, "call-ok"))
-                // The user's shell startup files may print noise under the test HOME; the write itself must work.
-                expect(ok.content?.[0]).toMatchObject({ type: "text", text: expect.stringMatching(/ok$/) })
+                const text = (result: { content?: ReadonlyArray<{ type: string }> }) =>
+                  result.content?.map((part) => ("text" in part ? String(part.text) : "")).join("\n") ?? ""
+                const key = yield* executeTool(registry, call({ command: "cat ~/.ssh/id_sandbox_test" }))
+                expect(text(key)).toMatch(/SSH-KEY$/)
+                const cookies = yield* executeTool(
+                  registry,
+                  call({ command: `cat "${path.join(chrome, "Cookies")}"` }, "call-cookies"),
+                )
+                expect(cookies.status).toBe("completed")
+                expect(text(cookies)).not.toContain("SECRET-COOKIES")
+                expect(text(cookies)).toContain("localcode sandbox:")
               }),
             ),
           ),
-          Effect.ensuring(Effect.promise(() => fs.rm(path.join(ssh, "id_sandbox_test"), { force: true }))),
+          Effect.ensuring(
+            Effect.promise(() =>
+              Promise.all([
+                fs.rm(path.join(ssh, "id_sandbox_test"), { force: true }),
+                fs.rm(path.join(home, "Library", "Application Support", "Google"), { recursive: true, force: true }),
+              ]),
+            ),
+          ),
         )
       },
       (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]().then(() => undefined)),
@@ -1456,7 +1470,6 @@ describe("ShellTool", () => {
             ShellSelect.node,
             Tool.node,
             Global.node,
-            Location.node,
           ],
         })
         yield* Effect.acquireUseRelease(

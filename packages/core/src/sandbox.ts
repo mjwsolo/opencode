@@ -2,27 +2,22 @@
  * LocalCode: OS-level sandbox for model-run shell commands on macOS.
  *
  * Every shell tool command (and everything it spawns) runs under
- * `/usr/bin/sandbox-exec` with a Seatbelt profile generated here. The profile
- * starts from `(allow default)` so toolchains, network and process exec keep
- * working, then:
- *   - denies reading secrets (SSH keys, cloud credentials, GnuPG, keychains,
- *     browser cookie and profile stores),
- *   - limits writes to the project, temp dirs, the runtime's tool output,
- *     common toolchain caches and directories the user approved for the
- *     command. A blocked write gets a one-line explanation in the output.
+ * `/usr/bin/sandbox-exec` with a Seatbelt profile generated here. The owner
+ * rule is "don't block anything" dev work needs, so the profile is
+ * `(allow default)`: writes, network, process exec, ~/.ssh, ~/.aws and
+ * ~/.gnupg all work as before (writes outside the project stay governed by
+ * the external_directory prompts). The one hard block is reading the stores
+ * no dev tool reads directly: macOS keychain files and browser cookie,
+ * profile and login-data stores. A command that hits it gets a one-line
+ * explanation in its output.
  *
- * Seatbelt evaluates rules last-match-wins, so the order of sections matters.
- * The command-string scanner stays as the readable ask layer; this enforces
- * what the scanner can only guess at (scripts, `python -c`, make targets).
- *
- * Edits of the agent's own config are not blocked; `selfConfig` lets the
- * runtime show a notice after the fact.
+ * Edits of the agent's own config are not blocked either; `selfConfig` lets
+ * the runtime show a notice after the fact.
  */
 export * as Sandbox from "./sandbox.js"
 
 import { execFile } from "child_process"
-import { existsSync, readFileSync, realpathSync } from "fs"
-import os from "os"
+import { existsSync, realpathSync } from "fs"
 import path from "path"
 import { Effect } from "effect"
 
@@ -40,61 +35,25 @@ export const CONFIG_DIRECTORIES = [".localcode-agent", ".opencode", ".claude", "
 /** Config file names the runtime loads from the project and its ancestors. */
 export const CONFIG_FILES = ["localcode.json", "localcode.jsonc", "opencode.json", "opencode.jsonc"] as const
 
-/** Paths under home whose contents commands may never read. */
-const SECRET_DIRECTORIES = [
-  ".ssh",
-  ".aws",
-  ".gnupg",
+/** Stores under home that commands may never read: keychain files and browser cookie, profile and login data. */
+export const SECRET_DIRECTORIES = [
   "Library/Keychains",
   "Library/Cookies",
+  "Library/HTTPStorages",
   "Library/Safari",
+  "Library/Containers/com.apple.Safari",
   "Library/Application Support/Google/Chrome",
   "Library/Application Support/Chromium",
   "Library/Application Support/BraveSoftware",
   "Library/Application Support/Microsoft Edge",
   "Library/Application Support/Arc",
-  "Library/Application Support/Vivaldi",
-  "Library/Application Support/com.operasoftware.Opera",
   "Library/Application Support/Firefox",
   "Library/Mozilla",
-]
-/** Non-secret files ssh needs to talk to a host (keys themselves stay unreadable). */
-const SSH_READABLE = ["known_hosts", "known_hosts2", "config"]
-
-/** Toolchain caches under home that builds, installs and tests write to. */
-const CACHE_DIRECTORIES = [
-  ".cache",
-  ".npm",
-  ".bun/install",
-  ".yarn",
-  ".pnpm-store",
-  ".node-gyp",
-  ".cargo/registry",
-  ".cargo/git",
-  ".gradle",
-  ".m2",
-  "go/pkg/mod",
-  ".local/share/uv",
-  "Library/Caches",
-  "Library/pnpm",
-  "Library/Developer/Xcode/DerivedData",
-  "Library/org.swift.swiftpm",
-]
-
-/** Temp roots on macOS, as real paths (/tmp and /var are symlinks into /private). */
-const TEMP_DIRECTORIES = ["/private/tmp", "/private/var/tmp", "/private/var/folders"]
+] as const
 
 export interface ProfileInput {
   /** The user's home directory. */
   readonly home: string
-  /** Project roots (the session directory and its worktree root). */
-  readonly project: readonly string[]
-  /** Temp directories. Defaults to the macOS temp roots plus os.tmpdir(). */
-  readonly tmp?: readonly string[]
-  /** Other writable directories (runtime tool output, linked git dirs). */
-  readonly writable?: readonly string[]
-  /** Directories the user approved for this command (external_directory). */
-  readonly approved?: readonly string[]
   /** Outbound network policy; defaults to NETWORK. */
   readonly network?: "allow" | "deny"
 }
@@ -116,47 +75,23 @@ export const real = (input: string) => {
 }
 
 const unique = (items: readonly string[]) => [...new Set(items.filter((item) => item.length > 0))]
-/** Seatbelt matches real paths (/tmp is /private/tmp), so every rule uses them. */
-const spellings = (items: readonly string[]) => unique(items.map(real))
 
 const str = (value: string) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`
 const subpath = (value: string) => `(subpath ${str(value)})`
-const literal = (value: string) => `(literal ${str(value)})`
-
-/** Regex-escape a path with bracket classes; undefined when it holds characters we will not escape. */
-const regexPath = (value: string) => {
-  if (/[\\"^\]\[\n]/.test(value)) return undefined
-  return value.replace(/[.*+?(){}|$]/g, (char) => `[${char}]`)
-}
 
 export const planDirectory = (home: string) => path.join(home, ".localcode-agent", "plan")
 
+/** The browser and keychain stores, as real paths. */
+export const secretPaths = (home: string) => SECRET_DIRECTORIES.map((name) => path.join(real(home), name))
+
 /** The Seatbelt profile for one shell command. Pure: the same input gives the same text. */
 export function profile(input: ProfileInput): string {
-  const home = real(input.home)
-  const project = spellings(input.project.filter((item) => item !== path.parse(item).root))
-  const approved = spellings(input.approved ?? [])
-  const tmp = spellings(input.tmp ?? [...TEMP_DIRECTORIES, os.tmpdir()])
-  const writable = unique([
-    ...project,
-    ...tmp,
-    ...spellings(input.writable ?? []),
-    ...CACHE_DIRECTORIES.map((name) => path.join(home, name)),
-    real(planDirectory(input.home)),
-    ...approved,
-  ])
-  const ssh = path.join(home, ".ssh")
   const lines = [
     "(version 1)",
     "(allow default)",
     "",
-    "; Secrets: no reads of keys, credentials, keychains or browser profiles.",
-    `(deny file-read-data file-read-xattr ${SECRET_DIRECTORIES.map((name) => subpath(path.join(home, name))).join(" ")})`,
-    `(allow file-read-data file-read-xattr ${SSH_READABLE.map((name) => literal(path.join(ssh, name))).join(" ")} (regex #"^${regexPath(ssh) ?? "/nonexistent"}/[^/]+[.]pub$"))`,
-    "",
-    "; Writes: only the project, temp, toolchain caches and approved directories.",
-    "(deny file-write*)",
-    `(allow file-write* (subpath "/dev") ${writable.map(subpath).join(" ")})`,
+    "; Keychain files and browser cookie, profile and login-data stores: no reads.",
+    `(deny file-read-data file-read-xattr ${secretPaths(input.home).map(subpath).join(" ")})`,
   ]
   if ((input.network ?? NETWORK) === "deny")
     lines.push(
@@ -185,27 +120,6 @@ export function selfConfig(absolute: string, input: { readonly home: string; rea
 function FSContains(parent: string, child: string) {
   const relative = path.relative(parent, child)
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
-}
-
-/** The git directories a linked worktree writes to (its own gitdir and the shared common dir). */
-export function gitDirectories(root: string): string[] {
-  const dotgit = path.join(root, ".git")
-  try {
-    const text = readFileSync(dotgit, "utf8")
-    const match = /^gitdir:\s*(.+)$/m.exec(text)
-    if (!match) return []
-    const gitdir = path.resolve(root, match[1].trim())
-    const common = (() => {
-      try {
-        return path.resolve(gitdir, readFileSync(path.join(gitdir, "commondir"), "utf8").trim())
-      } catch {
-        return undefined
-      }
-    })()
-    return unique([gitdir, ...(common ? [common] : [])])
-  } catch {
-    return []
-  }
 }
 
 /** Runtime config and guard paths outside the project: global config dirs, the runtime cache (binaries, plugins), explicit config files. */
@@ -262,9 +176,13 @@ export const wrap = Effect.fn("Sandbox.wrap")(function* (text: string, platform:
   return undefined
 })
 
-/** One line appended to a sandboxed command's output when the sandbox likely blocked it. */
+/** One line appended to a sandboxed command's output when the sandbox blocked it. */
 export const BLOCKED_NOTICE =
-  "localcode sandbox: shell commands can write only inside the project, temp folders, toolchain caches and folders you approved, and cannot read secrets (~/.ssh keys, ~/.aws, ~/.gnupg, keychains). Name another folder in the command to be asked for access to it."
+  "localcode sandbox: shell commands cannot read macOS keychain files or browser cookie, profile and login-data stores."
 
-/** The notice for a sandboxed command's output, when that output shows a sandbox denial. */
-export const explain = (output: string) => (/Operation not permitted/.test(output) ? BLOCKED_NOTICE : undefined)
+/** The notice for a sandboxed command's output, when that output shows a denied read of a blocked store. */
+export const explain = (output: string, home: string) =>
+  /Operation not permitted/.test(output) &&
+  [...SECRET_DIRECTORIES.map((name) => path.join(home, name)), ...secretPaths(home)].some((dir) => output.includes(dir))
+    ? BLOCKED_NOTICE
+    : undefined

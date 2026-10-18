@@ -10,67 +10,47 @@ import { tmpdir } from "./fixture/tmpdir"
 const home = "/u/someone"
 
 describe("Sandbox.profile", () => {
-  const text = Sandbox.profile({
-    home,
-    project: ["/work/app"],
-    tmp: ["/private/tmp"],
-    writable: ["/data/tool-output"],
-    approved: ["/elsewhere/approved"],
-  })
+  const text = Sandbox.profile({ home })
 
-  test("starts permissive and denies secret reads", () => {
+  test("allows everything except reading keychains and browser stores", () => {
     expect(text.startsWith("(version 1)\n(allow default)\n")).toBe(true)
-    for (const secret of [".ssh", ".aws", ".gnupg", "Library/Keychains"])
-      expect(text).toContain(`(subpath "${home}/${secret}")`)
-    expect(text).toContain('(subpath "/u/someone/Library/Application Support/Google/Chrome")')
-    expect(text).toContain(`(literal "${home}/.ssh/known_hosts")`)
-    // gh keeps working: its config is not a hard block.
-    expect(text).not.toContain(".config/gh")
-  })
-
-  test("writes are denied, then allowed for project, temp, caches, runtime and approved dirs", () => {
-    const deny = text.indexOf("(deny file-write*)")
-    const allow = text.indexOf("(allow file-write* (subpath \"/dev\")")
-    expect(deny).toBeGreaterThan(0)
-    expect(allow).toBeGreaterThan(deny)
-    const line = text.slice(allow).split("\n")[0]
-    for (const dir of [
-      "/work/app",
-      "/private/tmp",
-      "/data/tool-output",
-      "/elsewhere/approved",
-      `${home}/.npm`,
-      `${home}/.cache`,
-      `${home}/Library/Caches`,
-      `${home}/.cargo/registry`,
-      `${home}/.gradle`,
-      `${home}/.m2`,
-      `${home}/.bun/install`,
-      `${home}/.localcode-agent/plan`,
+    for (const store of [
+      "Library/Keychains",
+      "Library/Cookies",
+      "Library/Safari",
+      "Library/Application Support/Google/Chrome",
+      "Library/Application Support/BraveSoftware",
+      "Library/Application Support/Microsoft Edge",
+      "Library/Application Support/Firefox",
+      "Library/Application Support/Arc",
     ])
-      expect(line).toContain(`(subpath "${dir}")`)
-    expect(line).not.toContain(`(subpath "${home}")`)
-  })
-
-  test("the agent's own config is not blocked (a notice is shown instead)", () => {
-    expect(text).not.toContain("localcode-agent)")
-    expect(text.match(/\(deny file-write\*/g)?.length).toBe(1)
+      expect(text).toContain(`(subpath "${home}/${store}")`)
+    // Dev tools need these; nothing restricts writes.
+    for (const open of [".ssh", ".aws", ".gnupg", ".config/gh"]) expect(text).not.toContain(`${home}/${open}`)
+    expect(text).not.toContain("file-write")
+    expect(text.match(/\(deny /g)?.length).toBe(1)
   })
 
   test("network follows the single policy switch", () => {
     expect(Sandbox.NETWORK).toBe("allow")
     expect(text).not.toContain("network-outbound")
-    const closed = Sandbox.profile({ home, project: ["/work/app"], network: "deny" })
+    const closed = Sandbox.profile({ home, network: "deny" })
     expect(closed).toContain("(deny network-outbound)")
     expect(closed).toContain('(remote ip "localhost:*")')
   })
 
   test("escapes quotes in paths", () => {
-    expect(Sandbox.profile({ home, project: ['/work/we"ird'] })).toContain('(subpath "/work/we\\"ird")')
+    expect(Sandbox.profile({ home: '/u/we"ird' })).toContain('(subpath "/u/we\\"ird/Library/Keychains")')
   })
+})
 
-  test("never makes the filesystem root writable", () => {
-    expect(Sandbox.profile({ home, project: ["/"] })).not.toContain('(subpath "/")')
+describe("Sandbox.explain", () => {
+  test("explains only denials of a blocked store", () => {
+    expect(Sandbox.explain(`cat: ${home}/Library/Cookies/Cookies.binarycookies: Operation not permitted`, home)).toBe(
+      Sandbox.BLOCKED_NOTICE,
+    )
+    expect(Sandbox.explain(`ls: ${home}/Desktop: Operation not permitted`, home)).toBeUndefined()
+    expect(Sandbox.explain("fine", home)).toBeUndefined()
   })
 })
 
@@ -109,21 +89,6 @@ describe("Sandbox.selfConfig", () => {
   })
 })
 
-describe("Sandbox.gitDirectories", () => {
-  test("a linked worktree writes to its gitdir and the common dir", async () => {
-    await using tmp = await tmpdir()
-    const common = path.join(tmp.path, "main", ".git")
-    const gitdir = path.join(common, "worktrees", "wt")
-    await fs.mkdir(gitdir, { recursive: true })
-    await fs.writeFile(path.join(gitdir, "commondir"), "../..\n")
-    const wt = path.join(tmp.path, "wt")
-    await fs.mkdir(wt)
-    await fs.writeFile(path.join(wt, ".git"), `gitdir: ${gitdir}\n`)
-    expect(Sandbox.gitDirectories(wt)).toEqual([gitdir, common])
-    expect(Sandbox.gitDirectories(tmp.path)).toEqual([])
-  })
-})
-
 describe("Sandbox.wrap", () => {
   test("falls back to running unwrapped where the sandbox is unsupported", async () => {
     expect(await Effect.runPromise(Sandbox.wrap("(version 1)(allow default)", "linux"))).toBeUndefined()
@@ -134,7 +99,7 @@ describe("Sandbox.wrap", () => {
     expect(await Effect.runPromise(Sandbox.wrap("(version 1)(this is not sbpl"))).toBeUndefined()
   })
   mac("wraps with sandbox-exec when the profile applies", async () => {
-    const text = Sandbox.profile({ home, project: ["/work/app"] })
+    const text = Sandbox.profile({ home })
     expect(await Effect.runPromise(Sandbox.wrap(text))).toEqual([Sandbox.EXECUTABLE, "-p", text])
   })
 })
@@ -149,28 +114,26 @@ describe("Sandbox enforcement (macOS)", () => {
     const dirs = {
       home: path.join(root, "home"),
       project: path.join(root, "project"),
-      tmp: path.join(root, "tmp"),
       outside: path.join(root, "outside"),
-      approved: path.join(root, "approved"),
-      config: path.join(root, "home", ".config", "localcode-agent"),
+      homebrew: path.join(root, "opt", "homebrew"),
     }
     for (const dir of Object.values(dirs)) await fs.mkdir(dir, { recursive: true })
-    // A real home already has these parents; the cache dirs below them are what commands create.
-    for (const parent of ["Library/Caches", ".cargo", "go/pkg"]) await fs.mkdir(path.join(dirs.home, parent), { recursive: true })
-    await fs.mkdir(path.join(dirs.home, ".ssh"))
-    await fs.writeFile(path.join(dirs.home, ".ssh", "id_ed25519"), "PRIVATE KEY")
-    await fs.writeFile(path.join(dirs.home, ".ssh", "known_hosts"), "github.com ssh-ed25519 AAAA")
-    await fs.mkdir(path.join(dirs.project, ".localcode-agent"))
+    const write = async (file: string, text: string) => {
+      await fs.mkdir(path.dirname(path.join(dirs.home, file)), { recursive: true })
+      await fs.writeFile(path.join(dirs.home, file), text)
+    }
+    await write(".ssh/id_ed25519", "PRIVATE KEY")
+    await write(".aws/credentials", "[default]")
+    await write(".gnupg/pubring.kbx", "GPG")
+    await write("Library/Application Support/Google/Chrome/Default/Cookies", "CHROME-COOKIES")
+    await write("Library/Application Support/Google/Chrome/Default/Login Data", "CHROME-LOGINS")
+    await write("Library/Application Support/Firefox/Profiles/x.default/cookies.sqlite", "FIREFOX-COOKIES")
+    await write("Library/Keychains/login.keychain-db", "KEYCHAIN")
     const run = (script: string, extra: Partial<Sandbox.ProfileInput> = {}) => {
-      const text = Sandbox.profile({
-        home: dirs.home,
-        project: [dirs.project],
-        tmp: [dirs.tmp],
-        ...extra,
-      })
+      const text = Sandbox.profile({ home: dirs.home, ...extra })
       const result = spawnSync(Sandbox.EXECUTABLE, ["-p", text, "/bin/sh", "-c", script], {
         cwd: dirs.project,
-        env: { ...process.env, HOME: dirs.home, TMPDIR: dirs.tmp, npm_config_cache: path.join(dirs.home, ".npm") },
+        env: { ...process.env, HOME: dirs.home, npm_config_cache: path.join(dirs.home, ".npm") },
         encoding: "utf8",
         timeout: 60_000,
       })
@@ -179,62 +142,52 @@ describe("Sandbox enforcement (macOS)", () => {
     return { tmp, dirs, run }
   }
 
-  mac("writes land in the project and temp, not outside", async () => {
+  mac("git, ssh, aws and gpg files stay readable", async () => {
     const { tmp, dirs, run } = await fixture()
     await using _ = tmp
-    expect(run(`echo ok > ${dirs.project}/a.txt && mkdir -p ${dirs.project}/src/x && echo ok > ${dirs.tmp}/b`).code).toBe(0)
-    const outside = run(`echo pwn > ${dirs.outside}/c`)
-    expect(outside.code).not.toBe(0)
-    expect(outside.out).toContain("Operation not permitted")
-    expect(await Bun.file(path.join(dirs.outside, "c")).exists()).toBe(false)
-    // Subprocesses inherit the sandbox.
-    expect(run(`python3 -c "open('${dirs.outside}/d','w').write('x')"`).code).not.toBe(0)
-    expect(await Bun.file(path.join(dirs.outside, "d")).exists()).toBe(false)
-    expect(run(`echo x > ${dirs.home}/.zshrc`).code).not.toBe(0)
+    const read = run(`cat ${dirs.home}/.ssh/id_ed25519 ${dirs.home}/.aws/credentials ${dirs.home}/.gnupg/pubring.kbx`)
+    expect(read.code).toBe(0)
+    expect(read.out).toBe("PRIVATE KEY[default]GPG")
+    if (Bun.which("ssh-keygen"))
+      expect(run(`ssh-keygen -q -t ed25519 -N '' -f ${dirs.home}/.ssh/id_new && ssh-keygen -y -f ${dirs.home}/.ssh/id_new`).code).toBe(0)
   })
 
-  mac("secrets are unreadable while ssh's host list stays readable", async () => {
+  mac("writes anywhere still work (installs, global config, caches)", async () => {
     const { tmp, dirs, run } = await fixture()
     await using _ = tmp
-    const key = run(`cat ${dirs.home}/.ssh/id_ed25519`)
-    expect(key.code).not.toBe(0)
-    expect(key.out).not.toContain("PRIVATE KEY")
-    expect(run(`ls ${dirs.home}/.ssh`).code).not.toBe(0)
-    expect(run(`cat ${dirs.home}/.ssh/known_hosts`).out).toContain("github.com")
+    // A brew-like install into an /opt/homebrew-style prefix, a global git config, a cargo bin, a user site.
+    expect(
+      run(
+        [
+          `mkdir -p ${dirs.homebrew}/Cellar/tool/1.0/bin && echo x > ${dirs.homebrew}/Cellar/tool/1.0/bin/tool`,
+          `ln -s ../Cellar/tool/1.0/bin/tool ${dirs.homebrew}/tool`,
+          `echo x > ${dirs.outside}/file`,
+          `mkdir -p ${dirs.home}/.cargo/bin && echo x > ${dirs.home}/.cargo/bin/tool`,
+          `echo '[user]' > ${dirs.home}/.gitconfig`,
+          `echo x > ${dirs.project}/a.txt`,
+        ].join(" && "),
+      ).code,
+    ).toBe(0)
+    if (Bun.which("git")) expect(run("git config --global user.name sandbox-test").code).toBe(0)
+    if (Bun.which("npm")) expect(run("npm cache verify").code).toBe(0)
   })
 
-  mac("the agent's own config in the project stays writable (it gets a notice, not a block)", async () => {
+  mac("browser cookie and login stores and keychain files are unreadable, with an explanation", async () => {
     const { tmp, dirs, run } = await fixture()
     await using _ = tmp
-    expect(run(`echo '{}' > ${dirs.project}/.localcode-agent/localcode.json && echo '{}' > ${dirs.project}/localcode.json`).code).toBe(0)
-  })
-
-  mac("a blocked command gets a one-line explanation", async () => {
-    const { tmp, dirs, run } = await fixture()
-    await using _ = tmp
-    const blocked = run(`echo pwn > ${dirs.outside}/c`)
-    expect(Sandbox.explain(blocked.out)).toBe(Sandbox.BLOCKED_NOTICE)
-    expect(Sandbox.explain(run("echo fine").out)).toBeUndefined()
-  })
-
-  mac("directories approved for the command become writable", async () => {
-    const { tmp, dirs, run } = await fixture()
-    await using _ = tmp
-    expect(run(`echo x > ${dirs.approved}/f`).code).not.toBe(0)
-    expect(run(`echo x > ${dirs.approved}/f`, { approved: [dirs.approved] }).code).toBe(0)
-  })
-
-  mac("toolchain caches stay writable (npm, pip, uv, cargo, go)", async () => {
-    const { tmp, dirs, run } = await fixture()
-    await using _ = tmp
-    const caches = [".npm/_cacache", "Library/Caches/pip/http", ".cache/uv", ".cargo/registry", "Library/Caches/go-build"]
-    expect(run(caches.map((dir) => `mkdir -p ${dirs.home}/${dir} && echo x > ${dirs.home}/${dir}/f`).join(" && ")).code).toBe(0)
-    if (Bun.which("npm")) {
-      const npm = run("npm cache verify")
-      expect(npm.code).toBe(0)
-      expect((await fs.readdir(path.join(dirs.home, ".npm", "_cacache"))).length).toBeGreaterThan(0)
-    }
-    if (Bun.which("python3"))
-      expect(run(`python3 -m pip --version >/dev/null 2>&1 || true; python3 -c "import tempfile; tempfile.NamedTemporaryFile().write(b'x')"`).code).toBe(0)
+    const chrome = run(`cat "${dirs.home}/Library/Application Support/Google/Chrome/Default/Cookies"`)
+    expect(chrome.code).not.toBe(0)
+    expect(chrome.out).not.toContain("CHROME-COOKIES")
+    expect(Sandbox.explain(chrome.out, dirs.home)).toBe(Sandbox.BLOCKED_NOTICE)
+    for (const file of [
+      "Library/Application Support/Google/Chrome/Default/Login Data",
+      "Library/Application Support/Firefox/Profiles/x.default/cookies.sqlite",
+      "Library/Keychains/login.keychain-db",
+    ])
+      expect(run(`cat "${dirs.home}/${file}"`).code).not.toBe(0)
+    // Subprocesses inherit the block.
+    expect(
+      run(`python3 -c "print(open('${dirs.home}/Library/Keychains/login.keychain-db').read())"`).out,
+    ).not.toContain("KEYCHAIN")
   })
 })

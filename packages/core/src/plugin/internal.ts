@@ -94,6 +94,7 @@ import { PlanPlugin } from "./plan.js"
 import { LspPlugin } from "./lsp.js"
 import { LSP } from "../lsp/lsp.js"
 import { DoomLoopPlugin } from "./doom-loop.js"
+import { SelfConfigNoticePlugin } from "./self-config.js"
 import { ModelsDevPlugin } from "./models-dev.js"
 import { McpCodeModeDefaultsPlugin } from "./mcp-codemode-defaults.js"
 import { ProviderPlugins } from "./provider.js"
@@ -221,6 +222,7 @@ export type InternalPlugin = Plugin<Requirements | Scope.Scope>
 const pre = [
   ToolInputRepairPlugin.Plugin,
   DoomLoopPlugin.Plugin,
+  SelfConfigNoticePlugin.Plugin,
   ConfigWorktreePlugin.Plugin,
   ConfigMcpPlugin.Plugin,
   McpCodeModeDefaultsPlugin.Plugin,

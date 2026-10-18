@@ -139,6 +139,8 @@ const shellPluginSupervisor = makeLocationNode({
     Shell.node,
     ShellSelect.node,
     Tool.node,
+    Global.node,
+    Location.node,
   ],
 })
 
@@ -838,6 +840,69 @@ describe("ShellTool ordinary shell syntax", () => {
   }
 })
 
+// LocalCode: commands run under the macOS sandbox. Uses the test runner's temp HOME, never the real one.
+describe("ShellTool sandbox", () => {
+  const test =
+    process.platform === "darwin" && existsSync("/usr/bin/sandbox-exec") && process.env.OPENCODE_TEST_HOME
+      ? it.live
+      : it.live.skip
+
+  test("a command cannot read SSH keys and says why it failed", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => {
+        reset()
+        const ssh = path.join(process.env.OPENCODE_TEST_HOME!, ".ssh")
+        return Effect.promise(() =>
+          fs.mkdir(ssh, { recursive: true }).then(() => fs.writeFile(path.join(ssh, "id_sandbox_test"), "SECRET-KEY")),
+        ).pipe(
+          Effect.andThen(
+            withSession(tmp.path, (registry) =>
+              Effect.gen(function* () {
+                const result = yield* executeTool(registry, call({ command: "cat ~/.ssh/id_sandbox_test" }))
+                expect(result.status).toBe("completed")
+                const text = result.content?.map((part) => ("text" in part ? part.text : "")).join("\n") ?? ""
+                expect(text).not.toContain("SECRET-KEY")
+                expect(text).toContain("localcode sandbox:")
+                const ok = yield* executeTool(registry, call({ command: "printf ok > made.txt && cat made.txt" }, "call-ok"))
+                // The user's shell startup files may print noise under the test HOME; the write itself must work.
+                expect(ok.content?.[0]).toMatchObject({ type: "text", text: expect.stringMatching(/ok$/) })
+              }),
+            ),
+          ),
+          Effect.ensuring(Effect.promise(() => fs.rm(path.join(ssh, "id_sandbox_test"), { force: true }))),
+        )
+      },
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]().then(() => undefined)),
+    ),
+  )
+
+  test("a visible write to the agent's own config is allowed and reported in the result", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => {
+        reset()
+        return withSession(tmp.path, (registry) =>
+          Effect.gen(function* () {
+            yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".localcode-agent")))
+            const result = yield* executeTool(
+              registry,
+              call({ command: "printf '{}' > .localcode-agent/localcode.json" }),
+            )
+            expect(result.status).toBe("completed")
+            expect(result.metadata).toMatchObject({ exit: 0 })
+            expect(result.output.selfConfig).toEqual([
+              path.join(realpathSync(tmp.path), ".localcode-agent", "localcode.json"),
+            ])
+            expect(yield* Effect.promise(() => Bun.file(path.join(tmp.path, ".localcode-agent", "localcode.json")).text())).toBe("{}")
+          }),
+        )
+      },
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]().then(() => undefined)),
+    ),
+  )
+})
+
 describe("ShellTool", () => {
   it.live("returns both parallel CodeMode shell results", () =>
     Effect.acquireUseRelease(
@@ -1390,6 +1455,8 @@ describe("ShellTool", () => {
             Shell.node,
             ShellSelect.node,
             Tool.node,
+            Global.node,
+            Location.node,
           ],
         })
         yield* Effect.acquireUseRelease(

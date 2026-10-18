@@ -6,6 +6,8 @@ export interface ShellCreateBefore {
   timeout: number
   shell: string
   env: Record<string, string | undefined>
+  /** Program and arguments the shell runs under (an OS sandbox wrapper), if any. */
+  prefix?: string[]
 }
 
 export interface ShellHooks {

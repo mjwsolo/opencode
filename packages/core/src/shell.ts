@@ -298,13 +298,17 @@ const layer = () =>
             Effect.gen(function* () {
               const handle = yield* environment.spawner
                 .spawn(
-                  ChildProcess.make(invocation.shell, args, {
+                  ChildProcess.make(
+                    invocation.prefix?.[0] ?? invocation.shell,
+                    invocation.prefix ? [...invocation.prefix.slice(1), invocation.shell, ...args] : args,
+                    {
                     cwd: invocation.cwd,
                     env: invocation.env,
                     stdin: "ignore",
                     detached: process.platform !== "win32",
                     forceKillAfter: Duration.seconds(3),
-                  }),
+                    },
+                  ),
                 )
                 .pipe(
                   Effect.mapError((cause) => new AppProcess.AppProcessError({ command: invocation.command, cause })),

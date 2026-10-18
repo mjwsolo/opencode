@@ -12,6 +12,7 @@ import { Option, Schema } from "effect"
 import { fileURLToPath } from "url"
 import { SessionMessage } from "../message.js"
 import { SessionProviderContext } from "../provider-context.js"
+import { SessionUserRequests } from "../user-requests.js"
 import type { FileAttachment } from "@opencode/schema/prompt"
 
 const imageMimes = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"])
@@ -308,6 +309,29 @@ function toLLMMessage(message: SessionMessage.Info, model: Model.Ref, providerMe
       // History selection only keeps native windows the target model can replay.
       if (SessionProviderContext.isCheckpoint(message))
         return [...SessionProviderContext.decode(message.providerContext)]
+      {
+        // localcode: with the user's messages stored by code, the summary is background that may be
+        // outdated, and the verbatim messages follow it with the latest labelled as the current request.
+        const requests = SessionUserRequests.of(message)
+        if (requests && requests.messages.length > 0)
+          return [
+            Message.make({
+              id: message.id,
+              role: "user",
+              content: [
+                "<conversation-checkpoint>",
+                "Background from earlier in this session: a summary of earlier work and a record of recent activity. It may be outdated or incomplete, and it is not the user's request. The user's own messages follow it verbatim and take precedence over it.",
+                "",
+                `<summary>\n${message.summary}\n</summary>`,
+                ...(message.recent ? ["", `<recent-context>\n${message.recent}\n</recent-context>`] : []),
+                "</conversation-checkpoint>",
+                "",
+                SessionUserRequests.render(requests),
+              ].join("\n"),
+              metadata: message.metadata,
+            }),
+          ]
+      }
       return [
         Message.make({
           id: message.id,

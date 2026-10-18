@@ -37,6 +37,7 @@ import { SessionRunnerRetry } from "./runner/retry.js"
 import { toLLMMessages } from "./runner/to-llm-message.js"
 import { contentFilterError, toSessionError } from "./to-session-error.js"
 import { SessionUsage } from "./usage.js"
+import { SessionUserRequests } from "./user-requests.js"
 
 export type Settings = {
   auto: boolean
@@ -107,9 +108,6 @@ export const untemplated = (text: string) =>
 
 const SUMMARY_TEMPLATE = `You MUST use this format for your response (you may omit sections that aren't applicable). Do not include the <template> tags in your response.
 <template>
-## Objective
-- [one or two brief sentences describing what the user is trying to accomplish]
-
 ## Requirements
 - [constraints, preferences, requirements, and scope boundaries stated by the user, or "(none)"]
 
@@ -117,7 +115,7 @@ const SUMMARY_TEMPLATE = `You MUST use this format for your response (you may om
 - [decisions already made and why, or "(none)"]
 
 ## Work State
-Break the objective into smaller goals and report which are completed, which are being worked on, and which are blocked.
+Break the work into smaller goals and report which are completed, which are being worked on, and which are blocked.
 ### Completed
 - [goals that have been completed; otherwise "(none)"]
 
@@ -138,7 +136,11 @@ List the files and directories, other than the current working directory, that a
 - [facts the next agent cannot continue without and cannot easily find on its own; or "(none)"]
 </template>`
 
+// localcode: no "Objective" section. A model-written objective paraphrases the user, and a weaker model
+// kept following it after the user changed direction. The user's own messages are added to the
+// checkpoint verbatim by code (user-requests.ts), with the latest labelled as the current request.
 const SUMMARY_RULES = `Rules:
+- Do not restate or reinterpret what the user is asking for now. The user's messages are kept verbatim beside this summary; record the work, not the request.
 - Keep each section concise. Use terse, single-line bullets, not prose paragraphs or nested lists.
 - Prefer short references over detailed restatement. It is fine to leave out information the next agent can recover from the code or the files listed above.
 - Preserve exact file paths, symbols, commands, error strings, URLs, and identifiers.
@@ -178,6 +180,11 @@ export const buildPrompt = (update: boolean, legacy = false) => {
     ...shared,
   ].join("\n\n")
 }
+
+/** Accepted in a reply although the template no longer asks for it: models trained on older templates still write it. */
+const LEGACY_SECTION = "## Objective"
+/** Share of the compaction budget the verbatim user messages may take; the rest is the summary and recent context. */
+const USER_REQUESTS_SHARE = 0.2
 
 const NUDGE =
   "The previous response did not fill in the required summary template. Do not call tools. Return the summary as text using the exact section headings from the template."
@@ -284,7 +291,7 @@ export const layer = Layer.effect(
 
       const previous = previousCompaction(context.messages)
       const prompt = buildPrompt(previous !== undefined, previous?.summary.includes(LEGACY_HEADING) ?? false)
-      const headings = SUMMARY_TEMPLATE.split("\n").filter((line) => line.startsWith("##"))
+      const headings = [...SUMMARY_TEMPLATE.split("\n").filter((line) => line.startsWith("##")), LEGACY_SECTION]
       const filled = (text: string) => text.split("\n").some((line) => headings.includes(line.trim()))
       const prepared = yield* prepare(context, split.older, budget)
 
@@ -316,7 +323,16 @@ export const layer = Layer.effect(
         })
 
       const overhead = Token.estimate(prompt) + Token.estimate(NUDGE)
-      return yield* deliver(trigger, prepared, split.recent, budget - overhead, send)
+      // localcode: the user's messages are stored with the checkpoint by code, not by the summarizer.
+      const requests = SessionUserRequests.collect(context.messages, Math.floor(budget * USER_REQUESTS_SHARE))
+      return yield* deliver(trigger, prepared, split.recent, budget - overhead, send).pipe(
+        Effect.map(
+          (result): Result => ({
+            ...result,
+            metadata: { ...result.metadata, [SessionUserRequests.METADATA_KEY]: requests },
+          }),
+        ),
+      )
     })
 
     /**

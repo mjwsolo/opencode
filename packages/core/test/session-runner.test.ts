@@ -3088,6 +3088,43 @@ describe("SessionRunnerLLM", () => {
     })
   })
 
+  // localcode: the user's messages survive compaction verbatim, filled by code, after the summary.
+  scenario("keeps every user message verbatim after compaction with the latest as the current request", function* (s) {
+    const store = yield* SessionStore.Service
+    yield* s.llm.push(TestLLM.textWithUsage("Started on CSV", "text-first", 3_950))
+    yield* s.runPrompt("Build a CSV exporter for the report.")
+
+    s.currentModel = compactModel
+    s.requests.length = 0
+    yield* s.llm.push(
+      TestLLM.text("## Work State\n- CSV exporter started", "text-summary"),
+      TestLLM.text("Switched", "text-final"),
+    )
+    yield* s.runPrompt("Change of plan: export Markdown instead, no CSV.")
+
+    expect(s.requests).toHaveLength(2)
+    const checkpoint = userTexts(s.requests[1])[0]
+    expect(checkpoint).toContain("It may be outdated or incomplete, and it is not the user's request.")
+    expect(checkpoint).not.toContain("Treat it as historical context")
+    expect(checkpoint).toContain("[User message 1]\nBuild a CSV exporter for the report.")
+    expect(checkpoint).toContain(
+      "[Latest user message: the current request, unless a newer user message follows]\nChange of plan: export Markdown instead, no CSV.\n</user-messages>",
+    )
+    expect(checkpoint.indexOf("<user-messages>")).toBeGreaterThan(checkpoint.indexOf("</conversation-checkpoint>"))
+    expect(checkpoint.trimEnd()).toEndWith("</user-messages>")
+
+    const context = yield* store.context(sessionID)
+    expect(context[0]).toMatchObject({
+      type: "compaction",
+      metadata: {
+        userRequests: {
+          omitted: 0,
+          messages: ["Build a CSV exporter for the report.", "Change of plan: export Markdown instead, no CSV."],
+        },
+      },
+    })
+  })
+
   scenario("automatically compacts into a completed summary and retained recent turn", function* (s) {
     const store = yield* SessionStore.Service
     yield* s.llm.push(TestLLM.textWithUsage("Earlier answer", "text-first", 3_950))
@@ -3102,7 +3139,7 @@ describe("SessionRunnerLLM", () => {
     yield* s.runPrompt("Recent exact request ".repeat(180))
 
     expect(s.requests).toHaveLength(2)
-    expect(userTexts(s.requests[0]).at(-1)).toContain("## Objective")
+    expect(userTexts(s.requests[0]).at(-1)).toContain("## Work State")
     expect(userTexts(s.requests[1])).toHaveLength(1)
     expect(userTexts(s.requests[1])[0]).toContain("<summary>\n## Objective\n- Preserve the task\n</summary>")
     expect(userTexts(s.requests[1])[0]).toContain(`[User]: ${"Recent exact request ".repeat(180)}`)
@@ -3268,7 +3305,7 @@ describe("SessionRunnerLLM", () => {
     yield* s.runPrompt("Continue")
 
     expect(s.requests).toHaveLength(3)
-    expect(userTexts(s.requests[1]).at(-1)).toContain("## Objective")
+    expect(userTexts(s.requests[1]).at(-1)).toContain("## Work State")
     expect(userTexts(s.requests[2])[0]).toContain("<summary>\n## Objective\n- Recover overflow\n</summary>")
     expect(yield* s.context).toMatchObject([
       { type: "compaction", summary: "## Objective\n- Recover overflow" },
@@ -3482,7 +3519,7 @@ describe("SessionRunnerLLM", () => {
     yield* s.runPrompt("Recent request ".repeat(400))
 
     expect(s.requests).toHaveLength(2)
-    expect(userTexts(s.requests[0]).at(-1)).toContain("## Objective")
+    expect(userTexts(s.requests[0]).at(-1)).toContain("## Work State")
     // The summary may use the whole 20k reserve of a 200k window.
     expect(s.requests[0]?.generation?.maxTokens).toBe(20_000)
     expect(s.requests[1]?.generation?.maxTokens).toBe(32_000)
@@ -3501,7 +3538,7 @@ describe("SessionRunnerLLM", () => {
     yield* s.runPrompt("Recent request ".repeat(400))
 
     expect(s.requests).toHaveLength(2)
-    expect(userTexts(s.requests[0]).at(-1)).toContain("## Objective")
+    expect(userTexts(s.requests[0]).at(-1)).toContain("## Work State")
     expect(s.requests[0]?.generation?.maxTokens).toBe(16_000)
     expect(s.requests[1]?.generation?.maxTokens).toBe(16_000)
   })

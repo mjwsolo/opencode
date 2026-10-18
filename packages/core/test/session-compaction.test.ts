@@ -142,7 +142,6 @@ it.effect("compaction truncation does not split surrogate pairs", () =>
 test("compaction prompt requires the checkpoint headings in order", () => {
   const prompt = SessionCompaction.buildPrompt(false)
   expect(prompt.match(/^#{2,3} .+$/gm)).toEqual([
-    "## Objective",
     "## Requirements",
     "## Decisions",
     "## Work State",

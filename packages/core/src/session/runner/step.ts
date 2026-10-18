@@ -1,5 +1,6 @@
 export * as SessionStep from "./step.js"
 
+import { Invisible } from "../../invisible.js"
 import {
   AIError,
   InvalidProviderOutputError,
@@ -124,6 +125,8 @@ export const make = Effect.gen(function* () {
             call: event,
             fiber: yield* Effect.uninterruptibleMask((restore) =>
               restore(executeTool(event)).pipe(
+                // LocalCode: hidden Unicode in tool output is removed, with a visible note.
+                Effect.map(Invisible.result),
                 Effect.flatMap(toolOutput.truncate),
                 Effect.flatMap((outcome) => publisher.toolExecution(event.id, event.name, outcome)),
                 Effect.catchTag("Tool.Error", (error) =>

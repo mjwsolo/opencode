@@ -139,6 +139,7 @@ const shellPluginSupervisor = makeLocationNode({
     Shell.node,
     ShellSelect.node,
     Tool.node,
+    Global.node,
   ],
 })
 
@@ -838,6 +839,84 @@ describe("ShellTool ordinary shell syntax", () => {
   }
 })
 
+// LocalCode: commands run under the macOS sandbox. Uses the test runner's temp HOME, never the real one.
+describe("ShellTool sandbox", () => {
+  const test =
+    process.platform === "darwin" && existsSync("/usr/bin/sandbox-exec") && process.env.OPENCODE_TEST_HOME
+      ? it.live
+      : it.live.skip
+
+  test("a command can read SSH keys but not browser cookies, and says why it failed", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => {
+        reset()
+        const home = process.env.OPENCODE_TEST_HOME!
+        const ssh = path.join(home, ".ssh")
+        const chrome = path.join(home, "Library", "Application Support", "Google", "Chrome", "Default")
+        return Effect.promise(async () => {
+          await fs.mkdir(ssh, { recursive: true })
+          await fs.writeFile(path.join(ssh, "id_sandbox_test"), "SSH-KEY")
+          await fs.mkdir(chrome, { recursive: true })
+          await fs.writeFile(path.join(chrome, "Cookies"), "SECRET-COOKIES")
+        }).pipe(
+          Effect.andThen(
+            withSession(tmp.path, (registry) =>
+              Effect.gen(function* () {
+                const text = (result: { content?: ReadonlyArray<{ type: string }> }) =>
+                  result.content?.map((part) => ("text" in part ? String(part.text) : "")).join("\n") ?? ""
+                const key = yield* executeTool(registry, call({ command: "cat ~/.ssh/id_sandbox_test" }))
+                expect(text(key)).toMatch(/SSH-KEY$/)
+                const cookies = yield* executeTool(
+                  registry,
+                  call({ command: `cat "${path.join(chrome, "Cookies")}"` }, "call-cookies"),
+                )
+                expect(cookies.status).toBe("completed")
+                expect(text(cookies)).not.toContain("SECRET-COOKIES")
+                expect(text(cookies)).toContain("localcode sandbox:")
+              }),
+            ),
+          ),
+          Effect.ensuring(
+            Effect.promise(() =>
+              Promise.all([
+                fs.rm(path.join(ssh, "id_sandbox_test"), { force: true }),
+                fs.rm(path.join(home, "Library", "Application Support", "Google"), { recursive: true, force: true }),
+              ]),
+            ),
+          ),
+        )
+      },
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]().then(() => undefined)),
+    ),
+  )
+
+  test("a visible write to the agent's own config is allowed and reported in the result", () =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => {
+        reset()
+        return withSession(tmp.path, (registry) =>
+          Effect.gen(function* () {
+            yield* Effect.promise(() => fs.mkdir(path.join(tmp.path, ".localcode-agent")))
+            const result = yield* executeTool(
+              registry,
+              call({ command: "printf '{}' > .localcode-agent/localcode.json" }),
+            )
+            expect(result.status).toBe("completed")
+            expect(result.metadata).toMatchObject({ exit: 0 })
+            expect(result.output.selfConfig).toEqual([
+              path.join(realpathSync(tmp.path), ".localcode-agent", "localcode.json"),
+            ])
+            expect(yield* Effect.promise(() => Bun.file(path.join(tmp.path, ".localcode-agent", "localcode.json")).text())).toBe("{}")
+          }),
+        )
+      },
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]().then(() => undefined)),
+    ),
+  )
+})
+
 describe("ShellTool", () => {
   it.live("returns both parallel CodeMode shell results", () =>
     Effect.acquireUseRelease(
@@ -1390,6 +1469,7 @@ describe("ShellTool", () => {
             Shell.node,
             ShellSelect.node,
             Tool.node,
+            Global.node,
           ],
         })
         yield* Effect.acquireUseRelease(

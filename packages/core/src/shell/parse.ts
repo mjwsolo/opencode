@@ -437,23 +437,31 @@ const FILE_COMMANDS = new Set([
 const CMD_FILE_COMMANDS = new Set(["copy", "del", "dir", "erase", "md", "mkdir", "move", "rd", "ren", "rename", "rmdir", "type"])
 const POWERSHELL_FLAGS = new Set(["-destination", "-literalpath", "-path"])
 const POWERSHELL_SWITCHES = new Set(["-confirm", "-debug", "-force", "-nonewline", "-recurse", "-verbose", "-whatif"])
+/** File commands that only read their arguments. */
+const READ_COMMANDS = new Set(["cat", "get-content", "dir", "type"])
 const DEVICES = /^\/dev\/(?:null|zero|stdin|stdout|stderr|tty|fd\/\d+)$/
 
 export const paths = Effect.fnUntraced(function* (
   command: string,
   shell: string,
   cwd: string,
-  options?: { portable?: boolean; wasm?: typeof shellParserWasm },
+  options?: {
+    portable?: boolean
+    wasm?: typeof shellParserWasm
+    /** Only paths the command may write: output redirections and arguments of mutating file commands. */
+    writes?: boolean
+  },
 ) {
   const wasm = options?.wasm ?? shellParserWasm
+  const writes = options?.writes ?? false
   const powershell = ShellSelect.ps(shell)
   const cmd = ShellSelect.name(shell) === "cmd"
   // The tree-sitter grammar sees redirection targets; use it whenever the build has it, whichever
   // scanner derives the permission patterns.
   const raw =
     wasm.bash === "" || (powershell && wasm.powershell === "")
-      ? yield* pathsPortable(command, shell)
-      : yield* pathsLegacy(command, powershell, cmd)
+      ? yield* pathsPortable(command, shell, writes)
+      : yield* pathsLegacy(command, powershell, cmd, writes)
   return [
     ...new Set(
       raw.flatMap((value) => {
@@ -464,9 +472,10 @@ export const paths = Effect.fnUntraced(function* (
   ]
 })
 
-function fileArguments(command: Part[], powershell: boolean, cmd: boolean): string[] {
+function fileArguments(command: Part[], powershell: boolean, cmd: boolean, writes = false): string[] {
   const name = powershell || cmd ? command[0]?.text.toLowerCase() : command[0]?.text
   if (!name || CWD.has(name) || !(FILE_COMMANDS.has(name) || (cmd && CMD_FILE_COMMANDS.has(name)))) return []
+  if (writes && READ_COMMANDS.has(name)) return []
   if (!powershell)
     return command
       .slice(1)
@@ -497,7 +506,9 @@ function fileArguments(command: Part[], powershell: boolean, cmd: boolean): stri
 const REDIRECT_TARGET = /(?:^|[\s;|(])(?:\d+|&)?(>>|>\||>&|<&|<>|>|<(?!<))\s*("[^"]*"|'[^']*'|[^\s;|&<>()]+)/g
 const REDIRECT_OPERATORS = new Set([">", ">>", ">|", "&>", "&>>", "<", "<>", ">&", "<&"])
 
-const pathsLegacy = Effect.fnUntraced(function* (command: string, powershell: boolean, cmd: boolean) {
+const READ_REDIRECTS = new Set(["<", "<&"])
+
+const pathsLegacy = Effect.fnUntraced(function* (command: string, powershell: boolean, cmd: boolean, writes = false) {
   const parsers = yield* Effect.promise(load)
   const tree = (powershell ? parsers.ps : parsers.bash).parse(command)
   if (!tree) return yield* Effect.fail(new Error("Failed to parse shell command"))
@@ -507,7 +518,7 @@ const pathsLegacy = Effect.fnUntraced(function* (command: string, powershell: bo
       Effect.sync(() => {
         const out: string[] = []
         for (const node of tree.rootNode.descendantsOfType("command")) {
-          if (node) out.push(...fileArguments(parts(node), powershell, cmd))
+          if (node) out.push(...fileArguments(parts(node), powershell, cmd, writes))
         }
         for (const node of tree.rootNode.descendantsOfType(["file_redirect", "redirected_file_name"])) {
           if (!node) continue
@@ -519,6 +530,7 @@ const pathsLegacy = Effect.fnUntraced(function* (command: string, powershell: bo
             (child) => child !== null,
           )
           const operator = children.find((child) => !child.isNamed && REDIRECT_OPERATORS.has(child.type))?.type
+          if (writes && operator !== undefined && READ_REDIRECTS.has(operator)) continue
           const targets = children.filter((child) => child.isNamed && child.type !== "file_descriptor")
           for (const target of targets) {
             // ">&2" and "<&-" duplicate or close descriptors; they name no file.
@@ -532,7 +544,7 @@ const pathsLegacy = Effect.fnUntraced(function* (command: string, powershell: bo
   )
 })
 
-const pathsPortable = Effect.fnUntraced(function* (command: string, shell: string) {
+const pathsPortable = Effect.fnUntraced(function* (command: string, shell: string, writes = false) {
   const { ShellScan } = yield* Effect.tryPromise({
     try: () => import("./scan.js"),
     catch: (cause) => new Error(`Portable shell scanner failed to load: ${cause}`, { cause }),
@@ -551,10 +563,11 @@ const pathsPortable = Effect.fnUntraced(function* (command: string, shell: strin
       text: text.startsWith("$'") || (!/[$`~\\]/.test(text) && /['"]/.test(text)) ? item.words[index] : text,
     }))
     // The portable scanner keeps no redirection targets; read them from the command's source.
-    const targets = Array.from(item.resource.matchAll(REDIRECT_TARGET), (match) => match[2]).filter(
-      (text) => !/^(?:\d+|-)$/.test(text),
-    )
-    return [...fileArguments(words, powershell, name === "cmd"), ...targets]
+    const targets = Array.from(item.resource.matchAll(REDIRECT_TARGET))
+      .filter((match) => !(writes && READ_REDIRECTS.has(match[1])))
+      .map((match) => match[2])
+      .filter((text) => !/^(?:\d+|-)$/.test(text))
+    return [...fileArguments(words, powershell, name === "cmd", writes), ...targets]
   })
 })
 

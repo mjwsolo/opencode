@@ -154,3 +154,22 @@ describe("SessionModelRequest HTTP hooks", () => {
     }),
   )
 })
+
+describe("SessionModelRequest hidden Unicode", () => {
+  it.effect("removes hidden characters from system parts with a visible note", () =>
+    Effect.gen(function* () {
+      const requests = yield* SessionModelRequest.Service.pipe(Effect.provide(SessionModelRequest.layer))
+      const prepared = yield* requests.primary({
+        session,
+        agent: Agent.ID.make("build"),
+        model,
+        system: [{ type: "text", text: "Follow the style guide.\u200B\u{E0049}\u{E0067}\u202E" }, { type: "text", text: "plain" }],
+        messages: [],
+      })
+      expect(prepared.request.system.map((part) => part.text)).toEqual([
+        "Follow the style guide.\n\n[localcode removed 4 hidden Unicode characters (zero-width, bidi-override or tag characters) from this text]",
+        "plain",
+      ])
+    }).pipe(Effect.provideService(SessionModelTransport.Service, transport)),
+  )
+})

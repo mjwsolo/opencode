@@ -214,4 +214,17 @@ describe("ShellParse.paths", () => {
       "input.txt",
     ])
   })
+
+  const writeCases: Array<[string, string[]]> = [
+    ["cat .localcode-agent/localcode.json", []],
+    ["sort < in.txt > out.txt", ["out.txt"]],
+    ["cat a > b; tee -a c < d", ["b", "c"]],
+    ["printf x >> localcode.json && rm -f old", ["localcode.json", "old"]],
+  ]
+  test.each(writeCases)("names only the files %j may write", async (command, expected) => {
+    for (const wasm of [undefined, noGrammar])
+      expect(
+        (await Effect.runPromise(ShellParse.paths(command, "/bin/zsh", "/workspace", { writes: true, wasm }))).toSorted(),
+      ).toEqual(expected.toSorted())
+  })
 })

@@ -19,6 +19,8 @@ import { shellParserWasm } from "#shell-parser-wasm"
 import { ShellParse } from "../../shell/parse.js"
 import { ShellSelect } from "../../shell/select.js"
 import { ShellResult } from "../../shell/result.js"
+import { Global } from "@opencode/util/global"
+import { Sandbox } from "../../sandbox.js"
 
 export const name = "shell"
 export const DEFAULT_TIMEOUT_MS = 2 * 60 * 1_000
@@ -64,6 +66,8 @@ const StructuredOutput = Schema.Struct({
   exit: Schema.optionalKey(Schema.Number),
   signal: Schema.optionalKey(Schema.String),
   shellID: Schema.optionalKey(Schema.String),
+  /** Agent config files the command visibly writes (shown to the user as a notice). */
+  selfConfig: Schema.optionalKey(Schema.Array(Schema.String)),
   truncated: Schema.Boolean,
   timeout: Schema.optionalKey(Schema.Boolean),
 })
@@ -89,15 +93,17 @@ const toolResult = (output: Output) => {
       status: output.status,
       ...ShellResult.metadata(output),
       ...(output.shellID !== undefined ? { shellID: output.shellID } : {}),
+      ...(output.selfConfig !== undefined ? { selfConfig: output.selfConfig } : {}),
     },
   }
 }
 
-const backgroundResult = (shellID: string, file: string) => ({
+const backgroundResult = (shellID: string, file: string, selfConfig: readonly string[] = []) => ({
   output: `Command moved to the background (shell ID: ${shellID}).\nOutput is streaming to: ${file}`,
   shellID,
   truncated: false,
   status: "running" as const,
+  ...(selfConfig.length > 0 ? { selfConfig } : {}),
 })
 
 export const Plugin = {
@@ -113,6 +119,8 @@ export const Plugin = {
     const compatibleShell = shellSelect.resolve({ priority: "compat" })
     const permission = yield* Permission.Service
     const config = yield* Config.Service
+    const global = yield* Global.Service
+    const guarded = Sandbox.guardedPaths({ home: global.home, config: global.config, cache: global.cache })
 
     const prepare = Effect.fn("ShellTool.prepare")(function* (invocation: ShellCreateBefore, context: Tool.Context) {
       const source = {
@@ -155,6 +163,17 @@ export const Plugin = {
           agent: context.agent,
           source,
         })
+      // LocalCode: writes to the agent's own config are not blocked, but the runtime shows a
+      // notice after the command (SelfConfigNoticePlugin reads this from the result metadata).
+      const writes = yield* ShellParse.paths(invocation.command, invocation.shell, target.absolute, {
+        writes: true,
+      }).pipe(Effect.orElseSucceed((): string[] => []))
+      const selfConfig = (yield* Effect.forEach(writes, (file) =>
+        access.resolve({ path: FileAccess.resolvePath(target.absolute, file) }),
+      ))
+        .map((item) => item.absolute)
+        .filter((file) => Sandbox.selfConfig(file, { home: global.home, guarded }))
+      invocation.prefix = yield* Sandbox.wrap(Sandbox.profile({ home: global.home }))
       // Approval can outlive the directory, so validate immediately before spawning.
       const workdir = yield* Environment.typeFollowing(environment.files, target.absolute).pipe(
         Effect.catchTag("Environment.NotFound", () =>
@@ -163,7 +182,7 @@ export const Plugin = {
       )
       if (workdir !== "directory")
         return yield* Effect.fail(new Error(`Working directory is not a directory: ${target.absolute}`))
-      return timeout
+      return { timeout, sandboxed: invocation.prefix !== undefined, selfConfig: [...new Set(selfConfig)] }
     })
 
     const notifyWhenDone = Effect.fn("ShellTool.notifyWhenDone")(
@@ -212,6 +231,8 @@ export const Plugin = {
             Effect.gen(function* () {
               const timeout = input.background === true ? (input.timeout ?? 0) : (input.timeout ?? DEFAULT_TIMEOUT_MS)
               let finalTimeout = timeout
+              let sandboxed = false
+              let selfConfig: string[] = []
               const info = yield* shell.create(
                 {
                   command: input.command,
@@ -226,7 +247,10 @@ export const Plugin = {
                     invocation.env.OPENCODE = "1"
                     invocation.env.AI_AGENT ||= "opencode"
                     invocation.env.OPENCODE_SESSION_ID = context.sessionID
-                    finalTimeout = yield* prepare(invocation, context)
+                    const prepared = yield* prepare(invocation, context)
+                    finalTimeout = prepared.timeout
+                    sandboxed = prepared.sandboxed
+                    selfConfig = prepared.selfConfig
                   }),
               )
               yield* context.progress({ shellID: info.id })
@@ -236,11 +260,19 @@ export const Plugin = {
                 const result = yield* shell.result(info)
                 if (!result.capture) return yield* new Shell.NotFoundError({ id: info.id })
                 const output = ShellResult.output(result)
+                const blocked = sandboxed && output.exit !== 0 ? Sandbox.explain(output.output, global.home) : undefined
                 return {
                   ...output,
-                  output: output.timeout
-                    ? `${output.output}\n\nCommand exceeded timeout of ${finalTimeout} ms. Retry with a larger timeout if the command is expected to take longer.`
-                    : output.output,
+                  output: [
+                    output.output,
+                    ...(output.timeout
+                      ? [
+                          `Command exceeded timeout of ${finalTimeout} ms. Retry with a larger timeout if the command is expected to take longer.`,
+                        ]
+                      : []),
+                    ...(blocked ? [blocked] : []),
+                  ].join("\n\n"),
+                  ...(selfConfig.length > 0 ? { selfConfig } : {}),
                   status: "completed" as const,
                 }
               }).pipe(
@@ -266,7 +298,7 @@ export const Plugin = {
               if (input.background === true) {
                 yield* jobs.background(job.id)
                 yield* notifyWhenDone(context.sessionID, job.id, info.id, info.command, settled)
-                return backgroundResult(info.id, info.file)
+                return backgroundResult(info.id, info.file, selfConfig)
               }
 
               const result = yield* jobs
@@ -275,7 +307,7 @@ export const Plugin = {
               if (result?.type === "backgrounded") {
                 yield* shell.timeout(info.id, 0)
                 yield* notifyWhenDone(context.sessionID, job.id, info.id, info.command, settled)
-                return backgroundResult(info.id, info.file)
+                return backgroundResult(info.id, info.file, selfConfig)
               }
               if (result?.info.status === "error")
                 return yield* Effect.fail(new Error(result.info.error ?? "Command failed"))

@@ -1,5 +1,6 @@
 export * as SessionModelRequest from "./model-request.js"
 
+import { Invisible } from "../invisible.js"
 import {
   GenerationOptions,
   type GenerationOptionsFields,
@@ -293,9 +294,10 @@ export const layer = Layer.effect(
         },
         // TODO: Persist cache lineage so nested forks reuse the root session's cache key.
         promptCacheKey: /^ses_[0-9a-f]{64}$/.test(affinity) ? affinity.slice(4) : affinity,
-        system: shaped.system,
+        // LocalCode: instructions, skills and tool (MCP) descriptions lose hidden Unicode, with a visible note.
+        system: shaped.system.map((part) => ({ ...part, text: Invisible.clean(part.text) })),
         messages: boundImages(unsupportedParts(shaped.messages, model.capabilities, model.model.provider)),
-        tools: Array.from(hooked, ([name, t]) => ({ ...t, name })),
+        tools: Array.from(hooked, ([name, t]) => ({ ...t, name, description: Invisible.clean(t.description) })),
         toolChoice: input.toolChoice,
         generation: Object.keys(generation).length === 0 ? undefined : generation,
         providerOptions: Object.keys(providerOptions).length === 0 ? undefined : providerOptions,

@@ -31,6 +31,19 @@ export const Input = Schema.Struct({
     description:
       "Whether to replace every occurrence of oldString. When false, oldString must match exactly once. Defaults to false.",
   }),
+  // localcode: several hunks of one file in one call, so a multi-place change costs one round trip.
+  edits: Schema.optionalKey(
+    Schema.Array(
+      Schema.Struct({
+        oldString: Schema.String,
+        newString: Schema.String,
+        replaceAll: Schema.optionalKey(Schema.Boolean),
+      }),
+    ),
+  ).annotate({
+    description:
+      "More replacements in the same file, applied in order after oldString/newString. All apply or none do.",
+  }),
 })
 
 export const Output = Schema.Struct({
@@ -44,6 +57,8 @@ const crlf = "\r\n"
 interface Match {
   readonly start: number
   readonly end: number
+  /** localcode: the indentation-shift tier re-indents the replacement from `from` to `to`. */
+  readonly reindent?: { readonly from: string; readonly to: string }
 }
 
 const normalizeForMatch = (value: string) =>
@@ -100,6 +115,60 @@ const findLineOccurrences = (content: string, search: string) => {
     return result
   }, [])
 }
+
+const indentOf = (line: string) => line.match(/^[ \t]*/)![0]
+
+/**
+ * localcode: the last tier. Lines match when the whole block is shifted by one uniform indentation
+ * change (a model that dropped or changed the base indentation), every line keeping its relative
+ * indentation. The replacement is re-indented by the same shift.
+ */
+const findIndentShiftedOccurrences = (content: string, search: string) => {
+  const trailingNewline = search.endsWith("\n")
+  const expected = search.split("\n")
+  if (trailingNewline) expected.pop()
+  const firstExpected = expected.find((line) => line.trim() !== "")
+  if (firstExpected === undefined) return []
+  const from = indentOf(firstExpected)
+  const lines = [...content.matchAll(/[^\n]*(?:\n|$)/g)]
+    .filter((match) => match[0] !== "")
+    .map((match) => {
+      const newline = match[0].endsWith("\n")
+      const text = newline ? match[0].slice(0, -1) : match[0]
+      return { start: match.index, end: match.index + match[0].length, text, contentEnd: match.index + text.length - (text.endsWith("\r") ? 1 : 0), newline }
+    })
+  const key = (line: string) => normalizeForMatch(line.trimEnd())
+  const candidates = lines.flatMap((line, index) => {
+    const actual = lines.slice(index, index + expected.length)
+    if (actual.length !== expected.length) return []
+    const firstActual = actual[expected.indexOf(firstExpected)]!.text
+    const to = indentOf(firstActual)
+    if (to === from) return []
+    const shifted = actual.every((item, lineIndex) => {
+      const want = expected[lineIndex]!
+      if (want.trim() === "") return item.text.trim() === ""
+      if (!want.startsWith(from)) return false
+      return key(item.text) === key(to + want.slice(from.length))
+    })
+    if (!shifted) return []
+    const last = actual.at(-1)!
+    if (trailingNewline && !last.newline) return []
+    return [{ start: line.start, end: trailingNewline ? last.end : last.contentEnd, reindent: { from, to } }]
+  })
+  return candidates.reduce<Match[]>((result, candidate) => {
+    if (result.some((match) => match.end > candidate.start && match.start < candidate.end)) return result
+    result.push(candidate)
+    return result
+  }, [])
+}
+
+const reindented = (text: string, shift: Match["reindent"]) =>
+  !shift
+    ? text
+    : text
+        .split("\n")
+        .map((line) => (line.trim() === "" ? line : line.startsWith(shift.from) ? shift.to + line.slice(shift.from.length) : line))
+        .join("\n")
 
 /** The dominant line ending in text, or fallback when there is none. */
 const lineEnding = (text: string, fallback: string) => {
@@ -175,14 +244,18 @@ const matchView = (source: string, oldString: string, newString: string) => {
   // These one-to-one mappings preserve offsets into the LF view.
   const unicode = exact.length > 0 ? [] : findOccurrences(normalizeForMatch(view), normalizeForMatch(search))
   const trailing = exact.length > 0 || unicode.length > 0 ? [] : findLineOccurrences(view, search)
+  const shifted =
+    exact.length > 0 || unicode.length > 0 || trailing.length > 0 ? [] : findIndentShiftedOccurrences(view, search)
+  const found = exact.length > 0 ? exact : unicode.length > 0 ? unicode : trailing.length > 0 ? trailing : shifted
   return {
-    matches: (exact.length > 0 ? exact : unicode.length > 0 ? unicode : trailing).map((match) => ({
+    matches: found.map((match) => ({
       start: match.start + countBefore(removed, match.start),
       end: match.end + countBefore(removed, match.end),
+      ...(match.reindent ? { reindent: match.reindent } : {}),
     })),
     replace: (match: Match) => {
       const region = source.slice(match.start, match.end)
-      return withRegionEndings(region, replacement, lineEnding(region, fileEnding))
+      return withRegionEndings(region, reindented(replacement, match.reindent), lineEnding(region, fileEnding))
     },
   }
 }
@@ -202,7 +275,39 @@ const countBefore = (positions: number[], offset: number) => {
 /** Deferred edit behavior and UX integrations remain visible at the model-facing seam. */
 // TODO: Publish watcher/file-edit events after watcher integration exists.
 // TODO: Add snapshots / undo after design exists.
-// TODO: Add LSP notification and diagnostics after LSP runtime exists.
+// LSP notification and diagnostics: plugin/lsp.ts appends the language server's errors to edit results.
+
+type Replacement = { readonly oldString: string; readonly newString: string; readonly replaceAll?: boolean }
+
+/** One replacement applied to `source`: the new text and how many matches it had, or why it cannot apply. */
+const applyReplacement = (source: string, edit: Replacement, path: string) => {
+  if (edit.oldString === edit.newString)
+    return { error: "No changes to apply: oldString and newString are identical." } as const
+  if (edit.oldString === "") return { error: "oldString must not be empty. Use write to create or overwrite a file." } as const
+  // Strings that differ only in \r ask to change line endings themselves, so they apply to the exact
+  // bytes. Every other edit matches the LF view Read shows the model and keeps the file's endings.
+  const endingsOnly = edit.oldString.replaceAll("\r", "") === edit.newString.replaceAll("\r", "")
+  const { matches, replace } = endingsOnly
+    ? { matches: findOccurrences(source, edit.oldString), replace: () => edit.newString }
+    : matchView(source, edit.oldString, edit.newString)
+  const replacements = matches.length
+  if (replacements === 0)
+    return { error: `Could not find oldString in ${path}. It must match exactly, including whitespace and indentation.` } as const
+  if (replacements > 1 && edit.replaceAll !== true)
+    return {
+      error: `Found ${replacements} matches for oldString, but expected exactly one. Add more surrounding context to make oldString unique, or set replaceAll to true to replace every occurrence.`,
+    } as const
+  const replaced = (edit.replaceAll === true ? matches : matches.slice(0, 1))
+    .toReversed()
+    .reduce((content, match) => `${content.slice(0, match.start)}${replace(match)}${content.slice(match.end)}`, source)
+  if (replaced === source)
+    return {
+      error: endingsOnly
+        ? `No changes to apply: ${path} already has those line endings.`
+        : `No changes to apply: the edit leaves ${path} unchanged. Line endings follow the file; to change them, write \\r explicitly in oldString or newString.`,
+    } as const
+  return { content: replaced, replacements } as const
+}
 
 export const Plugin = {
   id: "opencode.tool.edit",
@@ -220,7 +325,7 @@ export const Plugin = {
           name,
           options: { codemode: false, permission: "edit" },
           description:
-            "Edit the contents of a file by finding and replacing exact text. When editing text from Read output, preserve the exact indentation (tabs or spaces) and omit the line-number prefix, such as `1: `. Never include the prefix in oldString or newString. Write line breaks as \\n; the file's existing CRLF or LF line endings are matched and preserved. To change line endings themselves, make oldString and newString differ only in \\r; that edit applies to the exact bytes. If there is no exact match, the edit retries while ignoring typographic quote, dash, and space variants, then trailing whitespace on each line. The edit fails if oldString is not found. By default, oldString must identify a UNIQUE location. Multiple matches FAIL unless replaceAll is true. Add more surrounding context to disambiguate, or set replaceAll to true to replace every occurrence. Use replaceAll when the change should apply to every occurrence, such as renaming a variable.",
+            "Edit the contents of a file by finding and replacing exact text. When editing text from Read output, preserve the exact indentation (tabs or spaces) and omit the line-number prefix, such as `1: `. Never include the prefix in oldString or newString. Write line breaks as \\n; the file's existing CRLF or LF line endings are matched and preserved. To change line endings themselves, make oldString and newString differ only in \\r; that edit applies to the exact bytes. If there is no exact match, the edit retries while ignoring typographic quote, dash, and space variants, then trailing whitespace on each line, then a uniform change of the block's indentation (the replacement is re-indented to match). To change several places in one file, pass the further replacements in edits; all apply in order or none do. The edit fails if oldString is not found. By default, oldString must identify a UNIQUE location. Multiple matches FAIL unless replaceAll is true. Add more surrounding context to disambiguate, or set replaceAll to true to replace every occurrence. Use replaceAll when the change should apply to every occurrence, such as renaming a variable.",
           input: Input,
           output: Output,
           execute: (input, context) => {
@@ -230,15 +335,14 @@ export const Plugin = {
                 messageID: context.messageID,
                 id: context.id,
               }
-              if (input.oldString === input.newString) {
-                return yield* new ToolFailure({
-                  message: "No changes to apply: oldString and newString are identical.",
-                })
-              }
-              if (input.oldString === "") {
-                return yield* new ToolFailure({
-                  message: "oldString must not be empty. Use write to create or overwrite a file.",
-                })
+              const list: Replacement[] = [input, ...(input.edits ?? [])]
+              // Input errors that need no file are reported before reading it.
+              for (const [index, edit] of list.entries()) {
+                const label = index === 0 ? "" : `edits[${index - 1}]: `
+                if (edit.oldString === edit.newString)
+                  return yield* new ToolFailure({ message: `${label}No changes to apply: oldString and newString are identical.` })
+                if (edit.oldString === "")
+                  return yield* new ToolFailure({ message: `${label}oldString must not be empty. Use write to create or overwrite a file.` })
               }
 
               const target = yield* access.resolve({ path: input.path, kind: "file" })
@@ -255,23 +359,20 @@ export const Plugin = {
                 ),
               )
               const source = original.text
-              // Strings that differ only in \r ask to change line endings themselves, so they apply to the exact
-              // bytes. Every other edit matches the LF view Read shows the model and keeps the file's endings.
-              const endingsOnly = input.oldString.replaceAll("\r", "") === input.newString.replaceAll("\r", "")
-              const { matches, replace } = endingsOnly
-                ? { matches: findOccurrences(source, input.oldString), replace: () => input.newString }
-                : matchView(source, input.oldString, input.newString)
-              const replacements = matches.length
-              const replaced = (input.replaceAll === true ? matches : matches.slice(0, 1))
-                .toReversed()
-                .reduce(
-                  (content, match) => `${content.slice(0, match.start)}${replace(match)}${content.slice(match.end)}`,
-                  source,
-                )
-              const preview =
-                replacements > 0 && (replacements === 1 || input.replaceAll === true)
-                  ? fileDiff(target.resource, source, replaced)
-                  : undefined
+              // Every replacement applies to the result of the one before; any failure leaves the file untouched.
+              let replaced = source
+              let replacements = 0
+              let failure: string | undefined
+              for (const [index, edit] of list.entries()) {
+                const applied = applyReplacement(replaced, edit, input.path)
+                if ("error" in applied) {
+                  failure = (list.length > 1 ? (index === 0 ? "oldString: " : `edits[${index - 1}]: `) : "") + applied.error
+                  break
+                }
+                replaced = applied.content
+                replacements += applied.replacements
+              }
+              const preview = failure ? undefined : fileDiff(target.resource, source, replaced)
               yield* permission.assert({
                 action: "edit",
                 resources: [target.resource],
@@ -281,23 +382,7 @@ export const Plugin = {
                 agent: context.agent,
                 source: permissionSource,
               })
-              if (replacements === 0) {
-                return yield* new ToolFailure({
-                  message: `Could not find oldString in ${input.path}. It must match exactly, including whitespace and indentation.`,
-                })
-              }
-              if (replacements > 1 && input.replaceAll !== true) {
-                return yield* new ToolFailure({
-                  message: `Found ${replacements} matches for oldString, but expected exactly one. Add more surrounding context to make oldString unique, or set replaceAll to true to replace every occurrence.`,
-                })
-              }
-              if (replaced === source) {
-                return yield* new ToolFailure({
-                  message: endingsOnly
-                    ? `No changes to apply: ${input.path} already has those line endings.`
-                    : `No changes to apply: the edit leaves ${input.path} unchanged. Line endings follow the file; to change them, write \\r explicitly in oldString or newString.`,
-                })
-              }
+              if (failure) return yield* new ToolFailure({ message: failure })
               const replacementBom = replaced.startsWith("\uFEFF")
               const result = yield* fileMutation.write({
                 target,

@@ -41,7 +41,7 @@ export const toModelContent = (output: Output) =>
 /** Deferred write UX integrations remain visible at the model-facing seam. */
 // TODO: Publish watcher/file-edit events after watcher integration exists.
 // TODO: Add snapshots / undo after design exists.
-// TODO: Add LSP notification and diagnostics after LSP runtime exists.
+// LSP notification and diagnostics: plugin/lsp.ts appends the language server's errors to write results.
 
 export const Plugin = {
   id: "opencode.tool.write",

@@ -533,6 +533,104 @@ describe("EditTool", () => {
     }),
   )
 
+  // localcode: a block whose base indentation the model got wrong still applies, re-indented.
+  it.live("matches a uniformly re-indented block last and re-indents the replacement", () =>
+    withTempDir((tmp) => {
+      const edit = makeEditFixture()
+      const target = path.join(tmp.path, "indent.py")
+      return Effect.promise(() =>
+        fs.writeFile(target, "class A:\n    def f(self):\n        if x:\n            return 1\n        return 2\n"),
+      ).pipe(
+        Effect.andThen(
+          withTool(tmp.path, edit, (registry) =>
+            executeTool(
+              registry,
+              call({
+                path: "indent.py",
+                oldString: "if x:\n    return 1",
+                newString: "if x:\n    log()\n    return 1",
+              }),
+            ),
+          ),
+        ),
+        Effect.tap((result) => Effect.sync(() => expect(result.status).toBe("completed"))),
+        Effect.andThen(Effect.promise(() => fs.readFile(target, "utf8"))),
+        Effect.tap((content) =>
+          Effect.sync(() =>
+            expect(content).toBe(
+              "class A:\n    def f(self):\n        if x:\n            log()\n            return 1\n        return 2\n",
+            ),
+          ),
+        ),
+      )
+    }),
+  )
+
+  it.live("does not match a block whose relative indentation differs", () =>
+    withTempDir((tmp) => {
+      const edit = makeEditFixture()
+      const target = path.join(tmp.path, "relative.py")
+      return Effect.promise(() => fs.writeFile(target, "def f():\n    if x:\n        return 1\n")).pipe(
+        Effect.andThen(
+          withTool(tmp.path, edit, (registry) =>
+            executeTool(registry, call({ path: "relative.py", oldString: "if x:\nreturn 1", newString: "pass" })),
+          ),
+        ),
+        Effect.tap((result) => Effect.sync(() => expect(result.status).toBe("error"))),
+        Effect.andThen(Effect.promise(() => fs.readFile(target, "utf8"))),
+        Effect.tap((content) => Effect.sync(() => expect(content).toBe("def f():\n    if x:\n        return 1\n"))),
+      )
+    }),
+  )
+
+  it.live("applies several replacements in one call, all or none", () =>
+    withTempDir((tmp) => {
+      const edit = makeEditFixture()
+      const target = path.join(tmp.path, "multi.txt")
+      return Effect.promise(() => fs.writeFile(target, "alpha\nbeta\ngamma\n")).pipe(
+        Effect.andThen(
+          withTool(tmp.path, edit, (registry) =>
+            Effect.gen(function* () {
+              const ok = yield* executeTool(
+                registry,
+                call({
+                  path: "multi.txt",
+                  oldString: "alpha",
+                  newString: "ALPHA",
+                  edits: [
+                    { oldString: "gamma", newString: "GAMMA" },
+                    { oldString: "ALPHA\nbeta", newString: "ALPHA\nBETA" },
+                  ],
+                }),
+              )
+              expect(ok.status).toBe("completed")
+              if (ok.status === "completed") expect(ok.output.replacements).toBe(3)
+              expect(yield* Effect.promise(() => fs.readFile(target, "utf8"))).toBe("ALPHA\nBETA\nGAMMA\n")
+              expect(edit.writes).toHaveLength(1)
+
+              const bad = yield* executeTool(
+                registry,
+                call(
+                  {
+                    path: "multi.txt",
+                    oldString: "ALPHA",
+                    newString: "one",
+                    edits: [{ oldString: "missing", newString: "two" }],
+                  },
+                  "call-edit-2",
+                ),
+              )
+              expect(bad.status).toBe("error")
+              if (bad.status === "error") expect(bad.error?.message).toStartWith("edits[0]: Could not find oldString")
+              expect(yield* Effect.promise(() => fs.readFile(target, "utf8"))).toBe("ALPHA\nBETA\nGAMMA\n")
+              expect(edit.writes).toHaveLength(1)
+            }),
+          ),
+        ),
+      )
+    }),
+  )
+
   it.live("uses non-overlapping trailing-whitespace matches and preserves CRLF", () =>
     withTempDir((tmp) => {
       const edit = makeEditFixture()

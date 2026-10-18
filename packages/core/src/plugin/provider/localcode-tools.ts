@@ -47,11 +47,13 @@ const LEAN: Readonly<Record<string, Lean>> = {
       "",
       '- oldString must match the file exactly, including indentation. Copy it from the Read output after the "N: " line-number prefix; never include the prefix.',
       "- oldString must occur once: include more surrounding lines, or set replaceAll to change every occurrence (for renames).",
+      "- Several places in one file: put the further replacements in edits; they apply in order, all or none.",
       "- Prefer editing existing files over writing new ones.",
     ].join("\n"),
     parameters: {
       newString: "Replacement text (must differ from oldString)",
       replaceAll: "Replace every occurrence (default false: oldString must occur once)",
+      edits: "Further replacements in the same file, applied in order after the first",
     },
   },
   write: {

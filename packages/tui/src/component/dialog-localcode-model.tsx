@@ -214,6 +214,37 @@ export function defaultQuant(quants: readonly { alias: string; current?: boolean
   )
 }
 
+/**
+ * The "new chat or continue" step of a mid-session switch. It must be impossible to miss and
+ * impossible to dead-end: it names the model being switched to, and it has no search box. With
+ * one, keys typed after picking a quant filtered both rows away, Enter then did nothing, and the
+ * switch never started (no toast, no request to the supervisor).
+ */
+export function DialogSwitchModel(props: { model: string; quant: string; onChoose: (keepHistory: boolean) => void }) {
+  return (
+    <DialogSelect
+      title={`Switch to ${props.model} · ${props.quant}`}
+      current="fresh"
+      renderFilter={false}
+      footerHints={[{ title: "enter", label: "switch" }]}
+      options={[
+        {
+          value: "fresh",
+          title: "Start a new chat",
+          description: "Keep this conversation saved; the new model starts without its history.",
+          onSelect: () => props.onChoose(false),
+        },
+        {
+          value: "continue",
+          title: "Continue this chat",
+          description: "The new model will process this conversation before replying.",
+          onSelect: () => props.onChoose(true),
+        },
+      ]}
+    />
+  )
+}
+
 export function DialogLocalcodeQuant(props: { group: Group }) {
   const data = useData()
   const location = useLocation()
@@ -310,26 +341,17 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
     }
     if (route.data.type === "session" && !q.current) {
       const sessionID = route.data.sessionID
-      dialog.replace(() => (
-        <DialogSelect
-          title="Switch model"
-          current="fresh"
-          options={[
-            {
-              value: "fresh",
-              title: "Start a new chat",
-              description: "Keep this conversation saved; the new model starts without its history.",
-              onSelect: () => queue(q, false, sessionID),
-            },
-            {
-              value: "continue",
-              title: "Continue this chat",
-              description: "The new model will process this conversation before replying.",
-              onSelect: () => queue(q, true, sessionID),
-            },
-          ]}
-        />
-      ))
+      dialog.replace(
+        () => (
+          <DialogSwitchModel
+            model={props.group.display_name}
+            quant={q.label}
+            onChoose={(keepHistory) => queue(q, keepHistory, sessionID)}
+          />
+        ),
+        undefined,
+        { size: "large" },
+      )
       return
     }
     queue(q, true)

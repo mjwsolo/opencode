@@ -35,6 +35,19 @@ export interface Interface extends State.Transformable<Editor> {
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/ToolOutput") {}
 
+/** The longest prefix of `line` within `budget` UTF-8 bytes that does not split a character. */
+export function utf8Prefix(line: string, budget: number) {
+  if (budget <= 0) return ""
+  const bytes = Buffer.from(line, "utf-8")
+  if (bytes.length <= budget) return line
+  let end = budget
+  // A continuation byte (10xxxxxx) at the cut means the cut is inside a character.
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end--
+  return bytes.subarray(0, end).toString("utf-8")
+}
+
+const sizeLabel = (bytes: number) => (bytes >= 1024 ? `${Math.floor(bytes / 1024)} KB` : `${bytes} bytes`)
+
 const cleanup = Effect.fn("ToolOutput.cleanup")(function* (fs: FSUtil.Interface, directory: string) {
   const entries = yield* fs.readDirectory(directory).pipe(
     Effect.map((entries) => entries.filter((entry) => /^tool_[0-9a-f]{12}/.test(entry))),
@@ -77,16 +90,33 @@ const layer = Layer.effect(
 
       const kept: string[] = []
       let bytes = 0
+      // Bytes kept of a line that did not fit whole. A single long line (minified JSON,
+      // an API response) must still show content up to the limit, never "0 lines".
+      let partial = 0
       for (const line of lines.slice(0, limits.maxLines)) {
-        const size = Buffer.byteLength(line, "utf-8") + (kept.length > 0 ? 1 : 0)
-        if (bytes + size > limits.maxBytes) break
+        const separator = kept.length > 0 ? 1 : 0
+        const size = Buffer.byteLength(line, "utf-8") + separator
+        if (bytes + size > limits.maxBytes) {
+          const prefix = utf8Prefix(line, limits.maxBytes - bytes - separator)
+          if (prefix) {
+            kept.push(prefix)
+            partial = Buffer.byteLength(prefix, "utf-8")
+          }
+          break
+        }
         kept.push(line)
         bytes += size
       }
       const file = path.join(directory, fileName())
       yield* fs.ensureDir(directory).pipe(Effect.orDie)
       yield* fs.writeFileString(file, text).pipe(Effect.orDie)
-      const shown = kept.length > 0 ? `lines 1-${kept.length}` : "0 lines"
+      const whole = partial > 0 ? kept.length - 1 : kept.length
+      const shown =
+        partial > 0
+          ? `${whole > 0 ? `lines 1-${whole} and ` : ""}the first ${sizeLabel(partial)} of line ${whole + 1}`
+          : kept.length > 0
+            ? `lines 1-${kept.length}`
+            : "0 lines"
       const marker = `[showing ${shown} of ${lines.length}; full output saved to ${file}]`
       const bounded: Tool.Content[] = []
       let remaining = kept.join("\n").length

@@ -58,12 +58,43 @@ describe("ToolOutput", () => {
         Effect.gen(function* () {
           const result = yield* output.truncate({ content: [{ type: "text", text: "one\ntwo" }] })
           expect(result.content).toEqual([
-            { type: "text", text: "one" },
+            { type: "text", text: "one\nt" },
             {
               type: "text",
-              text: expect.stringMatching(/^\[showing lines 1-1 of 2; full output saved to .+\]$/),
+              text: expect.stringMatching(/^\[showing lines 1-1 and the first 1 bytes of line 2 of 2; full output saved to .+\]$/),
             },
           ])
+        }),
+      { maxLines: 100, maxBytes: 5 },
+    ),
+  )
+
+  it.live("shows the start of a single line longer than the byte limit", () =>
+    withStore(
+      (output) =>
+        Effect.gen(function* () {
+          // One ~1 MB line (a JSON API response) followed by a newline-separated tail.
+          const line = '{"info":{"version":"9.2.0"},"releases":"' + "x".repeat(1_000_000) + '"}'
+          const result = yield* output.truncate({ content: [{ type: "text", text: line + "\nlast" }] })
+          const [shown, marker] = result.content
+          expect(shown).toEqual({ type: "text", text: line.slice(0, 2048) })
+          expect(shown.type === "text" && shown.text).toContain('"version":"9.2.0"')
+          expect(marker).toEqual({
+            type: "text",
+            text: expect.stringMatching(/^\[showing the first 2 KB of line 1 of 2; full output saved to .+\]$/),
+          })
+        }),
+      { maxLines: 100, maxBytes: 2048 },
+    ),
+  )
+
+  it.live("never splits a multi-byte character when cutting a long line", () =>
+    withStore(
+      (output) =>
+        Effect.gen(function* () {
+          // "é" is 2 bytes: a 5-byte budget fits two of them, not two and a half.
+          const result = yield* output.truncate({ content: [{ type: "text", text: "ééééé" }] })
+          expect(result.content[0]).toEqual({ type: "text", text: "éé" })
         }),
       { maxLines: 100, maxBytes: 5 },
     ),

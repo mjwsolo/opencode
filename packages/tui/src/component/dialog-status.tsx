@@ -65,10 +65,7 @@ export function DialogStatus() {
           </For>
         </box>
       </Show>
-      <Show
-        when={(lsp() ?? []).length > 0}
-        fallback={<text fg={theme.text.base}>No language servers running · /lsp</text>}
-      >
+      <Show when={(lsp() ?? []).length > 0}>
         <box>
           <text fg={theme.text.base}>{lsp()!.length} LSP Servers</text>
           <For each={lsp()}>

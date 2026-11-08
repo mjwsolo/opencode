@@ -22,7 +22,7 @@ export function startupConfig(server: ServerConfig, mode?: string): ServerConfig
 export const Plugin = define({
   id: "opencode.config.mcp",
   effect: Effect.fn(function* (ctx) {
-    yield* register(ctx.event.subscribe())
+    yield* register(ctx.event.subscribe({ types: ["config.updated"] }))
   }),
 })
 

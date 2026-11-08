@@ -30,7 +30,7 @@ export const Plugin = define({
           id: Skill.ID.make("customize-localcode"),
           name: Skill.Name.make("customize-localcode"),
           description: CustomizeLocalcodeDescription,
-          path: AbsolutePath.make("/builtin/customize-localcode.md"),
+          path: AbsolutePath.make("skill://customize-localcode/SKILL.md"),
           content: CustomizeLocalcodeContent,
         }),
       )
@@ -39,7 +39,7 @@ export const Plugin = define({
           id: Skill.ID.make("report"),
           name: Skill.Name.make("Report"),
           description: REPORT_DESCRIPTION,
-          path: AbsolutePath.make("/builtin/report.md"),
+          path: AbsolutePath.make("skill://report/SKILL.md"),
           content: reportContent,
         }),
       )

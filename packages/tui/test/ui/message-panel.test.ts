@@ -5,7 +5,7 @@ import { messagePanelStyle, SENT_MESSAGE_BACKGROUND } from "../../src/ui/message
 
 for (const [name, background] of [["sent", SENT_MESSAGE_BACKGROUND], ["input", RGBA.fromHex("#171717")]] as const) {
   test(`${name} panel has a uniform background without an accent stripe`, async () => {
-    const setup = await createTestRenderer({ width: 24, height: 8, useThread: false })
+    const setup = await createTestRenderer({ width: 24, height: 8 })
     const panel = new BoxRenderable(setup.renderer, { width: "100%", ...messagePanelStyle(background) })
     const body = new BoxRenderable(setup.renderer, { paddingLeft: 2, paddingTop: 1, paddingBottom: 1, backgroundColor: background })
     body.add(new TextRenderable(setup.renderer, { content: "Message", fg: "#ffffff" }))

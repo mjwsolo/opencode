@@ -23,13 +23,18 @@ function wordmark(pad = "") {
   })
 }
 
-export function sessionEpilogue(input: { title: string; sessionID?: string }) {
-  const weak = (text: string) => `${dim}${text.padEnd(10, " ")}${reset}`
+export type SessionEpilogue = { readonly title: string; readonly sessionID?: string }
+
+// Printed after the TUI closes.
+export function epilogue(input: { readonly session?: SessionEpilogue; readonly updatedVersion?: string }) {
+  if (!input.session) return
+  const row = (label: string, value: string) => `  ${dim}${label.padEnd(10, " ")}${reset}${bold}${value}${reset}`
   return [
     ...wordmark("  "),
     "",
-    `  ${weak("Session")}${bold}${input.title}${reset}`,
-    `  ${weak("Continue")}${bold}localcode --resume ${input.sessionID}${reset}`,
-    "",
+    // LocalCode has no self-updater, so no "run the new version" line.
+    ...(input.session
+      ? [row("Session", input.session.title), row("Continue", `localcode --resume ${input.session.sessionID}`), ""]
+      : []),
   ].join("\n")
 }

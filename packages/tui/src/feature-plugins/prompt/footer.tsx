@@ -5,6 +5,7 @@ import { useTerminalDimensions } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import { useInteractivity } from "../../context/interactivity"
 import { stringWidth } from "../../util/string-width"
+import { createGoal, GoalStatus } from "./goal"
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -52,6 +53,7 @@ export function PromptFooter(props: {
   )
   // Shortcut hints step aside while a reply runs, so the progress line has room.
   const idle = createMemo(() => !props.sessionID || props.context.data.session.status(props.sessionID) !== "running")
+  const goal = createGoal(props.context, () => props.sessionID)
   // Prompt hints read as disabled while the session does not own input, e.g. while a side panel is focused.
   const interactive = useInteractivity()
   const shortcut = (id: string) => props.context.keymap.shortcuts(id)[0]
@@ -68,7 +70,7 @@ export function PromptFooter(props: {
     <Switch>
       <Match when={props.mode === "normal"}>
         <Switch>
-          <Match when={live() || status().length > 0}>
+          <Match when={goal() || live() || status().length > 0}>
             <box flexDirection="row" flexShrink={props.showDetails && layout().usage ? 0 : 1} minWidth={0}>
               <Show when={live()}>
                 <box flexShrink={0} onMouseOver={() => setLiveHovered(true)} onMouseOut={() => setLiveHovered(false)}>
@@ -80,9 +82,17 @@ export function PromptFooter(props: {
                   </text>
                 </box>
               </Show>
+              <Show when={props.sessionID && goal()}>
+                <Show when={live()}>
+                  <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0}>
+                    {" · "}
+                  </text>
+                </Show>
+                <GoalStatus context={props.context} sessionID={props.sessionID ?? ""} goal={goal} />
+              </Show>
               <Show when={props.showDetails && layout().usage && status().length > 0}>
                 <text fg={props.context.theme.text.muted} wrapMode="none" flexShrink={0}>
-                  <Show when={live()}> · </Show>
+                  <Show when={live() || goal()}> · </Show>
                   {status().join(" · ")}
                 </text>
               </Show>

@@ -160,6 +160,11 @@ export function createFetch(override?: FetchHandler, events?: ReturnType<typeof 
       })
     if (url.pathname === "/api/reference")
       return json({ location: { directory, project: { id: "proj_test", directory, canonical: directory } }, data: [] })
+    if (url.pathname === "/api/experimental/usage/limits")
+      return json({
+        location: { directory, project: { id: "proj_test", directory, canonical: directory } },
+        data: null,
+      })
     if (url.pathname === "/api/websearch/provider") {
       return json({ location: { directory, project: { id: "proj_test", directory, canonical: directory } }, data: [] })
     }
@@ -169,6 +174,8 @@ export function createFetch(override?: FetchHandler, events?: ReturnType<typeof 
     if (url.pathname === "/api/experimental/migration/v1") return json({ status: "completed" })
     // The code-intelligence panel reads language-server state over RPC.
     if (url.pathname === "/api/rpc/opencode.lsp/status") return json({ output: { enabled: false, servers: [] } })
+    // The prompt footer reads the routed session's goal from the goal plugin's RPC; no fixture sets one.
+    if (url.pathname === "/api/rpc/opencode.goal/get") return json({ output: null })
     throw new Error(`unexpected request: ${url.pathname}`)
   }
   fetch.preconnect = () => {}

@@ -3,6 +3,7 @@ import PromptBtw from "../feature-plugins/prompt/btw"
 import PromptFooter from "../feature-plugins/prompt/footer"
 import SidebarContext from "../feature-plugins/sidebar/context"
 import SidebarFooter from "../feature-plugins/sidebar/footer"
+import SidebarLimit from "../feature-plugins/sidebar/limit"
 import SidebarMcp from "../feature-plugins/sidebar/mcp"
 import SidebarPlan from "../feature-plugins/sidebar/plan"
 import SidebarLsp from "../feature-plugins/sidebar/lsp"
@@ -19,6 +20,7 @@ export const builtins = [
   PromptFooter,
   PromptBtw,
   SidebarContext,
+  SidebarLimit,
   SidebarMcp,
   SidebarPlan,
   SidebarLsp,

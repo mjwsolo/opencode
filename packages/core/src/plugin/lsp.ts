@@ -1,6 +1,6 @@
 export * as LspPlugin from "./lsp.js"
 
-import { ToolFailure } from "@opencode/ai"
+import { ToolFailure } from "@opencode/ai/effect"
 import type { Context } from "@opencode/plugin/effect/plugin"
 import { LspRpc } from "@opencode/schema/lsp-rpc"
 import { Effect, Schema, Stream } from "effect"

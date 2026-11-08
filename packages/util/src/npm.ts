@@ -2,21 +2,29 @@ export * as Npm from "./npm.js"
 
 import path from "path"
 import { createHash, randomUUID } from "node:crypto"
-import { Clock, Effect, Schema, Context, Layer, Option, FileSystem } from "effect"
+import { Clock, Effect, Schema, Context, Layer, ManagedRuntime, Option, FileSystem } from "effect"
 import { FSUtil } from "./fs-util.js"
 import { Global } from "./global.js"
 import { EffectFlock } from "./effect-flock.js"
 import { makeGlobalNode } from "./effect/app-node.js"
 import { filesystem } from "./effect/app-node-platform.js"
 import { LayerNode } from "./effect/layer-node.js"
-import { makeRuntime } from "./effect/runtime.js"
 import { NpmConfig } from "./npm-config.js"
 
 export class InstallFailedError extends Schema.TaggedError<InstallFailedError>()("NpmInstallFailedError", {
   add: Schema.Array(Schema.String).pipe(Schema.optional),
   dir: Schema.String,
   cause: Schema.optional(Schema.Defect()),
-}) {}
+}) {
+  override get message() {
+    const summary = `Failed to install ${this.add?.join(", ") || this.dir}`
+    if (!(this.cause instanceof Error)) return summary
+    // @npmcli/git reports most failures as "An unknown git error occurred" and keeps git's output on `stderr`.
+    const stderr = "stderr" in this.cause && typeof this.cause.stderr === "string" ? this.cause.stderr.trim() : ""
+    if (!stderr) return `${summary}: ${this.cause.message}`
+    return `${summary}: ${this.cause.message}\n${stderr}`
+  }
+}
 
 export interface Package {
   readonly directory: string
@@ -491,7 +499,10 @@ export const node = makeGlobalNode({
   deps: [FSUtil.node, Global.node, filesystem, EffectFlock.node],
 })
 
-const { runPromise } = makeRuntime(Service, LayerNode.compile(node))
+// Promise wrappers for the language-server runtime, which installs a package only when the user asks.
+let runtime: ManagedRuntime.ManagedRuntime<Service, unknown> | undefined
+const runPromise = <A, E>(fn: (svc: Interface) => Effect.Effect<A, E, Service>) =>
+  (runtime ??= ManagedRuntime.make(LayerNode.compile(node) as Layer.Layer<Service, unknown>)).runPromise(Service.use(fn))
 
 export async function add(...args: Parameters<Interface["add"]>) {
   return runPromise((svc) => svc.add(...args))

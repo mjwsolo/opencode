@@ -181,7 +181,7 @@ const themeContext = createSimpleContext({
       if (palette) setSystemTheme(generateSystem(palette, store.mode))
     }
     if (palette) {
-      const mode = store.lock ?? terminalMode(palette) ?? store.mode
+      const mode = store.lock ?? renderer.themeMode ?? terminalMode(palette) ?? store.mode
       if (store.mode !== mode) setStore("mode", mode)
       applyPalette()
     } else setSystemTheme(undefined)
@@ -300,12 +300,12 @@ const themeContext = createSimpleContext({
       const sources = available()
       const name = sources[store.active] ? store.active : DEFAULT_THEME
       try {
-        return loadTheme(sources[name], name, store.mode)
+        return loadTheme(sources[name], name, store.mode, newDesigns())
       } catch (error) {
         if (name === DEFAULT_THEME) throw error
         themeErrors.emit(name, error)
         setStore("active", DEFAULT_THEME)
-        return loadTheme(sources[DEFAULT_THEME], DEFAULT_THEME, store.mode)
+        return loadTheme(sources[DEFAULT_THEME], DEFAULT_THEME, store.mode, newDesigns())
       }
     })
     const modes = () => selected().modes
@@ -317,7 +317,7 @@ const themeContext = createSimpleContext({
 
     createEffect(() => renderer.setBackgroundColor(tokens().background.base))
 
-    const currentSyntax = createSyntaxStyleMemo(() => generateSyntax(tokens()))
+    const currentSyntax = createSyntaxStyleMemo(() => generateSyntax(tokens(), renderer.nativeScene))
     const service: Themes = {
       current,
       currentTokens: tokens,
@@ -393,8 +393,8 @@ function usablePalette(colors: TerminalColors | undefined): colors is TerminalCo
   )
 }
 
-function loadTheme(source: ThemeDocumentSource, name: string, requested: "dark" | "light") {
-  const document = parseTheme(source, name)
+function loadTheme(source: ThemeDocumentSource, name: string, requested: "dark" | "light", newDesigns: boolean) {
+  const document = parseTheme(source, name, { newDesigns })
   const modes = themeModes(document)
   const mode = modes.includes(requested) ? requested : (modes[0] ?? requested)
   return { modes, mode, theme: resolveThemeDocument(document, mode) }

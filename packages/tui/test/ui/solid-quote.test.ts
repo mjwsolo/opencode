@@ -4,14 +4,14 @@ import { createTestRenderer, MockTreeSitterClient } from "@opentui/core/testing"
 import { solidQuoteBorder } from "../../src/ui/solid-quote"
 
 for (const streaming of [false, true]) test(`quote background stays continuous (streaming=${streaming})`, async () => {
-  const setup = await createTestRenderer({ width: 24, height: 20, useThread: false })
+  const setup = await createTestRenderer({ width: 24, height: 20 })
   const background = RGBA.fromHex("#101010")
   const purple = RGBA.fromHex("#bb9af7")
   const parser = new MockTreeSitterClient()
   parser.setMockResult({ highlights: [] })
   const markdown = new MarkdownRenderable(setup.renderer, {
     content: "> First\n>\n> A longer quote that wraps across several lines.\n>\n> Last",
-    syntaxStyle: SyntaxStyle.fromStyles({ default: { fg: "#ffffff" }, conceal: { fg: purple }, "markup.quote": { fg: "#ffffff" } }),
+    syntaxStyle: SyntaxStyle.fromStyles({ default: { fg: "#ffffff" }, conceal: { fg: purple }, "markup.quote": { fg: "#ffffff" } }, setup.renderer.nativeScene),
     bg: background,
     treeSitterClient: parser,
     streaming,

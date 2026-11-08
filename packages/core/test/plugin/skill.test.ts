@@ -39,6 +39,7 @@ describe("SkillPlugin.Plugin", () => {
         expect.objectContaining({
           id: "customize-localcode",
           name: "customize-localcode",
+          path: "skill://customize-localcode/SKILL.md",
           description: expect.stringContaining("localcode's own configuration"),
         }),
       )
@@ -46,6 +47,7 @@ describe("SkillPlugin.Plugin", () => {
         expect.objectContaining({
           id: "report",
           name: "Report",
+          path: "skill://report/SKILL.md",
           description: expect.stringContaining("localcode issue"),
         }),
       )

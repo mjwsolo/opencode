@@ -65,13 +65,16 @@ export function PluginsDialog(props: { context: Plugin.Context; plugins: ReturnT
         status: plugin.status,
         error: plugin.status === "failed" ? plugin.error : undefined,
       }))
-    const serverEntries: Entry[] = (server() ?? []).map((plugin) => ({
-      key: `server:${plugin.id ?? source(plugin, props.context)}`,
-      runtime: "server" as const,
-      // LocalCode's own completion-discipline plugin is part of the product, not a user plugin.
-      internal: plugin.source.type === "builtin" || /(^|[\\/])localcode\.(ts|js)$/.test(source(plugin, props.context)),
-      plugin,
-    }))
+    // A package without a server part runs nothing there; its TUI part has its own row.
+    const serverEntries: Entry[] = (server() ?? [])
+      .filter((plugin) => plugin.features.server || plugin.state.status === "failed")
+      .map((plugin) => ({
+        key: `server:${plugin.id ?? source(plugin, props.context)}`,
+        runtime: "server" as const,
+        // LocalCode's own completion-discipline plugin is part of the product, not a user plugin.
+        internal: plugin.source.type === "builtin" || /(^|[\\/])localcode\.(ts|js)$/.test(source(plugin, props.context)),
+        plugin,
+      }))
     return [
       ...[...builtins, ...external].sort((a, b) => label(a, props.context).localeCompare(label(b, props.context))),
       ...serverEntries.sort((a, b) => label(a, props.context).localeCompare(label(b, props.context))),

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { currentPlan, parseTodos } from "../../../src/util/todo"
+import { parseTodos, sessionTodos } from "../../../src/util/todo"
 
 test("plan entries keep their status and skip malformed items", () => {
   expect(
@@ -32,6 +32,6 @@ test("the current plan is the last completed checklist update", () => {
       ],
     },
   ]
-  expect(currentPlan(messages)).toEqual([{ content: "new", status: "in_progress" }])
-  expect(currentPlan([])).toEqual([])
+  expect(sessionTodos(messages as never)).toEqual([{ content: "new", status: "in_progress" }])
+  expect(sessionTodos([])).toEqual([])
 })

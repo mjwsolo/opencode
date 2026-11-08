@@ -99,7 +99,7 @@ function fake(handle: (request: Request) => Response) {
 }
 
 async function register(root: string, url: string) {
-  const file = path.join(root, "state", "opencode", ServiceConfig.filename())
+  const file = path.join(root, "state", "localcode-agent", ServiceConfig.filename())
   const info = { version: OPENCODE_VERSION, url, pid: process.pid, password: "secret" }
   await fs.mkdir(path.dirname(file), { recursive: true })
   await fs.writeFile(file, JSON.stringify(info))

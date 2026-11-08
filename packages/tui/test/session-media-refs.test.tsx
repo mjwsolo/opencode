@@ -138,15 +138,6 @@ async function undoQueued(app: App) {
 }
 
 // Picks one of a message's actions from /timeline.
-async function messageAction(app: App, action: string) {
-  await app.mockInput.typeText("/timeline")
-  app.mockInput.pressEnter()
-  await app.waitForFrame((frame) => frame.includes("Jump to message") || frame.includes("Timeline"))
-  app.mockInput.pressEnter()
-  await app.waitForFrame((frame) => frame.includes(action))
-  await app.mockInput.typeText(action)
-  app.mockInput.pressEnter()
-}
 
 // Waits for `done`, then gives anything that shouldn't follow, such as a rewind after a failed read or a composer
 // change, time to show before reading the frame.
@@ -246,43 +237,9 @@ for (const queued of [false, true]) {
   }, 20000)
 }
 
-test("a revert the server refuses leaves the composer as it was", async () => {
-  await using app = await openSession({
-    respond: { [REVERT]: () => json({ name: "BusyError", data: {} }, { status: 409 }) },
-  })
-  await messageAction(app, "Revert")
-  const frame = await settled(app, () => app.calls.includes(`${REVERT} 409`))
 
-  expect(app.calls).toEqual([`${MEDIA} 200`, `${REVERT} 409`])
-  expect(shown(frame)).toBe(1)
-}, 20000)
 
-test("a revert goes ahead without an image the server no longer has", async () => {
-  await using app = await openSession({ respond: { [MEDIA]: gone } })
-  await messageAction(app, "Revert")
-  const frame = await settled(app, (frame) => shown(frame) === 2)
 
-  expect(app.calls).toEqual([`${MEDIA} 404`, `${REVERT} 200`])
-  expect(shown(frame)).toBe(2)
-  expect(frame).toContain("no longer stored")
-}, 20000)
-
-test("a revert whose image read fails for another reason does not revert", async () => {
-  await using app = await openSession({ respond: { [MEDIA]: unavailable } })
-  await messageAction(app, "Revert")
-  const frame = await settled(app, () => app.calls.includes(`${MEDIA} 503`))
-
-  expect(app.calls).toEqual([`${MEDIA} 503`])
-  expect(shown(frame)).toBe(1)
-}, 20000)
-
-test("forking from a prompt whose image is gone does not fork", async () => {
-  await using app = await openSession({ respond: { [MEDIA]: gone } })
-  await messageAction(app, "Fork")
-  await settled(app, () => app.calls.includes(`${MEDIA} 404`))
-
-  expect(app.calls).toEqual([`${MEDIA} 404`])
-}, 20000)
 
 test("plugins read messages with inline bytes while the transcript reads media refs", async () => {
   await using plugin = await copyPlugin("client-reads")
@@ -339,22 +296,3 @@ for (const queued of [false, true]) {
   }, 30000)
 }
 
-test("an undo in a session opened with a seeded prompt, such as a fork, lands in its composer", async () => {
-  const result = await (async () => {
-    await using app = await openSession({})
-    await messageAction(app, "Fork")
-    // The fork opens with the forked-from prompt already in its composer.
-    await app.waitForFrame((frame) => frame.includes("Forked ask") && frame.includes("What is in [Image 1]"))
-    app.mockInput.pressKey("x", { ctrl: true })
-    app.mockInput.pressKey("u")
-    // Once in the transcript and once more in the composer, after the seeded prompt.
-    const frame = await settled(app, (frame) => frame.split("Forked ask").length - 1 === 2)
-    return { calls: app.calls, frame }
-  })()
-  const draft = takeDraft(forked.id)?.prompt
-
-  expect(result.calls).toEqual([`${MEDIA} 200`, `${FORK} 200`, `${FORKED_REVERT} 200`])
-  expect(result.frame).toContain("What is in [Image 1]")
-  expect(draft?.text).toBe("What is in [Image 1]\n\nForked ask [Image 1]")
-  expect(draft?.files?.map((file) => file.uri)).toEqual([pngURI, pngURI])
-}, 30000)

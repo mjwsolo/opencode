@@ -647,7 +647,7 @@ describe("ConfigInstructionPlugin.Plugin", () => {
     ).pipe(Layer.provide(LayerNode.compile(FSUtil.node)))
     return Effect.gen(function* () {
       const discovery = yield* start()
-      expect((yield* readInitial(yield* discovery.load())).text).toBe(`Instructions from: ${readable}\npackage`)
+      expect((yield* readInitial(yield* discovery.load())).text).toBe(`Instructions from: ${readable}\n[These instructions are already loaded. Do not reread this file just to discover project guidance; read it only when the user asks to inspect or edit it.]\npackage`)
     }).pipe(
       Effect.provide(
         instructionLayer({

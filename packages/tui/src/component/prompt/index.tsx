@@ -2070,32 +2070,10 @@ export function Prompt(props: PromptProps) {
             />
           </box>
         </box>
-        <box
-          height={1}
-          border={["left"]}
-          borderColor={promptBg()}
-          customBorderChars={{
-            ...EmptyBorder,
-            vertical: promptBg().a !== 0 ? "▀" : " ",
-          }}
-        >
-          <box
-            height={1}
-            border={["bottom"]}
-            borderColor={promptBg()}
-            customBorderChars={
-              promptBg().a !== 0
-                ? {
-                    ...EmptyBorder,
-                    horizontal: "▀",
-                  }
-                : {
-                    ...EmptyBorder,
-                    horizontal: " ",
-                  }
-            }
-          />
-        </box>
+        {/* localcode: a solid row, not a "▀" half block. Terminals whose font
+            or line spacing leaves the glyph short of the cell top (Terminal.app)
+            drew a black seam between the input and this edge. */}
+        <box height={1} backgroundColor={promptBg()} />
         <box width="100%" flexDirection="row" justifyContent="space-between" gap={2}>
           <Slot path="prompt.footer" input={footerInput()}>
             <Slot path="prompt.footer.status" input={footerInput()}>

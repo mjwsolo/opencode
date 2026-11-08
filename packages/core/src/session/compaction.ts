@@ -1077,13 +1077,13 @@ const flattenMessage = (message: Message, level: number) => {
       if (part.type === "text") {
         if (!part.text) return []
         const text = level >= USER_ONLY ? clip(part.text) : part.text
-        return [`[${message.role === "user" ? "User" : "Assistant"}]: ${text}`]
+        return [`[${message.role === "user" ? "User" : "Assistant"}]: ${message.role === "user" ? text : SessionRecentText.quoteLabels(text)}`]
       }
       if (level >= USER_ONLY) return []
       if (part.type === "media") return [`[${part.media.mediaType} omitted]`]
       if (part.type === "tool-call") {
         const input = JSON.stringify(part.input) ?? ""
-        return [`[Assistant tool call]: ${part.name}(${level >= OUTPUTS_REMOVED ? clip(input) : input})`]
+        return [`[Assistant tool call]: ${part.name}(${SessionRecentText.quoteLabels(level >= OUTPUTS_REMOVED ? clip(input) : input)})`]
       }
       if (part.type !== "tool-result") return []
       const result = part.result
@@ -1095,7 +1095,7 @@ const flattenMessage = (message: Message, level: number) => {
           : typeof result.value === "string"
             ? result.value
             : (JSON.stringify(result.value) ?? "")
-      return [`[${label}]: ${level >= OUTPUTS_CLIPPED ? clip(output) : output}`]
+      return [`[${label}]: ${SessionRecentText.quoteLabels(level >= OUTPUTS_CLIPPED ? clip(output) : output)}`]
     })
     .join("\n")
 }

@@ -32,6 +32,8 @@ type Input = {
   standalone: boolean
   /** Aborted on SIGINT or SIGTERM: the run cancels its Session and background jobs, then returns. */
   signal: AbortSignal
+  /** How long the session must stay idle before the run exits (tests pass 0). */
+  settleMs?: number
   renderTool: (part: SessionMessageAssistantTool) => Promise<void>
   renderToolError: (part: SessionMessageAssistantTool) => Promise<void>
 }
@@ -207,6 +209,20 @@ export async function runNonInteractivePrompt(input: Input) {
     return undefined
   }
 
+  // LocalCode: a plugin can resume the session from its idle hook (the open-todo backstop, done-time
+  // checks). That turn starts a moment after the session first goes idle, so the run exits only once the
+  // session has stayed idle for a short quiet period.
+  const resumed = async () => {
+    const quietMs = input.settleMs ?? 2000
+    for (let quiet = 0; quiet < quietMs; quiet += 250) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      if (input.signal.aborted) return false
+      const active = await input.client.session.active().catch(() => undefined)
+      if (active && input.sessionID in active) return true
+    }
+    return false
+  }
+
   const lifecycle = async () => {
     // admitting
     if (input.agent) await input.client.session.switchAgent({ sessionID: input.sessionID, agent: input.agent })
@@ -245,7 +261,12 @@ export async function runNonInteractivePrompt(input: Input) {
       const projected = await projectedMessages(input.client, input.sessionID, messageID)
       if (state.failure || state.outcomes.length > 0 || projected.messages.some((item) => item.type === "idle")) {
         const pending = state.failure ? undefined : await background()
-        if (!pending) return { ...projected, background: waited }
+        if (!pending) {
+          if (state.failure || !(await resumed())) return { ...projected, background: waited }
+          // The follow-up belongs to this run: its turns count and print like a background wake's.
+          waited = true
+          continue
+        }
         if (pending.length > 0 && pending.length !== shown) render.waiting(pending)
         shown = pending.length || shown
         waited = true

@@ -269,6 +269,7 @@ async function run(input: {
   active?: () => SessionActiveOutput
   terminalDelay?: number
   signal?: AbortSignal
+  settleMs?: number
 }) {
   const sdk = OpenCode.make({ baseUrl: "https://opencode.test" })
   const values: V2Event[] = [{ id: "evt_connected", type: "server.connected", data: {} }]
@@ -341,6 +342,7 @@ async function run(input: {
     auto: false,
     standalone: input.standalone ?? false,
     signal: input.signal ?? new AbortController().signal,
+    settleMs: input.settleMs ?? 0,
     renderTool: input.renderTool ?? (() => Promise.resolve()),
     renderToolError: input.renderToolError ?? (() => Promise.resolve()),
   })
@@ -390,6 +392,37 @@ const subagentJob: ExperimentalJobListOutput[number] = {
 }
 
 describe("runNonInteractivePrompt", () => {
+  test("stays until a turn a plugin resumes after idle has finished, then prints it", async () => {
+    let checks = 0
+    let waits = 0
+    const output = await capture({
+      format: "json",
+      settleMs: 500,
+      turn: (messageID) => [prompted(messageID), settled()],
+      // The background check finds nothing; then a plugin follow-up makes the session busy once.
+      active: () => (checks++ === 1 ? ({ ses_1: { type: "running" } } as never) : {}),
+      wait: () => {
+        waits++
+        return Promise.resolve()
+      },
+      messages: (messageID) => [
+        {
+          id: "msg_followup",
+          type: "assistant",
+          agent: "build",
+          model: { providerID: "test", id: "test-model" },
+          content: [{ type: "text", text: "follow-up answer" }],
+          finish: "stop",
+          time: { created: 4, completed: 5 },
+        } as never,
+        { id: messageID, type: "user", text: "hello", time: { created: 1 } },
+      ],
+    })
+    expect(waits).toBe(2)
+    expect(checks).toBeGreaterThanOrEqual(3)
+    expect(output.stdout).toContain("follow-up answer")
+  })
+
   test("keeps formatted tool output and compact tool metadata in JSON", async () => {
     const output = await capture({ format: "json", turn: successfulGrep })
     const events = output.stdout

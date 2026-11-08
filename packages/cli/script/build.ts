@@ -118,7 +118,8 @@ const wsReexportPlugin: BunPlugin = {
   setup(build) {
     build.onLoad({ filter: /platform-node-shared[/\\]dist[/\\]NodeWS\.js$/ }, () => ({
       contents:
-        'export { createWebSocketStream, extension, Receiver, Sender, subprotocol, WebSocket, WebSocketServer } from "ws"',
+        // localcode: bun 1.4.2's built-in ws has no `extension` or `subprotocol` (nothing here uses them).
+        'export { createWebSocketStream, Receiver, Sender, WebSocket, WebSocketServer } from "ws"',
       loader: "js",
     }))
   },

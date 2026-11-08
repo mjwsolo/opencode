@@ -41,6 +41,7 @@ describe("localcode provider", () => {
     expect(localTitle("x".repeat(150))).toBe("x".repeat(97) + "...")
     expect(localTitle("Original request:\nfix the bug\n\nRecent conversation:\nUser: more")).toBe("fix the bug")
     expect(localTitle("   ")).toBeUndefined()
+    expect(localTitle("Here is the first message of the conversation:\n\n<message>\nhello there\n</message>\n\nReply with only the title.")).toBe("hello there")
   })
 
   test("side requests go to the last slot", () => {

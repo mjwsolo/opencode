@@ -92,7 +92,10 @@ export function pinSideRequest(body: string, slots: number) {
  * A separate title request adds prompt reading and can displace the warmed local prefix, so a
  * localcode session is titled from the user's own first message without an inference request.
  */
-export function localTitle(text: string) {
+export function localTitle(input: string) {
+  // The title request frames the first message (or the conversation) for the model; name the user's own words.
+  const framed = /<message>\n([\s\S]*)\n<\/message>/.exec(input) ?? /<conversation>\n([\s\S]*)\n<\/conversation>/.exec(input)
+  const text = framed ? framed[1]! : input
   const original = text.startsWith("Original request:\n")
     ? text.slice("Original request:\n".length).split("\n\nRecent conversation:\n")[0]!
     : text

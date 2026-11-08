@@ -101,6 +101,61 @@ const findLineOccurrences = (content: string, search: string) => {
   }, [])
 }
 
+/**
+ * Line matching that also tolerates a different number of blank lines between lines, as when a model writes one
+ * blank line where the file has two. A run of blank lines must still be present where oldString has one, and
+ * oldString must start and end on a non-blank line, so the match never grows to swallow neighbouring blank lines.
+ */
+const findBlankTolerantOccurrences = (content: string, search: string) => {
+  const trailingNewline = search.endsWith("\n")
+  const expected = search.split("\n")
+  if (trailingNewline) expected.pop()
+  const blank = (text: string) => text.trim() === ""
+  if (expected.length < 2 || blank(expected[0]) || blank(expected.at(-1)!)) return []
+  // Expected lines as non-blank lines, each flagged when a blank run precedes it.
+  const wanted = expected.flatMap((text, index) =>
+    blank(text) ? [] : [{ text: normalizeForMatch(text.trimEnd()), gap: index > 0 && blank(expected[index - 1]) }],
+  )
+  if (!expected.some(blank)) return []
+  const lines = [...content.matchAll(/[^\n]*(?:\n|$)/g)]
+    .filter((match) => match[0] !== "")
+    .map((match) => {
+      const newline = match[0].endsWith("\n")
+      const text = newline ? match[0].slice(0, -1) : match[0]
+      return {
+        start: match.index,
+        end: match.index + match[0].length,
+        text,
+        contentEnd: match.index + text.length - (text.endsWith("\r") ? 1 : 0),
+        newline,
+      }
+    })
+  const found: Match[] = []
+  for (let index = 0; index < lines.length; index++) {
+    let cursor = index
+    let ok = true
+    for (const [position, line] of wanted.entries()) {
+      let gap = 0
+      if (position > 0) while (cursor < lines.length && blank(lines[cursor].text)) (cursor++, gap++)
+      if (cursor >= lines.length || line.gap !== gap > 0) {
+        ok = false
+        break
+      }
+      if (normalizeForMatch(lines[cursor].text.trimEnd()) !== line.text) {
+        ok = false
+        break
+      }
+      cursor++
+    }
+    if (!ok) continue
+    const last = lines[cursor - 1]
+    if (trailingNewline && !last.newline) continue
+    const match = { start: lines[index].start, end: trailingNewline ? last.end : last.contentEnd }
+    if (!found.some((item) => item.end > match.start && item.start < match.end)) found.push(match)
+  }
+  return found
+}
+
 /** The dominant line ending in text, or fallback when there is none. */
 const lineEnding = (text: string, fallback: string) => {
   const crlfCount = text.split(crlf).length - 1
@@ -175,8 +230,11 @@ const matchView = (source: string, oldString: string, newString: string) => {
   // These one-to-one mappings preserve offsets into the LF view.
   const unicode = exact.length > 0 ? [] : findOccurrences(normalizeForMatch(view), normalizeForMatch(search))
   const trailing = exact.length > 0 || unicode.length > 0 ? [] : findLineOccurrences(view, search)
+  const blankLines =
+    exact.length > 0 || unicode.length > 0 || trailing.length > 0 ? [] : findBlankTolerantOccurrences(view, search)
+  const found = exact.length > 0 ? exact : unicode.length > 0 ? unicode : trailing.length > 0 ? trailing : blankLines
   return {
-    matches: (exact.length > 0 ? exact : unicode.length > 0 ? unicode : trailing).map((match) => ({
+    matches: found.map((match) => ({
       start: match.start + countBefore(removed, match.start),
       end: match.end + countBefore(removed, match.end),
     })),
@@ -272,7 +330,7 @@ export const Plugin = {
           name,
           options: { codemode: false, permission: "edit" },
           description:
-            "Edit the contents of a file by finding and replacing exact text. When editing text from Read output, preserve the exact indentation (tabs or spaces) and omit the line-number prefix, such as `1: `. Never include the prefix in oldString or newString. Write line breaks as \\n; the file's existing CRLF or LF line endings are matched and preserved. To change line endings themselves, make oldString and newString differ only in \\r; that edit applies to the exact bytes. If there is no exact match, the edit retries while ignoring typographic quote, dash, and space variants, then trailing whitespace on each line. The edit fails if oldString is not found. By default, oldString must identify a UNIQUE location. Multiple matches FAIL unless replaceAll is true. Add more surrounding context to disambiguate, or set replaceAll to true to replace every occurrence. Use replaceAll when the change should apply to every occurrence, such as renaming a variable.",
+            "Edit the contents of a file by finding and replacing exact text. When editing text from Read output, preserve the exact indentation (tabs or spaces) and omit the line-number prefix, such as `1: `. Never include the prefix in oldString or newString. Write line breaks as \\n; the file's existing CRLF or LF line endings are matched and preserved. To change line endings themselves, make oldString and newString differ only in \\r; that edit applies to the exact bytes. If there is no exact match, the edit retries while ignoring typographic quote, dash, and space variants, then trailing whitespace on each line, then the number of blank lines between lines. The edit fails if oldString is not found. By default, oldString must identify a UNIQUE location. Multiple matches FAIL unless replaceAll is true. Add more surrounding context to disambiguate, or set replaceAll to true to replace every occurrence. Use replaceAll when the change should apply to every occurrence, such as renaming a variable.",
           input: Input,
           output: Output,
           execute: (input, context) => {

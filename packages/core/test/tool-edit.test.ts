@@ -585,6 +585,62 @@ describe("EditTool", () => {
     }),
   )
 
+  it.live("tolerates a different number of blank lines between lines", () =>
+    withTempDir((tmp) => {
+      const edit = makeEditFixture()
+      const target = path.join(tmp.path, "test_calc.py")
+      const file = "from app.calc import add, div\n\n\ndef test_add():\n    assert add(2, 3) == 5\n\n\ndef test_div():\n    assert div(6, 3) == 2\n"
+      return Effect.promise(() => fs.writeFile(target, file)).pipe(
+        Effect.andThen(
+          withTool(tmp.path, edit, (registry) =>
+            executeTool(
+              registry,
+              call({
+                path: "test_calc.py",
+                oldString: "from app.calc import add, div\n\ndef test_add():",
+                newString: "from app.calc import add, div, mul\n\n\ndef test_add():",
+              }),
+            ),
+          ),
+        ),
+        Effect.tap((result) => Effect.sync(() => expect(result.status).toBe("completed"))),
+        Effect.andThen(Effect.promise(() => fs.readFile(target, "utf8"))),
+        Effect.tap((content) =>
+          Effect.sync(() => expect(content).toBe(file.replace("add, div\n", "add, div, mul\n"))),
+        ),
+      )
+    }),
+  )
+
+  it.live("blank-line tolerance never drops a required blank line or picks between two matches", () =>
+    withTempDir((tmp) => {
+      const edit = makeEditFixture()
+      const joined = path.join(tmp.path, "joined.txt")
+      const twice = path.join(tmp.path, "twice.txt")
+      return Effect.promise(() =>
+        Promise.all([fs.writeFile(joined, "a\nb\n"), fs.writeFile(twice, "a\n\n\nb\nx\na\n\nb\n")]),
+      ).pipe(
+        Effect.andThen(
+          withTool(tmp.path, edit, (registry) =>
+            Effect.gen(function* () {
+              const gap = yield* executeTool(registry, call({ path: "joined.txt", oldString: "a\n\nb", newString: "c" }))
+              expect(gap.status).not.toBe("completed")
+              const ambiguous = yield* executeTool(registry, call({ path: "twice.txt", oldString: "a\n\n\n\nb", newString: "c" }))
+              expect(ambiguous.status).not.toBe("completed")
+            }),
+          ),
+        ),
+        Effect.andThen(Effect.promise(() => Promise.all([fs.readFile(joined, "utf8"), fs.readFile(twice, "utf8")]))),
+        Effect.tap(([a, b]) =>
+          Effect.sync(() => {
+            expect(a).toBe("a\nb\n")
+            expect(b).toBe("a\n\n\nb\nx\na\n\nb\n")
+          }),
+        ),
+      )
+    }),
+  )
+
   it.live("uses non-overlapping trailing-whitespace matches and preserves CRLF", () =>
     withTempDir((tmp) => {
       const edit = makeEditFixture()

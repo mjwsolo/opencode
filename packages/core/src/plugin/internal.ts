@@ -80,8 +80,6 @@ import { EditTool } from "../tool/plugin/edit.js"
 import { GlobTool } from "../tool/plugin/glob.js"
 import { GrepTool } from "../tool/plugin/grep.js"
 import { ImageGenerateTool } from "../tool/plugin/image-generate.js"
-import { McpResourceTools } from "../tool/plugin/mcp-resource.js"
-import { OpenCodeTools } from "../tool/plugin/opencode.js"
 import { QuestionTool } from "../tool/plugin/question.js"
 import { ReadToolFileSystem } from "../tool/read-filesystem.js"
 import { ReadTool } from "../tool/plugin/read.js"
@@ -269,8 +267,8 @@ const pre = [
   GlobTool.Plugin,
   GrepTool.Plugin,
   ImageGenerateTool.Plugin,
-  OpenCodeTools.Plugin,
-  McpResourceTools.Plugin,
+  // localcode: no self-management tools (sessions, worktrees, model search, MCP
+  // resources). They cost every request ~4.9 KB of tool schema and a system line.
   QuestionTool.Plugin,
   ReadTool.Plugin,
   ArtifactTools.Plugin,

@@ -6,7 +6,7 @@ import { SessionTurn } from "@opencode/util/session-turn"
 import {
   cacheReuseDrop,
   messageBoundaryIDs,
-  reduceSessionRows,
+  reduceSessionRows as reduceRows,
   sessionRowID,
   turnDuration,
   turnTokensPerSecond,
@@ -141,6 +141,8 @@ test("preserves missing-anchor footer fallbacks without including the absent ass
   expect(turnDuration(absent, [])).toBe(2_000)
   expect(turnTokensPerSecond(absent, [])).toBeUndefined()
 })
+const reduceSessionRows = (messages: SessionMessageInfo[], inputs = new Set<string>(), turnTokens = false) =>
+  reduceRows(messages, inputs, turnTokens, "medium")
 
 test("indexed tail footer calculations do not subscribe to an unrelated history prefix", () => {
   createRoot((dispose) => {

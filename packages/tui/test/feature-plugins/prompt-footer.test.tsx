@@ -9,7 +9,8 @@ import { PromptFooter } from "../../src/feature-plugins/prompt/footer"
 test("prompt footer separates shell and usage status without subagent navigation", async () => {
   const color = RGBA.fromInts(200, 200, 200)
   const subdued = RGBA.fromInts(100, 100, 100)
-  const dispatched: string[] = []
+  const dispatched: [string, string | undefined][] = []
+  const [activeSubagent, setActiveSubagent] = createSignal(true)
   const context = {
     location: { directory: "/workspace" },
     theme: {
@@ -21,14 +22,14 @@ test("prompt footer separates shell and usage status without subagent navigation
     keymap: {
       shortcuts: (id: string) =>
         id === "session.child.first" ? ["ctrl+j"] : id === "command.palette.show" ? ["ctrl+p"] : [],
-      dispatch: (id: string) => dispatched.push(id),
+      dispatch: (id: string, input?: string) => dispatched.push([id, input]),
     },
     client: { rpc: () => ({ get: () => Promise.resolve(null), events: { on: () => () => {} } }) },
     data: {
       on: () => () => {},
       session: {
         family: () => ["session", "child"],
-        status: (id: string) => (id === "child" ? "running" : "idle"),
+        status: (id: string) => (id === "child" && activeSubagent() ? "running" : "idle"),
         get: () => ({ id: "session", location: { directory: "/workspace" } }),
         cost: () => 1,
         message: { list: () => [] },

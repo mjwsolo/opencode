@@ -99,6 +99,7 @@ import { AgentPlugin } from "./agent.js"
 import BrowserPlugin from "@opencode/plugin-browser"
 import { CommandPlugin } from "./command.js"
 import { IdentityPlugin } from "./identity.js"
+import { ForkNoticePlugin } from "./fork-notice.js"
 import { PlanPlugin } from "./plan.js"
 import { LspPlugin } from "./lsp.js"
 import { LSP } from "../lsp/lsp.js"
@@ -208,6 +209,7 @@ export const requirements = LayerNode.group([
   InstructionDiscovery.node,
   Integration.node,
   Job.node,
+  Shell.daemonNode,
   KV.node,
   llmClient,
   Location.node,
@@ -251,6 +253,7 @@ const pre = [
   WellKnownPlugin.Plugin,
   VcsGitPlugin.Plugin,
   AgentPlugin.Plugin,
+  ForkNoticePlugin.Plugin,
   PlanPlugin.Plugin,
   CommandPlugin.Plugin,
   SkillPlugin.Plugin,

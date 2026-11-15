@@ -767,7 +767,7 @@ test("keeps assistant footer durations current after prepend, same-length refres
               type: "assistant",
               agent: session.agent,
               model: session.model,
-              time: { created: 2000, streamed: 3000, completed: 5000 },
+              time: { created: 2000, firstToken: 2500, streamed: 3000, completed: 5000 },
               finish: "stop",
               cost: 0,
               tokens: { ...session.tokens, output: 20 },
@@ -1797,4 +1797,3 @@ test.each([44, 100])(
   },
   15_000,
 )
-

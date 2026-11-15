@@ -84,7 +84,7 @@ test("an expanded background shell keeps its 1 MiB tail on a whole character", a
     const row = setup
       .captureCharFrame()
       .split("\n")
-      .findIndex((line) => line.includes("$ render-frames"))
+      .findIndex((line) => line.includes("Run render-frames"))
     await setup.mockMouse.click(10, row)
     const output = await waitForText(setup.renderer.root, (text) => text.startsWith("[earlier output omitted]"))
     expect(output).toBe(`[earlier output omitted]\n${rest}`)

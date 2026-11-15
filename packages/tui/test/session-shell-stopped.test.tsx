@@ -84,8 +84,8 @@ test("a call the user stopped shows its output once, clipped like a finished cal
     await setup.waitForVisualIdle({ quietFrames: 3 })
     const frame = setup.captureCharFrame()
     const card = (command: string, next: string) => frame.slice(frame.indexOf(command), frame.indexOf(next))
-    const completed = card("$ seq-completed", "$ seq-stopped")
-    const stopped = card("$ seq-stopped", "Both ran")
+    const completed = card("Run seq-completed", "Run seq-stopped")
+    const stopped = card("Run seq-stopped", "Both ran")
     const body = (text: string) => text.split("\n").slice(1).join("\n")
     // The same clipped tail as the finished call.
     const tail = (text: string) =>

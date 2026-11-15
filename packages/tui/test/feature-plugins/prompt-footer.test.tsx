@@ -10,7 +10,7 @@ test("prompt footer separates shell and usage status without subagent navigation
   const color = RGBA.fromInts(200, 200, 200)
   const subdued = RGBA.fromInts(100, 100, 100)
   const dispatched: [string, string | undefined][] = []
-  const [activeSubagent, setActiveSubagent] = createSignal(true)
+  const [activeSubagent] = createSignal(true)
   const context = {
     location: { directory: "/workspace" },
     theme: {

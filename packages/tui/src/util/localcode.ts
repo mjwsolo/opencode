@@ -18,7 +18,21 @@ export type Status = {
   vision_size_gb?: number
   ctx?: number
   budget?: number
+  /** A model download running in the background, apart from the loaded model. */
+  download?: Download | null
 }
+
+export type Download = {
+  group: string
+  filename: string
+  model: string
+  state: "downloading" | "done" | "error" | "cancelled"
+  detail?: string
+  pct?: number | null
+}
+
+export const backgroundDownload = (st: Status | undefined) =>
+  st?.download?.state === "downloading" ? st.download : undefined
 
 export const controlUrl = () => (process.env.LOCALCODE_CONTROL_URL ?? "").replace(/\/$/, "")
 
@@ -88,6 +102,8 @@ export function supervisorLine() {
   if (st.state === "downloading") return `Downloading ${st.model ?? "model"}${st.pct != null ? ` ${Math.round(st.pct)}%` : "…"}`
   if (st.state === "loading") return `Loading ${st.model ?? "model"}…`
   if (st.state === "error") return `Model error: ${st.detail ?? "unknown"}`
+  const dl = backgroundDownload(st)
+  if (dl) return `Downloading ${dl.model}${dl.pct != null ? ` ${Math.round(dl.pct)}%` : "…"}${st.current ? " · you can keep working" : ""}`
   if (!st.current) return "No model loaded · /models"
   return undefined
 }

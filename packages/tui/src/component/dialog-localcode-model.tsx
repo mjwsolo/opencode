@@ -8,7 +8,7 @@
  * port; progress is shown as toasts and the session's model is switched once the server reports
  * ready and the runtime lists the alias.
  */
-import { createResource, createSignal, onCleanup, onMount, Show } from "solid-js"
+import { createMemo, createResource, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { DialogSelect } from "../ui/dialog-select"
 import { DialogPrompt } from "../ui/dialog-prompt"
@@ -22,8 +22,10 @@ import { useRoute } from "../context/route"
 import { usePromptRef } from "../context/prompt"
 import { unwrap } from "solid-js/store"
 import {
+  backgroundDownload,
   controlFetch,
   getJSON,
+  refreshSupervisor,
   modelChangeQueue,
   postJSON,
   setLastStatus,
@@ -78,7 +80,7 @@ function pollWhileDownloading(refetch: () => void, listing = () => false) {
     const timer = setInterval(async () => {
       try {
         const st = await getJSON<Status>("/status")
-        const next = st.state === "downloading" || st.state === "loading" || listing()
+        const next = st.state === "downloading" || st.state === "loading" || !!backgroundDownload(st) || listing()
         if (next || active) refetch()
         active = next
       } catch {}
@@ -122,6 +124,9 @@ export function DialogLocalcodeModel() {
     getJSON<{ ram_gb: number; current: string | null; groups: Group[]; models_dir?: string }>("/catalog"),
   )
   pollWhileDownloading(() => void refetch())
+  // A memo, so the cursor moves only when the loaded model really changes: the list
+  // refetches every second during a download and snapped the cursor back each time.
+  const currentGroup = createMemo(() => (catalog()?.groups ?? []).find((g) => g.current)?.key)
 
   const options = () => [
     ...[...(catalog()?.groups ?? [])]
@@ -193,7 +198,7 @@ export function DialogLocalcodeModel() {
         footer={<text fg={theme.text.muted}>★ Recommended for your {catalog()?.ram_gb ?? "?"} GB Mac</text>}
         options={options()}
         footerHints={[{ title: "enter", label: "choose quant" }]}
-        current={(catalog()?.groups ?? []).find((g) => g.current)?.key}
+        current={currentGroup()}
       />
     </Show>
   )
@@ -275,6 +280,9 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
     () => !!quants()?.listing,
   )
 
+  // The row the list opens on, settled once: see currentGroup in DialogLocalcodeModel.
+  const openingQuant = createMemo(() => defaultQuant(quants()?.quants ?? []))
+
   async function cancel(q: Quant) {
     try {
       await postJSON("/cancel", {})
@@ -339,6 +347,13 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       void load(q, true)
       return
     }
+    // A download runs in the background and never switches the model, so it needs
+    // neither the new-chat question nor the wait for the current reply.
+    if (!q.downloaded) {
+      dialog.clear()
+      void load(q, true)
+      return
+    }
     if (route.data.type === "session" && !q.current) {
       const sessionID = route.data.sessionID
       dialog.replace(
@@ -390,8 +405,20 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ group: props.group.key, filename: q.filename }),
       })
-      const res = (await r.json()) as { ok?: boolean; error?: string; model?: string; already_loaded?: boolean }
+      const res = (await r.json()) as { ok?: boolean; error?: string; model?: string; already_loaded?: boolean; background?: boolean }
       if (!r.ok || res.error) throw new Error(res.error ?? `HTTP ${r.status}`)
+      if (res.background) {
+        void refreshSupervisor()
+        toast.show({
+          variant: "info",
+          title: `${props.group.display_name} · ${q.label}`,
+          message: lastStatus()?.current
+            ? "Downloading in the background. Keep working; you'll be told when it's ready."
+            : "Downloading. It loads as soon as it's ready.",
+          duration: 8000,
+        })
+        return
+      }
       if (res.already_loaded) {
         // Another window may have changed the shared model. Synchronize this client's selection
         // without restarting the server or dropping history.
@@ -499,7 +526,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
           </box>
         }
         options={options()}
-        current={defaultQuant(quants()?.quants ?? [])}
+        current={openingQuant()}
       />
     </Show>
   )

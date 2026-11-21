@@ -48,7 +48,7 @@ import {
 } from "./context/runtime"
 import { DialogProvider, useDialog } from "./ui/dialog"
 import { DialogLocalcodeModel } from "./component/dialog-localcode-model"
-import { controlUrl, watchSupervisor } from "./util/localcode"
+import { controlUrl, lastStatus, LOCALCODE_PROVIDER_ID, watchSupervisor, type Download } from "./util/localcode"
 import { ErrorComponent } from "./component/error-component"
 import { PluginRouteMissing } from "./component/plugin-route-missing"
 import { EditorContextProvider } from "./context/editor"
@@ -685,6 +685,35 @@ function App() {
         })
       }
     })
+  })
+
+  // Background model downloads: say when one finishes. With no model loaded the
+  // supervisor loads it right away; select it here once it is up.
+  let lastDownload: Download | undefined
+  let autoLoad: string | undefined
+  createEffect(() => {
+    const st = lastStatus()
+    const dl = st?.download ?? undefined
+    const was = lastDownload
+    lastDownload = dl
+    if (was?.state === "downloading" && dl && dl.filename === was.filename && dl.state !== "downloading") {
+      if (dl.state === "done") {
+        toast.show({
+          variant: "success",
+          title: "Download finished",
+          message: st?.current ? `${dl.model} is ready. Open /models to switch to it.` : `${dl.model} is ready. Loading it now…`,
+          duration: 15_000,
+        })
+        if (!st?.current) autoLoad = dl.model
+      } else if (dl.state === "error") {
+        toast.show({ variant: "error", title: "Download failed", message: `${dl.model}: ${dl.detail ?? "unknown error"}`, duration: 15_000 })
+      }
+    }
+    if (autoLoad && st?.state === "ready" && st.current === autoLoad) {
+      local.model.set({ providerID: LOCALCODE_PROVIDER_ID, modelID: autoLoad }, { recent: true })
+      toast.show({ variant: "success", title: "Model loaded", message: autoLoad })
+      autoLoad = undefined
+    }
   })
 
   let continued = false

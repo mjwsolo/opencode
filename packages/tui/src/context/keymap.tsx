@@ -359,6 +359,23 @@ function useLeaderActive() {
   return () => pending()[0]?.tokenName === "leader"
 }
 
+// Upstream commands LocalCode does not offer in its menus ("/" and the palette):
+// language servers were removed, and the rest are cloud, workspace or developer
+// features that crowded the list. Listed by command name, so new upstream
+// commands still appear and get reviewed.
+const LOCALCODE_HIDDEN_COMMANDS = new Set([
+  "lsp.list",
+  "session.move", // /worktrees
+  "session.aside", // /btw
+  "session.terminal", // /terminal
+  "variant.list", // /variants, /effort
+  "location.reload", // /reload
+  "session.redo", // /redo
+  "session.copy", // copy session transcript
+  "session.copy.id", // copy session ID
+  "session.tab.reopen", // reopen closed tab
+])
+
 function useCommands(): Accessor<readonly KeymapCommand[]> {
   const value = useValue()
   return useKeymapSelector((keymap) =>
@@ -366,6 +383,7 @@ function useCommands(): Accessor<readonly KeymapCommand[]> {
       .getCommandEntries({
         visibility: "reachable",
       })
+      .filter((entry) => !LOCALCODE_HIDDEN_COMMANDS.has(entry.command.name))
       .map((entry) => {
         const command = entry.command.opencode ?? {
           id: entry.command.name,

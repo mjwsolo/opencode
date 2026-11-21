@@ -9,7 +9,6 @@ export const LOCALCODE_MENU: ReadonlySet<string> = new Set([
   "cd",
   "clear",
   "compact",
-  "copy",
   "decide",
   "diff",
   "exit",

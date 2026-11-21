@@ -48,8 +48,10 @@ import { loadProjectContext } from "../../util/project-context"
 import { ensureVision } from "../localcode-vision"
 import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
 import {
+  backgroundDownload,
   controlFetch,
   controlUrl,
+  lastStatus,
   modelChanging,
   modelLoaded,
   queuedModelName,
@@ -1755,7 +1757,10 @@ export function Prompt(props: PromptProps) {
     if (!controlUrl()) return undefined
     const queued = queuedModelName() ? ` · queued: ${queuedModelName()}` : ""
     if (modelChanging()) return "Model changing…" + queued
-    if (modelLoaded()) return queued ? promptDisplay().modelLabel + queued : undefined
+    const dl = backgroundDownload(lastStatus())
+    const downloading = dl ? ` · downloading ${dl.model}${dl.pct != null ? ` ${Math.round(dl.pct)}%` : "…"}` : ""
+    if (modelLoaded()) return queued || downloading ? promptDisplay().modelLabel + queued + downloading : undefined
+    if (dl) return `Downloading ${dl.model}${dl.pct != null ? ` ${Math.round(dl.pct)}%` : "…"}`
     return supervisorKnown() ? "No model loaded · /models" : "Model service not running · exit and run localcode again"
   })
   const animateMetadata = !revealedPromptMetadata.has(local)

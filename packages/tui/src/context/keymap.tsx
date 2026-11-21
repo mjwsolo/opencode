@@ -370,6 +370,7 @@ const LOCALCODE_HIDDEN_COMMANDS = new Set([
   "session.aside", // /btw
   "session.terminal", // /terminal
   "variant.list", // /variants, /effort
+  "variant.cycle", // /variant-cycle
   "location.reload", // /reload
   "session.redo", // /redo
   "session.copy", // copy session transcript

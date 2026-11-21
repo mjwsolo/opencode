@@ -359,7 +359,8 @@ function useLeaderActive() {
   return () => pending()[0]?.tokenName === "leader"
 }
 
-// Upstream commands LocalCode does not offer in its menus ("/" and the palette):
+// Upstream commands LocalCode does not offer in its menus ("/" and the palette)
+// (the /review prompt command is removed in core/src/plugin/command.ts):
 // language servers were removed, and the rest are cloud, workspace or developer
 // features that crowded the list. Listed by command name, so new upstream
 // commands still appear and get reviewed.
@@ -374,6 +375,7 @@ const LOCALCODE_HIDDEN_COMMANDS = new Set([
   "session.copy", // copy session transcript
   "session.copy.id", // copy session ID
   "session.tab.reopen", // reopen closed tab
+  "session.tab.close", // close tab (the tab has its own close button)
 ])
 
 function useCommands(): Accessor<readonly KeymapCommand[]> {

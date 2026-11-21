@@ -17,7 +17,6 @@ import { location } from "../fixture/location"
 import { testEffect } from "../lib/effect"
 import { host } from "./host"
 import PROMPT_INITIALIZE from "../../src/plugin/command/initialize.txt"
-import PROMPT_REVIEW from "../../src/plugin/command/review.txt"
 
 const directory = AbsolutePath.make("/repo/packages/app")
 const project = AbsolutePath.make("/repo")
@@ -33,7 +32,7 @@ const it = testEffect(
 )
 
 describe("CommandPlugin.Plugin", () => {
-  it.effect("registers built-in init and review commands", () =>
+  it.effect("registers the built-in init command (LocalCode has no /review)", () =>
     Effect.gen(function* () {
       const command = yield* Command.Service
       const prompts: {
@@ -74,24 +73,12 @@ describe("CommandPlugin.Plugin", () => {
         name: "init",
         description: "guided LOCALCODE.md setup",
       })
-      expect(yield* command.get("review")).toMatchObject({
-        name: "review",
-        description: "review changes [commit|branch|pr], defaults to uncommitted",
-      })
       yield* command.execute({
         name: "init",
         invocation: {
           sessionID: Session.ID.make("ses_test"),
           prompt: { text: "extra context", files: [{ uri: "file:///tmp/context.md" }] },
           delivery: "queue",
-        },
-      })
-      yield* command.execute({
-        name: "review",
-        invocation: {
-          sessionID: Session.ID.make("ses_test"),
-          prompt: { text: "  branch $& $$ $` $'  " },
-          delivery: "steer",
         },
       })
       yield* command.execute({
@@ -102,14 +89,6 @@ describe("CommandPlugin.Plugin", () => {
           delivery: "steer",
         },
       })
-      yield* command.execute({
-        name: "review",
-        invocation: {
-          sessionID: Session.ID.make("ses_test"),
-          prompt: { text: "   " },
-          delivery: "steer",
-        },
-      })
       expect(prompts).toEqual([
         {
           text: PROMPT_INITIALIZE.replace("${path}", project).replaceAll("$ARGUMENTS", "extra context"),
@@ -117,17 +96,7 @@ describe("CommandPlugin.Plugin", () => {
           delivery: "queue",
         },
         {
-          text: PROMPT_REVIEW.replace("${path}", project).replaceAll("$ARGUMENTS", () => "branch $& $$ $` $'"),
-          files: undefined,
-          delivery: "steer",
-        },
-        {
           text: PROMPT_INITIALIZE.replace("${path}", project).replaceAll("$ARGUMENTS", ""),
-          files: undefined,
-          delivery: "steer",
-        },
-        {
-          text: PROMPT_REVIEW.replace("${path}", project).replaceAll("$ARGUMENTS", ""),
           files: undefined,
           delivery: "steer",
         },

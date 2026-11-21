@@ -13,8 +13,6 @@ export const LOCALCODE_MENU: ReadonlySet<string> = new Set([
   "decide",
   "diff",
   "exit",
-  "quit",
-  "q",
   "export",
   "help",
   "mcps",

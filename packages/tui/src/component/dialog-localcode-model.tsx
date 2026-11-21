@@ -128,6 +128,9 @@ export function DialogLocalcodeModel() {
   // refetches every second during a download and snapped the cursor back each time.
   const currentGroup = createMemo(() => (catalog()?.groups ?? []).find((g) => g.current)?.key)
 
+  // The maker column fits the longest maker name ("Thinking Machines" overran a fixed 12).
+  const makerWidth = () => Math.max(12, ...(catalog()?.groups ?? []).map((g) => g.maker.length)) + 2
+
   const options = () => [
     ...[...(catalog()?.groups ?? [])]
       .sort((a, b) => Number(!!(b.installed_count || b.current)) - Number(!!(a.installed_count || a.current)))
@@ -137,7 +140,7 @@ export function DialogLocalcodeModel() {
         titleView: (
           <span>
             {`${g.display_name}${g.recommended ? " ★" : ""}`.padEnd(dimensions().width >= 80 ? 38 : 32)}
-            {dimensions().width >= 80 ? g.maker.padEnd(12) : ""}
+            {dimensions().width >= 80 ? g.maker.padEnd(makerWidth()) : ""}
             {g.downloading
               ? `⇣ ${pctLabel(g.pct)}`
               : (g.loaded ?? g.current)

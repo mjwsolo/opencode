@@ -26,6 +26,7 @@ import {
 import { useConfig } from "../config"
 import { TuiKeybind } from "../config/keybind"
 import { resolveInteractivity, useInteractivity } from "./interactivity"
+import { offeredNames } from "../util/localcode-menu"
 
 declare module "@opentui/keymap" {
   interface Command {
@@ -359,26 +360,6 @@ function useLeaderActive() {
   return () => pending()[0]?.tokenName === "leader"
 }
 
-// Upstream commands LocalCode does not offer in its menus ("/" and the palette)
-// (the /review prompt command is removed in core/src/plugin/command.ts):
-// language servers were removed, and the rest are cloud, workspace or developer
-// features that crowded the list. Listed by command name, so new upstream
-// commands still appear and get reviewed.
-const LOCALCODE_HIDDEN_COMMANDS = new Set([
-  "lsp.list",
-  "session.move", // /worktrees
-  "session.aside", // /btw
-  "session.terminal", // /terminal
-  "variant.list", // /variants, /effort
-  "variant.cycle", // /variant-cycle
-  "location.reload", // /reload
-  "session.redo", // /redo
-  "session.copy", // copy session transcript
-  "session.copy.id", // copy session ID
-  "session.tab.reopen", // reopen closed tab
-  "session.tab.close", // close tab (the tab has its own close button)
-])
-
 function useCommands(): Accessor<readonly KeymapCommand[]> {
   const value = useValue()
   return useKeymapSelector((keymap) =>
@@ -386,7 +367,6 @@ function useCommands(): Accessor<readonly KeymapCommand[]> {
       .getCommandEntries({
         visibility: "reachable",
       })
-      .filter((entry) => !LOCALCODE_HIDDEN_COMMANDS.has(entry.command.name))
       .map((entry) => {
         const command = entry.command.opencode ?? {
           id: entry.command.name,
@@ -410,7 +390,10 @@ function useCommands(): Accessor<readonly KeymapCommand[]> {
             value.dispatch(entry.command.name, input)
           },
         }
-      }),
+      })
+      // Menu commands (slash or palette) only when on LocalCode's allowlist; plain
+      // key bindings are unaffected.
+      .filter((command) => !(command.slash || command.palette) || offeredNames(command).length > 0),
   )
 }
 

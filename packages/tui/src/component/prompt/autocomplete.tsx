@@ -36,6 +36,7 @@ import type { PromptInfo, PromptPartRef } from "../../prompt/history"
 import { useFrecency } from "../../prompt/frecency"
 import { Keymap, type KeymapCommand } from "../../context/keymap"
 import { mentionTriggerIndex, slashTriggerIndex } from "../../prompt/display"
+import { menuSlash, offeredNames } from "../../util/localcode-menu"
 import type { FileSystemEntry } from "@opencode/client"
 import { Skill } from "@opencode/schema/skill"
 import { stringWidth } from "../../util/string-width"
@@ -490,21 +491,11 @@ export function Autocomplete(props: {
 
   const commands = createMemo((): AutocompleteOption[] => {
     const results: AutocompleteOption[] = keymapCommands().flatMap((command) => {
-      // LocalCode has one menu: "/" also lists palette actions, named from their titles.
-      const slash =
-        command.slash ??
-        (command.palette && command.title
-          ? {
-              name: command.title
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-|-$/g, ""),
-              aliases: undefined,
-              arguments: undefined,
-            }
-          : undefined)
+      // LocalCode has one menu: "/" also lists palette actions, named from their titles,
+      // and only the names on its allowlist (util/localcode-menu.ts).
+      const slash = menuSlash(command)
       if (!slash?.name) return []
-      return [slash.name, ...(slash.aliases ?? [])].map((name) => ({
+      return offeredNames(command).map((name) => ({
         display: `/${name}`,
         description: command.description ?? command.title,
         onSelect: slash.arguments ? () => insertSlash(name) : command.run,

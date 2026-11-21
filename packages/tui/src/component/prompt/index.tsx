@@ -1771,9 +1771,8 @@ export function Prompt(props: PromptProps) {
     const dl = backgroundDownload(lastStatus())
     const downloading = dl ? ` · downloading ${dl.model} ${downloadProgress(dl)}` : ""
     if (modelLoaded()) return queued || downloading ? promptDisplay().modelLabel + queued + downloading : undefined
-    // First run: nothing to chat with yet, so say what is happening and when it ends.
-    if (dl)
-      return `Downloading ${dl.model}${dl.size_gb ? ` (${dl.size_gb} GB)` : ""} ${downloadProgress(dl)} · you can chat once it's loaded`
+    // First run: nothing to chat with yet. The footer is narrow; the input placeholder says the rest.
+    if (dl) return `Downloading ${downloadProgress(dl)}`
     return supervisorKnown() ? "No model loaded · /models" : "Model service not running · exit and run localcode again"
   })
   const animateMetadata = !revealedPromptMetadata.has(local)
@@ -1798,6 +1797,9 @@ export function Prompt(props: PromptProps) {
 
   const placeholderText = createMemo(() => {
     const value = (() => {
+      const dl = !modelLoaded() ? backgroundDownload(lastStatus()) : undefined
+      if (dl && store.mode === "normal")
+        return `Downloading ${dl.model}${dl.size_gb ? ` (${dl.size_gb} GB)` : ""}. You can chat once it's loaded.`
       if (store.mode === "shell") {
         if (!shell().length) return undefined
         return `Run a command… "${shell()[store.placeholder % shell().length]}"`

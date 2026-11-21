@@ -49,6 +49,7 @@ import { ensureVision } from "../localcode-vision"
 import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
 import {
   backgroundDownload,
+  downloadProgress,
   controlFetch,
   controlUrl,
   lastStatus,
@@ -331,6 +332,16 @@ export function Prompt(props: PromptProps) {
   const connected = useConnected()
 
   function promptModelWarning() {
+    const dl = backgroundDownload(lastStatus())
+    if (controlUrl() && dl) {
+      // First run: the model is on its way; the picker would only interrupt.
+      toast.show({
+        variant: "info",
+        message: `${dl.model} is still downloading (${downloadProgress(dl)}). You can chat once it's loaded.`,
+        duration: 5000,
+      })
+      return
+    }
     if (controlUrl()) {
       toast.show({
         variant: "warning",
@@ -1758,9 +1769,11 @@ export function Prompt(props: PromptProps) {
     const queued = queuedModelName() ? ` · queued: ${queuedModelName()}` : ""
     if (modelChanging()) return "Model changing…" + queued
     const dl = backgroundDownload(lastStatus())
-    const downloading = dl ? ` · downloading ${dl.model}${dl.pct != null ? ` ${Math.round(dl.pct)}%` : "…"}` : ""
+    const downloading = dl ? ` · downloading ${dl.model} ${downloadProgress(dl)}` : ""
     if (modelLoaded()) return queued || downloading ? promptDisplay().modelLabel + queued + downloading : undefined
-    if (dl) return `Downloading ${dl.model}${dl.pct != null ? ` ${Math.round(dl.pct)}%` : "…"}`
+    // First run: nothing to chat with yet, so say what is happening and when it ends.
+    if (dl)
+      return `Downloading ${dl.model}${dl.size_gb ? ` (${dl.size_gb} GB)` : ""} ${downloadProgress(dl)} · you can chat once it's loaded`
     return supervisorKnown() ? "No model loaded · /models" : "Model service not running · exit and run localcode again"
   })
   const animateMetadata = !revealedPromptMetadata.has(local)

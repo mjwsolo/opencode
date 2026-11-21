@@ -29,6 +29,17 @@ export type Download = {
   state: "downloading" | "done" | "error" | "cancelled"
   detail?: string
   pct?: number | null
+  size_gb?: number
+  /** Seconds left, measured from this download's own speed; absent until it is known. */
+  eta_s?: number | null
+}
+
+/** "42% · about 3 min left", from the download's measured speed. */
+export function downloadProgress(dl: Download) {
+  const pct = dl.pct != null ? `${Math.round(dl.pct)}%` : "starting…"
+  if (dl.eta_s == null) return pct
+  const left = dl.eta_s < 60 ? "under a minute left" : `about ${Math.round(dl.eta_s / 60)} min left`
+  return `${pct} · ${left}`
 }
 
 export const backgroundDownload = (st: Status | undefined) =>
@@ -103,7 +114,7 @@ export function supervisorLine() {
   if (st.state === "loading") return `Loading ${st.model ?? "model"}…`
   if (st.state === "error") return `Model error: ${st.detail ?? "unknown"}`
   const dl = backgroundDownload(st)
-  if (dl) return `Downloading ${dl.model}${dl.pct != null ? ` ${Math.round(dl.pct)}%` : "…"}${st.current ? " · you can keep working" : ""}`
+  if (dl) return `Downloading ${dl.model} ${downloadProgress(dl)}${st.current ? " · you can keep working" : ""}`
   if (!st.current) return "No model loaded · /models"
   return undefined
 }

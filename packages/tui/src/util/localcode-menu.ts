@@ -25,7 +25,6 @@ export const LOCALCODE_MENU: ReadonlySet<string> = new Set([
   "project-context",
   "rename",
   "resume",
-  "say",
   "speak",
   "server",
   "settings",

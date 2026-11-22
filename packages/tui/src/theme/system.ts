@@ -98,7 +98,7 @@ export function generateSystem(colors: TerminalColors, mode: "dark" | "light") {
   }
 }
 
-function generateGrayScale(bg: RGBA, isDark: boolean): Record<number, RGBA> {
+export function generateGrayScale(bg: RGBA, isDark: boolean): Record<number, RGBA> {
   const grays: Record<number, RGBA> = {}
   const bgR = bg.r * 255
   const bgG = bg.g * 255

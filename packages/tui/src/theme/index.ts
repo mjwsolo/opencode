@@ -5,6 +5,8 @@ import {
   type ThemeDocument,
   type ModeDefinition,
 } from "@opencode/theme/tui"
+import type { TerminalColors } from "@opentui/core"
+import { adaptThemeToTerminal } from "./terminal"
 import { resolveThemeColors } from "./resolve"
 import { DEFAULT_THEMES, type Theme, type ThemeV1Json } from "./v1"
 import opencode from "./assets/v2/opencode.json" with { type: "json" }
@@ -39,6 +41,17 @@ let localcodeTheme: ThemeDocument | undefined
 export function getLocalCodeTheme() {
   localcodeTheme ??= parseThemeDocument(localcode, "localcode")
   return localcodeTheme
+}
+
+const terminalDocuments = new WeakMap<object, ThemeDocument>()
+
+/** The localcode theme with its background taken from the terminal; the stock theme when none is known. */
+export function getLocalCodeThemeFor(colors: TerminalColors | undefined) {
+  const adapted = adaptThemeToTerminal(localcode, colors)
+  if (adapted === localcode) return getLocalCodeTheme()
+  let document = terminalDocuments.get(adapted)
+  if (!document) terminalDocuments.set(adapted, (document = parseThemeDocument(adapted, "localcode")))
+  return document
 }
 
 let opencode2Theme: ThemeDocument | undefined

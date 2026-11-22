@@ -10,6 +10,8 @@ import {
 import {
   allThemes,
   DEFAULT_THEME,
+  getLocalCodeThemeFor,
+  getLocalCodeTheme,
   getOpenCode2Theme,
   hasTheme,
   parseTheme,
@@ -146,7 +148,7 @@ const themeContext = createSimpleContext({
       const theme = config.theme?.name
       if (!theme) return
       setStore("active", theme)
-      if (theme === "system") refreshPalette()
+      if (theme === "system" || theme === DEFAULT_THEME) refreshPalette()
     })
 
     createEffect(() => {
@@ -177,6 +179,9 @@ const themeContext = createSimpleContext({
 
     const cachedPalette = cache?.[0].colors
     let palette = usablePalette(cachedPalette) ? cachedPalette : undefined
+    // The default theme blends with the terminal, so it follows the detected palette like "system" does.
+    const [terminalColors, setTerminalColors] = createSignal<TerminalColors | undefined>(palette)
+    const followsTerminal = () => store.active === "system" || store.active === DEFAULT_THEME
     const applyPalette = () => {
       if (palette) setSystemTheme(generateSystem(palette, store.mode))
     }
@@ -191,7 +196,7 @@ const themeContext = createSimpleContext({
     let queued = false
     let disposed = false
     function refreshPalette() {
-      if (store.active !== "system") return
+      if (!followsTerminal()) return
       queued = true
       if (!canProbe || probing || disposed) return
 
@@ -205,6 +210,7 @@ const themeContext = createSimpleContext({
         .then((colors) => {
           if (disposed || !usablePalette(colors)) return
           palette = colors
+          setTerminalColors(colors)
           const mode = store.lock ?? terminalMode(colors) ?? store.mode
           if (store.mode !== mode) setStore("mode", mode)
           applyPalette()
@@ -299,13 +305,17 @@ const themeContext = createSimpleContext({
     const selected = createMemo(() => {
       const sources = available()
       const name = sources[store.active] ? store.active : DEFAULT_THEME
+      const source = (name: string) =>
+        name === DEFAULT_THEME && sources[name] === getLocalCodeTheme()
+          ? getLocalCodeThemeFor(terminalColors())
+          : sources[name]
       try {
-        return loadTheme(sources[name], name, store.mode, newDesigns())
+        return loadTheme(source(name), name, store.mode, newDesigns())
       } catch (error) {
         if (name === DEFAULT_THEME) throw error
         themeErrors.emit(name, error)
         setStore("active", DEFAULT_THEME)
-        return loadTheme(sources[DEFAULT_THEME], DEFAULT_THEME, store.mode, newDesigns())
+        return loadTheme(source(DEFAULT_THEME), DEFAULT_THEME, store.mode, newDesigns())
       }
     })
     const modes = () => selected().modes
@@ -341,7 +351,7 @@ const themeContext = createSimpleContext({
       set(theme: string) {
         if (!has(theme)) return false
         setStore("active", theme)
-        if (theme === "system") refreshPalette()
+        if (theme === "system" || theme === DEFAULT_THEME) refreshPalette()
         void configState
           .update((draft) => {
             draft.theme = { ...draft.theme, name: theme }

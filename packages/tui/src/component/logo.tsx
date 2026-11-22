@@ -3,7 +3,7 @@ import { For, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { tint } from "../theme/color"
-import { logo, slogan } from "../logo"
+import { compact, logo, slogan } from "../logo"
 
 export function Logo() {
   const theme = useTheme()
@@ -18,9 +18,24 @@ export function Logo() {
         <Show
           when={dimensions().width >= 54}
           fallback={
-            <text fg={brand()} attributes={TextAttributes.BOLD} selectable={false}>
-              localcode
-            </text>
+            <Show
+              when={dimensions().width >= compact[0]!.length + 2}
+              fallback={
+                <text fg={brand()} attributes={TextAttributes.BOLD} selectable={false}>
+                  localcode
+                </text>
+              }
+            >
+              <box>
+                <For each={compact}>
+                  {(line) => (
+                    <text fg={brand()} selectable={false}>
+                      {line}
+                    </text>
+                  )}
+                </For>
+              </box>
+            </Show>
           }
         >
           <box flexDirection="row" gap={2}>

@@ -15,3 +15,18 @@ export const go = {
 }
 
 export const slogan = "Agentic coding. Local models. On your Mac."
+
+// Compact two-row wordmark for narrow terminals, built from half-height blocks.
+const compactGlyphs: Record<string, [string, string]> = {
+  l: ["█", "█"],
+  o: ["█▀█", "▀▀▀"],
+  c: ["█▀▀", "▀▀▀"],
+  a: ["▄▀█", "█▀█"],
+  d: ["▄▄█", "▀▀█"],
+  e: ["█▀█", "█▀▀"],
+}
+
+export const compact = [0, 1].map((row) =>
+  [..."localcode"].map((char) => compactGlyphs[char]![row]).join(" "),
+)
+

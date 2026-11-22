@@ -7,10 +7,18 @@ test("formats session continuation summary", () => {
   expect(epilogue).toContain("localcode --resume ses_123")
 })
 
-test("skips the block-letter wordmark in a narrow terminal", () => {
-  const narrow = sessionEpilogue({ title: "A session", sessionID: "ses_123", columns: 40 })
-  expect(narrow).not.toContain("█")
-  expect(narrow).toContain("A session")
-  expect(narrow).toContain("localcode --resume ses_123")
-  expect(sessionEpilogue({ title: "A session", sessionID: "ses_123", columns: 80 })).toContain("█")
+test("picks full, compact or plain wordmark by width", () => {
+  const at = (columns: number) => sessionEpilogue({ title: "A session", sessionID: "ses_123", columns }).replace(/\x1b\[[0-9;]*m/g, "")
+  const full = at(80)
+  expect(full).toContain("█▀▀▀ █▀▀█")
+  const mid = at(36)
+  expect(mid).toContain("█ █▀█ █▀▀ ▄▀█ █ █▀▀ █▀█ ▄▄█ █▀█")
+  expect(mid).not.toContain("█▀▀▀ █▀▀█")
+  const tiny = at(20)
+  expect(tiny).not.toContain("█")
+  expect(tiny).toContain("localcode")
+  for (const out of [full, mid, tiny]) {
+    expect(out).toContain("A session")
+    expect(out).toContain("localcode --resume ses_123")
+  }
 })

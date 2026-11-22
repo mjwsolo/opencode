@@ -194,7 +194,7 @@ export function Session(props: {
 
   createEffect(() => {
     const title = Locale.truncate(session()?.title ?? "", 50)
-    setEpilogue(sessionEpilogue({ title, sessionID: session()?.id }))
+    setEpilogue(sessionEpilogue({ title, sessionID: session()?.id, columns: dimensions().width }))
   })
   onCleanup(() => setEpilogue())
   const descendantSessionIDs = createMemo(() => {

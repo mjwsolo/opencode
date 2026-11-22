@@ -3,12 +3,17 @@ import { For, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { tint } from "../theme/color"
-import { logo, slogan } from "../logo"
+import { logo, logoSmall, logoStacked, slogan } from "../logo"
 
 export function Logo() {
   const theme = useTheme()
   const dimensions = useTerminalDimensions()
-  const rows = logo.left.map((line, index) => `${line} ${logo.right[index]}`)
+  const rowsOf = (mark: typeof logo) => mark.left.map((line, index) => `${line} ${mark.right[index]}`)
+  const fullWidth = rowsOf(logo)[0]!.length + 3
+  const smallWidth = rowsOf(logoSmall)[0]!.length + 3
+  const stackedWidth = rowsOf(logoStacked)[0]!.length + 3
+  const rows = () =>
+    rowsOf(dimensions().width >= Math.max(54, fullWidth) ? logo : dimensions().width >= smallWidth + 2 ? logoSmall : logoStacked)
   // The wordmark is the brand blue in every theme mode.
   const brand = () => theme.hue.interactive[200]
 
@@ -16,7 +21,7 @@ export function Logo() {
     <Show when={dimensions().height >= 12}>
       <box alignItems="center" gap={1}>
         <Show
-          when={dimensions().width >= 54}
+          when={dimensions().width >= stackedWidth + 2}
           fallback={
             <text fg={brand()} attributes={TextAttributes.BOLD} selectable={false}>
               localcode
@@ -25,7 +30,7 @@ export function Logo() {
         >
           <box flexDirection="row" gap={2}>
             <box>
-              <For each={rows}>
+              <For each={rows()}>
                 {(line) => (
                   <text selectable={false}>
                     <For each={Array.from(line)}>

@@ -14,10 +14,13 @@ test("picks full, compact or plain wordmark by width", () => {
   const mid = at(38)
   expect(mid).toContain("█ █▀█ █▀▀ ▀▀█ █ █▀▀ █▀█ █▀█ █▀█")
   expect(mid).not.toContain("█▀▀▀ █▀▀█")
-  const tiny = at(20)
+  const stacked = at(20)
+  expect(stacked).toContain("█ █▀█ █▀▀ ▀▀█ █")
+  expect(stacked).toContain("\n  █▀▀ █▀█ █▀█ █▀█")
+  const tiny = at(12)
   expect(tiny).not.toContain("█")
   expect(tiny).toContain("localcode")
-  for (const out of [full, mid, tiny]) {
+  for (const out of [full, mid, stacked, tiny]) {
     expect(out).toContain("A session")
     expect(out).toContain("localcode --resume ses_123")
   }

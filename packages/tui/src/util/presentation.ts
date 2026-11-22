@@ -1,4 +1,4 @@
-import { logo, logoSmall } from "../logo"
+import { logo, logoSmall, logoStacked } from "../logo"
 
 const reset = "\x1b[0m"
 const bold = "\x1b[1m"
@@ -25,6 +25,7 @@ function wordmark(pad = "", mark: typeof logo = logo) {
 
 // Two-space indent + left half + gap + right half; wider than this and the block letters wrap.
 const WORDMARK_WIDTH = 2 + (logo.left[0]?.length ?? 0) + 1 + (logo.right[0]?.length ?? 0)
+const STACKED_WIDTH = 2 + (logoStacked.left[0]?.length ?? 0) + 1
 const SMALL_WIDTH = 2 + (logoSmall.left[0]?.length ?? 0) + 1 + (logoSmall.right[0]?.length ?? 0)
 
 export function sessionEpilogue(input: { title: string; sessionID?: string; columns?: number }) {
@@ -34,6 +35,8 @@ export function sessionEpilogue(input: { title: string; sessionID?: string; colu
       ? wordmark("  ")
       : columns >= SMALL_WIDTH
         ? wordmark("  ", logoSmall)
+        : columns >= STACKED_WIDTH
+          ? wordmark("  ", logoStacked)
         : [`  \x1b[38;2;95;135;255m${bold}localcode${reset}`]
   const weak = (text: string) => `${dim}${text.padEnd(10, " ")}${reset}`
   return [

@@ -28,3 +28,5 @@ const smallGlyphs: Record<string, string[]> = {
 }
 const small = (word: string) => [0, 1, 2, 3].map((row) => [...word].map((char) => smallGlyphs[char]![row]).join(" "))
 export const logoSmall = { left: small("local"), right: small("code") }
+// Narrowest: the same small letters with "code" under "local".
+export const logoStacked = { left: [...small("local"), ...small("code").map((row) => row.padEnd(small("local")[0]!.length))], right: Array<string>(8).fill("") }

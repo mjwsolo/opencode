@@ -3,7 +3,7 @@ import { For, Show } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { tint } from "../theme/color"
-import { logo, logoSmall, slogan } from "../logo"
+import { logo, logoSmall, logoStacked, slogan } from "../logo"
 
 export function Logo() {
   const theme = useTheme()
@@ -11,7 +11,9 @@ export function Logo() {
   const rowsOf = (mark: typeof logo) => mark.left.map((line, index) => `${line} ${mark.right[index]}`)
   const fullWidth = rowsOf(logo)[0]!.length + 3
   const smallWidth = rowsOf(logoSmall)[0]!.length + 3
-  const rows = () => rowsOf(dimensions().width >= Math.max(54, fullWidth) ? logo : logoSmall)
+  const stackedWidth = rowsOf(logoStacked)[0]!.length + 3
+  const rows = () =>
+    rowsOf(dimensions().width >= Math.max(54, fullWidth) ? logo : dimensions().width >= smallWidth + 2 ? logoSmall : logoStacked)
   // The wordmark is the brand blue in every theme mode.
   const brand = () => theme.hue.interactive[200]
 
@@ -19,7 +21,7 @@ export function Logo() {
     <Show when={dimensions().height >= 12}>
       <box alignItems="center" gap={1}>
         <Show
-          when={dimensions().width >= smallWidth + 2}
+          when={dimensions().width >= stackedWidth + 2}
           fallback={
             <text fg={brand()} attributes={TextAttributes.BOLD} selectable={false}>
               localcode

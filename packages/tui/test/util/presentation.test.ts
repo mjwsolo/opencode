@@ -12,7 +12,7 @@ test("picks full, compact or plain wordmark by width", () => {
   const full = at(80)
   expect(full).toContain("█▀▀▀ █▀▀█")
   const mid = at(38)
-  expect(mid).toContain("█▄▄ █▄█ █▄▄ █▀█ █▄▄ █▄▄ █▄█ █▄█ ██▄")
+  expect(mid).toContain("█ █▀█ █▀▀ ▀▀█ █ █▀▀ █▀█ █▀█ █▀█")
   expect(mid).not.toContain("█▀▀▀ █▀▀█")
   const tiny = at(20)
   expect(tiny).not.toContain("█")

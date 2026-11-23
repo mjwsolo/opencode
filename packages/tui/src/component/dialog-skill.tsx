@@ -12,6 +12,15 @@ export type DialogSkillProps = {
   onSelect: (skill: string) => void
 }
 
+/** Where a skill folder lives, from its path: project, user config, shared agents folder or other. */
+export function skillSource(file: string) {
+  const dir = file.replace(/\/SKILL\.md$/i, "")
+  if (dir.includes("/.localcode-agent/skills/")) return "project"
+  if (dir.includes("/localcode-agent/skills/")) return "user"
+  if (dir.includes("/.agents/skills/")) return "shared (~/.agents)"
+  return "other"
+}
+
 export function DialogSkill(props: DialogSkillProps) {
   const dialog = useDialog()
   const data = useData()
@@ -45,6 +54,7 @@ export function DialogSkill(props: DialogSkillProps) {
     return list.map((skill) => ({
       title: skill.name.padEnd(maxWidth),
       description: skill.description?.replace(/\s+/g, " ").trim(),
+      footer: skillSource(skill.path),
       value: skill.id,
       onSelect: () => {
         props.onSelect(skill.id)

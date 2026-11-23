@@ -45,7 +45,8 @@ import { DialogIntegration } from "../dialog-integration"
 import { DialogLocalcodeModel } from "../dialog-localcode-model"
 import { DialogProjectContext } from "../dialog-project-context"
 import { loadProjectContext } from "../../util/project-context"
-import { ensureVision } from "../localcode-vision"
+import { DialogNoVision, ensureVision, visionStatus } from "../localcode-vision"
+import { imageGuard } from "./image-guard"
 import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
 import {
   backgroundDownload,
@@ -1263,6 +1264,8 @@ export function Prompt(props: PromptProps) {
   })
 
   let submitting = false
+  // Set by "Send without image" so the resubmit skips the vision check once.
+  let skipImageGuard = false
   async function submit(delivery: SessionInbox.Delivery = "steer") {
     if (disabled()) return false
     // Enter while dictating, or just after release before the last words are in: send once the
@@ -1360,6 +1363,33 @@ export function Prompt(props: PromptProps) {
       })
       return false
     }
+
+    // An image bound for a model that cannot see it is never sent silently: stop, keep the
+    // draft and attachments, and ask. Only a definite "no vision" from the supervisor blocks.
+    if (usesModel && controlUrl() && !skipImageGuard && store.prompt.files?.length) {
+      const guard = imageGuard(store.prompt.files, await visionStatus())
+      if (guard.action === "block") {
+        dialog.replace(() => (
+          <DialogNoVision
+            model={guard.model}
+            canDownload={guard.canDownload}
+            sizeGb={guard.sizeGb}
+            onDownload={() => {
+              dialog.clear()
+              void ensureVision(dialog, toast)
+            }}
+            onSwitch={() => dialog.replace(() => <DialogLocalcodeModel />)}
+            onSendWithout={() => {
+              dialog.clear()
+              skipImageGuard = true
+              void submit(delivery).finally(() => (skipImageGuard = false))
+            }}
+          />
+        ))
+        return false
+      }
+    }
+    skipImageGuard = false
 
     // Snapshot the composer and clear it synchronously, before the first await.
     // Everything below reads the snapshot: text typed while a request is in

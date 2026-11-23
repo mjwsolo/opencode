@@ -65,6 +65,7 @@ import { LocalProvider, useLocal } from "./context/local"
 import { PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
 import { DialogMcp } from "./component/dialog-mcp"
+import { DialogAlert } from "./ui/dialog-alert"
 import { DialogStatus } from "./component/dialog-status"
 import { DialogConfig } from "./component/dialog-config"
 import { DialogDebug } from "./component/dialog-debug"
@@ -994,6 +995,24 @@ function App() {
         slash: { name: "mcps" },
         run: () => {
           dialog.replace(() => <DialogMcp />)
+        },
+      },
+      {
+        name: "mcp.import",
+        title: "Import from other agents",
+        category: "Agent",
+        slash: { name: "import-agents" },
+        run: () => {
+          dialog.replace(() => (
+            <DialogAlert
+              title="Import from other agents"
+              message={
+                "To copy MCP servers and skills from Claude Code, Codex or Cursor, run this in a terminal:\n\n" +
+                "  localcode mcp import\n\n" +
+                "It shows what it found and asks before importing. Imported servers start disabled; enable them in /mcps."
+              }
+            />
+          ))
         },
       },
       {

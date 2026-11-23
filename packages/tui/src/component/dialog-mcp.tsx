@@ -11,6 +11,9 @@ import { useToast } from "../ui/toast"
 import { DialogErrorDetails } from "./dialog-error-details"
 import { DialogIntegration } from "./dialog-integration"
 import { useLocation } from "../context/location"
+import { DialogConfirm } from "../ui/dialog-confirm"
+import { DialogMcpAdd } from "./dialog-mcp-add"
+import { removeServer, setEnabled, userConfigFile } from "../util/mcp-config"
 
 function statusError(status: McpServer["status"]) {
   if (status.status === "failed" || status.status === "needs_auth") return status.error
@@ -127,6 +130,13 @@ export function DialogMcp(props: { initialServer?: string; details?: boolean } =
     setLoading((prev) => new Set(prev).add(name))
     const target = current()
     const input = { server: name, location: { directory: target.directory } }
+    // Persist the choice for servers kept in the user config so it survives a restart.
+    // Servers declared by a project config are toggled for this session only.
+    try {
+      setEnabled(userConfigFile(), name, server.status.status !== "connected")
+    } catch (error) {
+      toast.error(error)
+    }
     const call = server.status.status === "connected" ? client.api.experimental.mcp.disconnect(input) : client.api.experimental.mcp.connect(input)
     void call.catch(toast.error).finally(() =>
       setLoading((prev) => {
@@ -136,6 +146,31 @@ export function DialogMcp(props: { initialServer?: string; details?: boolean } =
       }),
     )
   }
+
+  const add = () =>
+    dialog.replace(() => <DialogMcpAdd onDone={(name) => dialog.replace(() => <DialogMcp initialServer={name} />)} />)
+
+  const remove = (name: string) =>
+    dialog.replace(() => (
+      <DialogConfirm
+        title={`Remove ${name}?`}
+        message={`This deletes ${name} from your localcode config. Its tools stop being available.`}
+        label={{ confirm: "Remove", cancel: "Keep" }}
+        onConfirm={() => {
+          try {
+            if (!removeServer(userConfigFile(), name)) toast.show({ variant: "warning", message: `${name} comes from a project config; remove it there` })
+            else {
+              void client.api.experimental.mcp.disconnect({ server: name, location: { directory: current().directory } }).catch(() => {})
+              toast.show({ variant: "success", message: `Removed ${name}` })
+            }
+          } catch (error) {
+            toast.error(error)
+          }
+          setTimeout(() => dialog.replace(() => <DialogMcp />), 0)
+        }}
+        onCancel={() => setTimeout(() => dialog.replace(() => <DialogMcp initialServer={name} />), 0)}
+      />
+    ))
 
   return (
     <box>
@@ -152,6 +187,17 @@ export function DialogMcp(props: { initialServer?: string; details?: boolean } =
             onMove={(option) => setFocused(option.value as string)}
             onSelect={(option) => select(option.value as string)}
             actions={[
+              {
+                title: "add",
+                command: "dialog.mcp.add",
+                selection: "none",
+                onTrigger: add,
+              },
+              {
+                title: "remove",
+                command: "dialog.mcp.remove",
+                onTrigger: (option) => remove(option.value as string),
+              },
               {
                 title: toggleTitle(),
                 command: "dialog.mcp.toggle",

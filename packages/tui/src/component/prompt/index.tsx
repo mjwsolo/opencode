@@ -46,6 +46,7 @@ import { DialogLocalcodeModel } from "../dialog-localcode-model"
 import { DialogProjectContext } from "../dialog-project-context"
 import { loadProjectContext } from "../../util/project-context"
 import { DialogNoVision, ensureVision, visionStatus } from "../localcode-vision"
+import { runBench } from "../localcode-bench"
 import { imageGuard } from "./image-guard"
 import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
 import {
@@ -753,6 +754,22 @@ export function Prompt(props: PromptProps) {
         run: async () => {
           dialog.clear()
           await ensureVision(dialog, toast)
+        },
+      },
+      {
+        title: "Benchmark the loaded model's speed",
+        category: "Session",
+        name: "prompt.bench",
+        slash: { name: "bench" },
+        enabled: !!controlUrl(),
+        run: async () => {
+          const st = await visionStatus()
+          if (!st?.current || st.state !== "ready") {
+            dialog.clear()
+            toast.show({ variant: "warning", title: "Benchmark", message: "Load a model first (/models)", duration: 4000 })
+            return
+          }
+          await runBench(dialog, st.current)
         },
       },
       {

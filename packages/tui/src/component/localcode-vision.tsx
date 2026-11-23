@@ -6,10 +6,26 @@
 import { DialogConfirm } from "../ui/dialog-confirm"
 import { DialogSelect } from "../ui/dialog-select"
 import type { DialogContext } from "../ui/dialog"
+import { useTheme } from "../context/theme"
+import { TextAttributes } from "@opentui/core"
 import { controlUrl, controlFetch } from "../util/localcode"
 
-type Toast = { show: (t: { variant: "info" | "success" | "error" | "warning"; title?: string; message: string; duration?: number }) => void }
-type Status = { state: string; current?: string | null; vision?: boolean; vision_available?: boolean; vision_size_gb?: number; detail?: string }
+type Toast = {
+  show: (t: {
+    variant: "info" | "success" | "error" | "warning"
+    title?: string
+    message: string
+    duration?: number
+  }) => void
+}
+type Status = {
+  state: string
+  current?: string | null
+  vision?: boolean
+  vision_available?: boolean
+  vision_size_gb?: number
+  detail?: string
+}
 
 export async function visionStatus(): Promise<Status | undefined> {
   if (!controlUrl()) return undefined
@@ -40,28 +56,45 @@ export async function ensureVision(dialog: DialogContext, toast: Toast): Promise
     return false
   }
   if (st.vision) {
-    toast.show({ variant: "success", title: "Vision", message: `${st.current} already reads images — drop or paste one`, duration: 4000 })
+    toast.show({
+      variant: "success",
+      title: "Vision",
+      message: `${st.current} already reads images — drop or paste one`,
+      duration: 4000,
+    })
     return true
   }
   if (!st.vision_available) {
-    toast.show({ variant: "warning", title: "Vision", message: `${st.current} has no image projector; pick a vision-capable model in /models`, duration: 5000 })
+    toast.show({
+      variant: "warning",
+      title: "Vision",
+      message: `${st.current} has no image projector; pick a vision-capable model in /models`,
+      duration: 5000,
+    })
     return false
   }
   const ok = await new Promise<boolean>((resolve) => {
-    dialog.replace(() => (
-      <DialogConfirm
-        title="Enable images for this model?"
-        message={`Download the ${st.vision_size_gb} GB vision projector for ${st.current} from Hugging Face and restart the local server with it?`}
-        label={{ confirm: "Download and enable" }}
-        onConfirm={() => resolve(true)}
-        onCancel={() => resolve(false)}
-      />
-    ), () => resolve(false))
+    dialog.replace(
+      () => (
+        <DialogConfirm
+          title="Enable images for this model?"
+          message={`Download the ${st.vision_size_gb} GB vision projector for ${st.current} from Hugging Face and restart the local server with it?`}
+          label={{ confirm: "Download and enable" }}
+          onConfirm={() => resolve(true)}
+          onCancel={() => resolve(false)}
+        />
+      ),
+      () => resolve(false),
+    )
   })
   dialog.clear()
   if (!ok) return false
   try {
-    const r = await controlFetch("/vision/install", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+    const r = await controlFetch("/vision/install", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    })
     const res = (await r.json()) as { error?: string }
     if (res.error) throw new Error(res.error)
   } catch (e) {
@@ -74,14 +107,26 @@ export async function ensureVision(dialog: DialogContext, toast: Toast): Promise
     const timer = setInterval(async () => {
       const s = await visionStatus()
       if (!s) return
-      const line = s.state === "downloading" ? `${s.detail ?? "downloading…"}` : s.state === "loading" ? "restarting with vision…" : ""
+      const line =
+        s.state === "downloading"
+          ? `${s.detail ?? "downloading…"}`
+          : s.state === "loading"
+            ? "restarting with vision…"
+            : ""
       if (line && line !== last) {
         last = line
         toast.show({ variant: "info", title: "Vision", message: line, duration: 10 * 60_000 })
       }
       if (s.state === "ready") {
         clearInterval(timer)
-        toast.show({ variant: s.vision ? "success" : "error", title: "Vision", message: s.vision ? "Images enabled — drop or paste one" : "Projector download failed (see .run/supervisor.log)", duration: 6000 })
+        toast.show({
+          variant: s.vision ? "success" : "error",
+          title: "Vision",
+          message: s.vision
+            ? "Images enabled — drop or paste one"
+            : "Projector download failed (see .run/supervisor.log)",
+          duration: 6000,
+        })
         resolve(!!s.vision)
       }
       if (s.state === "error") {
@@ -91,6 +136,11 @@ export async function ensureVision(dialog: DialogContext, toast: Toast): Promise
       }
     }, 1000)
   })
+}
+
+export function noVisionExplanation(canDownload: boolean, sizeGb?: number) {
+  if (!canDownload) return "This model can't read images. Switch to one that can, like Gemma 4 or Qwen."
+  return `This model reads images with a separate${sizeGb != null ? ` ${sizeGb} GB` : ""} add-on. Same as running /vision.`
 }
 
 /**
@@ -105,9 +155,21 @@ export function DialogNoVision(props: {
   onSwitch: () => void
   onSendWithout: () => void
 }) {
+  const theme = useTheme().surface("dialog")
+  const title = `${props.model} can't see images yet`
   return (
     <DialogSelect
-      title={`${props.model} can't see images yet`}
+      title={title}
+      titleView={
+        <box flexShrink={1}>
+          <text attributes={TextAttributes.BOLD} fg={theme.text.base} wrapMode="none" truncate>
+            {title}
+          </text>
+          <text fg={theme.text.muted} wrapMode="word">
+            {noVisionExplanation(props.canDownload, props.sizeGb)}
+          </text>
+        </box>
+      }
       current={props.canDownload ? "download" : "switch"}
       renderFilter={false}
       footerHints={[{ title: "enter", label: "choose" }]}

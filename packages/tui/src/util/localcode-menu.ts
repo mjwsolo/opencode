@@ -6,6 +6,7 @@
  * and tests/e2e checks the menu against this list.
  */
 export const LOCALCODE_MENU: ReadonlySet<string> = new Set([
+  "bench",
   "cd",
   "clear",
   "compact",

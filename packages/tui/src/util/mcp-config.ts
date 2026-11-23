@@ -1,5 +1,5 @@
 /**
- * Edits the MCP servers in the user's localcode config file (the same file `localcode mcp add --global`
+ * Toggles MCP servers on or off in the user's localcode config file (the same file `localcode mcp add --global`
  * writes). The runtime watches its config files, so a saved change takes effect without a restart.
  * Pure functions plus small atomic file helpers so the dialog logic can be tested against a temp dir.
  */
@@ -90,70 +90,6 @@ export function servers(config: Config): Record<string, McpSpec> {
   return out
 }
 
-const NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
-
-export function validateName(name: string, config: Config) {
-  if (!NAME.test(name)) return "Use letters, numbers, - and _ (up to 64 characters)"
-  if (name in servers(config)) return `A server named ${name} already exists`
-  return undefined
-}
-
-/** Splits a command line into arguments, honouring single and double quotes. */
-export function parseCommand(line: string): string[] {
-  const out: string[] = []
-  let cur = ""
-  let quote: string | undefined
-  let started = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (quote) {
-      if (c === quote) quote = undefined
-      else if (c === "\\" && quote === '"' && i + 1 < line.length) cur += line[++i]
-      else cur += c
-    } else if (c === '"' || c === "'") {
-      quote = c
-      started = true
-    } else if (/\s/.test(c)) {
-      if (started || cur) out.push(cur)
-      cur = ""
-      started = false
-    } else {
-      cur += c
-      started = true
-    }
-  }
-  if (quote) throw new Error("Unclosed quote in the command")
-  if (started || cur) out.push(cur)
-  return out
-}
-
-const quoteArg = (a: string) => (/^[\w@%+=:,./*-]+$/.test(a) ? a : JSON.stringify(a))
-
-/** The command exactly as it will run, for showing before anything is saved. */
-export function commandLine(command: string[]) {
-  return command.map(quoteArg).join(" ")
-}
-
-export function validateRemote(url: string) {
-  try {
-    const u = new URL(url)
-    if (u.protocol !== "http:" && u.protocol !== "https:") return "The URL must start with http:// or https://"
-  } catch {
-    return "That is not a valid URL"
-  }
-  return undefined
-}
-
-export function addServer(file: string, name: string, spec: McpSpec) {
-  const config = readConfig(file)
-  const bad = validateName(name, config)
-  if (bad) throw new Error(bad)
-  const mcp = config.mcp && typeof config.mcp === "object" ? config.mcp : {}
-  mcp[name] = spec
-  config.mcp = mcp
-  writeConfig(file, config)
-}
-
 /** Where a server lives in the file: flat `mcp.<name>` or legacy `mcp.servers.<name>`. */
 function holder(config: Config, name: string): Record<string, unknown> | undefined {
   const mcp = config.mcp as Record<string, unknown> | undefined
@@ -170,15 +106,6 @@ export function setEnabled(file: string, name: string, enabled: boolean) {
   const at = holder(config, name)
   if (!at) return false
   at[name] = { ...(at[name] as object), enabled }
-  writeConfig(file, config)
-  return true
-}
-
-export function removeServer(file: string, name: string) {
-  const config = readConfig(file)
-  const at = holder(config, name)
-  if (!at) return false
-  delete at[name]
   writeConfig(file, config)
   return true
 }

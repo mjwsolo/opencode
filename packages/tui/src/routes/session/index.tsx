@@ -27,14 +27,7 @@ import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner, SPINNER_FRAMES } from "../../component/spinner"
 import { PatchDiff } from "../../component/patch-diff"
 import { useTheme, useThemes } from "../../context/theme"
-import {
-  BoxRenderable,
-  ScrollBoxRenderable,
-  addDefaultParsers,
-  TextAttributes,
-  RGBA,
-  MouseEvent,
-} from "@opentui/core"
+import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA, MouseEvent } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import {
   mediaHashFromUri,
@@ -114,6 +107,8 @@ import {
   type SessionRow,
 } from "./rows"
 import { switchLabel } from "../../util/model"
+import { controlUrl } from "../../util/localcode"
+import { formatStepSpeed, stepSpeed } from "../../util/localcode-speed"
 import { findMessageBoundary, messageNavigationSlack } from "./message-navigation"
 import { stringWidth } from "../../util/string-width"
 import { useArgs } from "../../context/args"
@@ -215,9 +210,7 @@ export function Session(props: {
   })
   // Auto-approve never answers a request to leave the sandbox: it always needs a person.
   const promptedPermissions = createMemo(() =>
-    local.permission.mode === "autoaccept"
-      ? permissions().filter((request) => !autoApproves(request))
-      : permissions(),
+    local.permission.mode === "autoaccept" ? permissions().filter((request) => !autoApproves(request)) : permissions(),
   )
   const forms = createMemo(() => {
     const global = data.session.form.list("global", location()) ?? []
@@ -1045,7 +1038,11 @@ export function Session(props: {
           const on = local.model.variant.current() === "thinking"
           local.model.variant.set(on ? "none" : "thinking")
           setDisplay(on ? "hide" : "show")
-          toast.show({ variant: "info", message: on ? "Thinking off" : "Thinking on — slower, shows reasoning", duration: 2500 })
+          toast.show({
+            variant: "info",
+            message: on ? "Thinking off" : "Thinking on — slower, shows reasoning",
+            duration: 2500,
+          })
           dialog.clear()
           return
         }
@@ -1187,7 +1184,9 @@ export function Session(props: {
       },
       run: () => {
         const lastAssistantMessage = messagesBeforeRevert().findLast(
-          (msg) => msg.type === "assistant" || (msg.type === "compaction" && msg.status === "completed" && msg.summary.trim() !== ""),
+          (msg) =>
+            msg.type === "assistant" ||
+            (msg.type === "compaction" && msg.status === "completed" && msg.summary.trim() !== ""),
         )
         if (!lastAssistantMessage) {
           toast.show({ message: "No assistant messages found", variant: "error" })
@@ -1465,9 +1464,7 @@ export function Session(props: {
                   onMouseOut={() => setLatestHovered(false)}
                   onMouseUp={toBottom}
                 >
-                  <text
-                    fg={latestHovered() ? theme.text.action.secondary.hovered : theme.text.action.secondary.base}
-                  >
+                  <text fg={latestHovered() ? theme.text.action.secondary.hovered : theme.text.action.secondary.base}>
                     Jump to latest ↓
                   </text>
                 </box>
@@ -1513,12 +1510,7 @@ export function Session(props: {
                     }}
                   </Show>
                 </Match>
-                <Match
-                  when={
-                    session() &&
-                    currentLocation.error?.location.directory === session()!.location.directory
-                  }
-                >
+                <Match when={session() && currentLocation.error?.location.directory === session()!.location.directory}>
                   <SessionLocationMissing
                     directory={session()!.location.directory}
                     projectID={session()!.projectID}
@@ -1894,6 +1886,7 @@ function SessionPartView(props: {
 
 function AssistantFooter(props: { message: SessionMessageAssistant }) {
   const ctx = use()
+  const config = useConfig()
   const data = useData()
   const theme = useTheme()
   const messages = createMemo(() => data.session.message.list(ctx.sessionID))
@@ -1901,6 +1894,10 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
     turnDuration(props.message, messages(), ctx.messageIndex(props.message.id), ctx.legacyTurns()),
   )
   const interrupted = createMemo(() => props.message.error?.message === "Step interrupted")
+  // Local sessions only: the speed of this reply, from the step's own token counts and timestamps.
+  const speed = createMemo(() =>
+    controlUrl() && config.data.session?.tps !== false ? formatStepSpeed(stepSpeed(props.message)) : undefined,
+  )
   return (
     <>
       <Show when={props.message.error && !interrupted() && !props.message.retry}>
@@ -1914,6 +1911,7 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
         <box paddingLeft={3} marginTop={1}>
           <text fg={theme.text.muted}>
             {interrupted() ? "Interrupted" : `Completed in ${Locale.duration(duration())}`}
+            <Show when={!interrupted() && speed()}> · {speed()}</Show>
           </text>
         </box>
       </Show>
@@ -2755,9 +2753,7 @@ function BlockTool(props: BlockToolProps) {
               <Show
                 when={props.spinner}
                 fallback={
-                  <text
-                    fg={permission() ? theme.text.feedback.warning.base : (props.headerColor ?? theme.text.muted)}
-                  >
+                  <text fg={permission() ? theme.text.feedback.warning.base : (props.headerColor ?? theme.text.muted)}>
                     {title()}
                   </text>
                 }
@@ -2958,11 +2954,7 @@ function ShellDisplay(props: {
           <Show
             when={isRunning()}
             fallback={
-              <text
-                fg={theme.text.base}
-                wrapMode={expanded() ? "word" : "char"}
-                maxHeight={expanded() ? undefined : 2}
-              >
+              <text fg={theme.text.base} wrapMode={expanded() ? "word" : "char"} maxHeight={expanded() ? undefined : 2}>
                 {limitedInput()}
               </text>
             }
@@ -3063,7 +3055,9 @@ function Read(props: ToolProps) {
         Read {pathFormatter.format(stringValue(props.input.path))}
         <Show when={props.input.offset !== undefined || props.input.limit !== undefined}>
           :{finiteNumber(props.input.offset) || 1}-
-          {props.input.limit ? (finiteNumber(props.input.offset) || 1) + (finiteNumber(props.input.limit) || 0) - 1 : ""}
+          {props.input.limit
+            ? (finiteNumber(props.input.offset) || 1) + (finiteNumber(props.input.limit) || 0) - 1
+            : ""}
         </Show>
       </InlineTool>
       <For each={loaded()}>
@@ -3447,9 +3441,7 @@ function ApplyPatch(props: ToolProps) {
                 }
               : undefined
           }
-          title={
-            targets().length === 1 ? undefined : props.part.state.status === "error" ? "Patch" : "Patch"
-          }
+          title={targets().length === 1 ? undefined : props.part.state.status === "error" ? "Patch" : "Patch"}
           part={props.part}
           spinner={props.part.state.status === "streaming" || props.part.state.status === "running"}
           headerColor={props.part.state.status === "error" ? theme.text.feedback.error.base : undefined}

@@ -11,9 +11,10 @@ import { useToast } from "../ui/toast"
 import { DialogErrorDetails } from "./dialog-error-details"
 import { DialogIntegration } from "./dialog-integration"
 import { useLocation } from "../context/location"
-import { DialogConfirm } from "../ui/dialog-confirm"
-import { DialogMcpAdd } from "./dialog-mcp-add"
-import { removeServer, setEnabled, userConfigFile } from "../util/mcp-config"
+import { setEnabled, userConfigFile } from "../util/mcp-config"
+
+export const MCP_HINT =
+  "Add: localcode mcp add <name> -- <command>   Import from Claude Code, Codex, Cursor: localcode mcp import"
 
 function statusError(status: McpServer["status"]) {
   if (status.status === "failed" || status.status === "needs_auth") return status.error
@@ -77,6 +78,7 @@ export function DialogMcp(props: { initialServer?: string; details?: boolean } =
       return {
         value: server.name,
         title: server.name,
+        description: server.status.status === "disabled" ? "off" : "on",
         footer: <Status status={server.status} loading={pending} />,
         footerColor: pending ? theme.text.muted : statusColor(server.status),
       }
@@ -137,7 +139,10 @@ export function DialogMcp(props: { initialServer?: string; details?: boolean } =
     } catch (error) {
       toast.error(error)
     }
-    const call = server.status.status === "connected" ? client.api.experimental.mcp.disconnect(input) : client.api.experimental.mcp.connect(input)
+    const call =
+      server.status.status === "connected"
+        ? client.api.experimental.mcp.disconnect(input)
+        : client.api.experimental.mcp.connect(input)
     void call.catch(toast.error).finally(() =>
       setLoading((prev) => {
         const next = new Set(prev)
@@ -147,68 +152,39 @@ export function DialogMcp(props: { initialServer?: string; details?: boolean } =
     )
   }
 
-  const add = () =>
-    dialog.replace(() => <DialogMcpAdd onDone={(name) => dialog.replace(() => <DialogMcp initialServer={name} />)} />)
-
-  const remove = (name: string) =>
-    dialog.replace(() => (
-      <DialogConfirm
-        title={`Remove ${name}?`}
-        message={`This deletes ${name} from your localcode config. Its tools stop being available.`}
-        label={{ confirm: "Remove", cancel: "Keep" }}
-        onConfirm={() => {
-          try {
-            if (!removeServer(userConfigFile(), name)) toast.show({ variant: "warning", message: `${name} comes from a project config; remove it there` })
-            else {
-              void client.api.experimental.mcp.disconnect({ server: name, location: { directory: current().directory } }).catch(() => {})
-              toast.show({ variant: "success", message: `Removed ${name}` })
-            }
-          } catch (error) {
-            toast.error(error)
-          }
-          setTimeout(() => dialog.replace(() => <DialogMcp />), 0)
-        }}
-        onCancel={() => setTimeout(() => dialog.replace(() => <DialogMcp initialServer={name} />), 0)}
-      />
-    ))
-
   return (
     <box>
       <Show
         when={detail()}
         fallback={
-          <DialogSelect
-            title="MCP servers"
-            searchInTitle
-            titlePlaceholder="Search MCP servers"
-            options={options()}
-            preserveSelection
-            focusTarget={props.initialServer}
-            onMove={(option) => setFocused(option.value as string)}
-            onSelect={(option) => select(option.value as string)}
-            actions={[
-              {
-                title: "add",
-                command: "dialog.mcp.add",
-                selection: "none",
-                onTrigger: add,
-              },
-              {
-                title: "remove",
-                command: "dialog.mcp.remove",
-                onTrigger: (option) => remove(option.value as string),
-              },
-              {
-                title: toggleTitle(),
-                command: "dialog.mcp.toggle",
-                onTrigger: (option) => {
-                  setFocused(option.value as string)
-                  toggle(option.value as string)
+          <>
+            <DialogSelect
+              title="MCP servers"
+              searchInTitle
+              titlePlaceholder="Search MCP servers"
+              options={options()}
+              preserveSelection
+              focusTarget={props.initialServer}
+              onMove={(option) => setFocused(option.value as string)}
+              onSelect={(option) => select(option.value as string)}
+              actions={[
+                {
+                  title: toggleTitle(),
+                  command: "dialog.mcp.toggle",
+                  onTrigger: (option) => {
+                    setFocused(option.value as string)
+                    toggle(option.value as string)
+                  },
                 },
-              },
-            ]}
-            footerHints={focusedError() ? [{ title: "view error", label: "enter", group: "primary" }] : []}
-          />
+              ]}
+              footerHints={focusedError() ? [{ title: "view error", label: "enter", group: "primary" }] : []}
+            />
+            <box paddingLeft={4} paddingRight={4} paddingBottom={1}>
+              <text fg={theme.text.muted} wrapMode="word">
+                {MCP_HINT}
+              </text>
+            </box>
+          </>
         }
       >
         {(server) => (

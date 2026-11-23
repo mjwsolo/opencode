@@ -232,8 +232,6 @@ export const Definitions = {
   "permission.prompt.fullscreen": keybind("ctrl+f", "Toggle permission prompt fullscreen"),
   "plugins.toggle": keybind("return", "Toggle plugin"),
   "dialog.mcp.toggle": keybind("space", "Toggle MCP server"),
-  "dialog.mcp.add": keybind("ctrl+a", "Add MCP server"),
-  "dialog.mcp.remove": keybind("ctrl+d", "Remove MCP server"),
 
   terminal_suspend: keybind("ctrl+z", "Suspend terminal"),
   terminal_title_toggle: keybind("none", "Toggle terminal title"),

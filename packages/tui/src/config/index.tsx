@@ -180,6 +180,12 @@ export const Info = Schema.Struct({
       new_location: Schema.optional(Schema.Literals(["launch", "inherit"])).annotate({
         description: "Start new sessions in the TUI launch directory or inherit the active session location",
       }),
+      sandbox: Schema.optional(Schema.Boolean).annotate({
+        description: "Run agent shell commands in the macOS sandbox (default on)",
+      }),
+      sandbox_network: Schema.optional(Schema.Boolean).annotate({
+        description: "Allow network access inside the shell sandbox (default on)",
+      }),
       permissions: Schema.optional(Schema.Literals(["prompt", "autoaccept"])).annotate({
         description: "Prompt for permission requests or accept them automatically",
       }),

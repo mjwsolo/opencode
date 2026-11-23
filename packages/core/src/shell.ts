@@ -31,6 +31,7 @@ import { Location } from "./location.js"
 import { Global } from "@opencode/util/global"
 import { PersistentPty } from "./persistent-pty.js"
 import { ShellSelect } from "./shell/select.js"
+import { ShellSandbox } from "./shell/sandbox.js"
 import type { ShellCreateBefore } from "@opencode/plugin/effect/shell"
 import { PluginHooks } from "./plugin/hooks.js"
 import { SessionEnvironment } from "./session/environment.js"
@@ -71,6 +72,8 @@ type CreateInput = Shell.CreateInput & {
   // A call waits on the command. A server that takes the command over moves it to the background, which clears
   // its timeout, so its deadline is not kept for a restart.
   waited?: boolean
+  // Run the command under the macOS seatbelt profile. Only local commands are wrapped.
+  sandbox?: ShellSandbox.Options
 }
 
 // What a server needs to take a daemon-run command back after a restart, kept in the daemon's metadata.
@@ -248,6 +251,7 @@ interface Runs {
   /** Fails with `UnavailableError` only when the daemon could not be reached or started: spawning instead is safe. */
   readonly create: (input: {
     readonly info: Info
+    readonly program: string
     readonly args: readonly string[]
     readonly env: Readonly<Record<string, string>>
     readonly timeout: number
@@ -461,7 +465,7 @@ const daemonLayer = Layer.effect(
           done: Deferred.makeUnsafe<Info, NotFoundError>(),
         }
         const created = yield* pty.createPipe({
-          program: input.info.shell,
+          program: input.program,
           args: input.args,
           cwd: input.info.cwd,
           env: input.env,
@@ -915,7 +919,13 @@ const layer = () =>
         if (location.workspaceID === undefined) invocation.cwd = path.resolve(location.directory, invocation.cwd)
 
         const id = Shell.ID.ascending()
-        const args = ShellSelect.args(invocation.shell, invocation.command)
+        // Computed once for the daemon and the spawner, so both run the same sandboxed command. `info.shell` and
+        // `info.command` stay what the model and the user see.
+        const launch = ShellSandbox.wrap(
+          invocation.shell,
+          ShellSelect.args(invocation.shell, invocation.command),
+          location.workspaceID === undefined ? input.sandbox : undefined,
+        )
         const file = path.join(outputDir, `${id}.out`)
 
         const info: Info = {
@@ -934,7 +944,8 @@ const layer = () =>
           const created = yield* runs
             .create({
               info,
-              args,
+              program: launch.program,
+              args: launch.args,
               // The daemon replaces the environment, so variables removed by hooks stay removed, like the spawner.
               env: Object.fromEntries(
                 Object.entries(invocation.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
@@ -967,7 +978,7 @@ const layer = () =>
             Effect.gen(function* () {
               const handle = yield* environment.spawner
                 .spawn(
-                  ChildProcess.make(invocation.shell, args, {
+                  ChildProcess.make(launch.program, [...launch.args], {
                     cwd: invocation.cwd,
                     env: invocation.env,
                     stdin: "ignore",

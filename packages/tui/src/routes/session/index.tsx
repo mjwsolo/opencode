@@ -134,6 +134,7 @@ import { SessionGroupView } from "./group-view"
 import { useEntryAnchor } from "./anchor-view"
 import { containsAnchor, createTimelineAnchors, groupID } from "./anchors"
 import { rowsAfter, rowsBefore, rowWeight } from "./mount-budget"
+import { autoApproves } from "../../util/permission"
 export { InlineToolRow } from "./message-parts"
 export { toolDisplay } from "./message-parts"
 
@@ -212,7 +213,12 @@ export function Session(props: {
       (sessionID) => data.session.permission.list(sessionID) ?? [],
     )
   })
-  const promptedPermissions = createMemo(() => (local.permission.mode === "autoaccept" ? [] : permissions()))
+  // Auto-approve never answers a request to leave the sandbox: it always needs a person.
+  const promptedPermissions = createMemo(() =>
+    local.permission.mode === "autoaccept"
+      ? permissions().filter((request) => !autoApproves(request))
+      : permissions(),
+  )
   const forms = createMemo(() => {
     const global = data.session.form.list("global", location()) ?? []
     if (session()?.parentID) return global
@@ -271,6 +277,7 @@ export function Session(props: {
   createEffect(() => {
     if (local.permission.mode !== "autoaccept") return
     permissions().forEach((request) => {
+      if (!autoApproves(request)) return
       if (autoApproved.has(request.id)) return
       autoApproved.add(request.id)
       void data.session.permission
@@ -2611,8 +2618,8 @@ function useToolPermission(part: () => SessionMessageAssistantTool | undefined) 
   const data = useData()
   const local = useLocal()
   return createMemo(() => {
-    if (local.permission.mode === "autoaccept") return false
     const request = data.session.permission.list(ctx.sessionID)?.[0]
+    if (local.permission.mode === "autoaccept" && (!request || autoApproves(request))) return false
     return request?.source?.type === "tool" && request.source.id === part()?.id
   })
 }

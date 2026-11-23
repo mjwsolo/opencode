@@ -90,6 +90,8 @@ export const Plugin = define({
           { action: "read", resource: "*.env.example", effect: "allow" },
           { action: "subagent", resource: "*", effect: "deny" },
           { action: "external_directory", resource: "*", effect: "allow" },
+          // Leaving the sandbox always asks; no default rule lets a command out.
+          { action: "shell.unsandboxed", resource: "*", effect: "ask" },
         )
       })
 

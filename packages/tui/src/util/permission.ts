@@ -1,3 +1,8 @@
+export const UNSANDBOXED_ACTION = "shell.unsandboxed"
+
+/** Whether auto-approve may answer a request. Leaving the sandbox always needs a person. */
+export const autoApproves = (request: { readonly action: string }) => request.action !== UNSANDBOXED_ACTION
+
 import { Locale } from "./locale"
 import { canonicalToolName, finiteNumber, webSearchProviderLabel } from "./tool-display"
 
@@ -125,6 +130,22 @@ export function permissionPresentation(
       icon: "←",
       title: `Access external directory ${formatPath(directory)}`,
       lines: resources.map((item) => `- ${item}`),
+    }
+  }
+
+  if (action === "shell.unsandboxed") {
+    const blocked = Array.isArray(metadata.blocked) ? metadata.blocked.map(String) : []
+    return {
+      icon: "!",
+      title: "Run outside the sandbox",
+      lines: [
+        ...resources.map((item) => `$ ${item}`),
+        "",
+        "The sandbox blocked:",
+        ...(blocked.length > 0 ? blocked.map((item) => `- ${item}`) : ["- (not reported)"]),
+        "",
+        "Allowing runs this command with your full user access.",
+      ],
     }
   }
 

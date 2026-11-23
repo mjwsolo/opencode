@@ -6,7 +6,10 @@ import type { SessionHooks } from "@opencode/plugin/effect/session"
 import type { ShellCreateBefore } from "@opencode/plugin/effect/shell"
 import type { Shell as ShellSchema } from "@opencode/schema/shell"
 import type { Tool } from "@opencode/schema/tool"
-import { Clock, Deferred, Effect, Fiber, Option, Schema, Struct } from "effect"
+import { Cause, Clock, Deferred, Effect, Fiber, Option, Schema, Struct } from "effect"
+import { Global } from "@opencode/util/global"
+import { Location } from "../../location.js"
+import { ShellSandbox } from "../../shell/sandbox.js"
 import { Environment } from "../../environment/index.js"
 import { Job } from "../../job.js"
 import { FileAccess } from "../../file-access.js"
@@ -280,6 +283,8 @@ export const Plugin = {
     const shellSelect = yield* ShellSelect.Service
     const compatibleShell = shellSelect.resolve({ priority: "compat" })
     const permission = yield* Permission.Service
+    const global = yield* Global.Service
+    const location = yield* Location.Service
 
     const prepare = Effect.fn("ShellTool.prepare")(function* (invocation: ShellCreateBefore, context: Tool.Context) {
       const target = yield* access.resolve({ path: invocation.cwd, kind: "directory" })
@@ -380,7 +385,11 @@ export const Plugin = {
                       Effect.forkChild({ startImmediately: true }),
                     )
                   : undefined
-                return yield* Effect.gen(function* () {
+                // The directory and timeout a first attempt settled on, so a rerun outside the sandbox neither asks the
+                // same external-directory questions again nor moves the working directory.
+                let prepared: { readonly cwd: string; readonly timeout: number } | undefined
+                let pid: number | undefined
+                const attempt = (sandbox: ShellSandbox.Options | undefined) => Effect.gen(function* () {
                   const info = yield* shell.create(
                     {
                       command: input.command,
@@ -389,6 +398,7 @@ export const Plugin = {
                       shell: yield* compatibleShell,
                       metadata: { sessionID: context.sessionID },
                       waited: input.background !== true,
+                      sandbox,
                       toolCall: {
                         sessionID: context.sessionID,
                         assistantMessageID: context.messageID,
@@ -401,6 +411,12 @@ export const Plugin = {
                         invocation.env.OPENCODE = "1"
                         invocation.env.AI_AGENT ||= "opencode"
                         invocation.env.OPENCODE_SESSION_ID = context.sessionID
+                        if (prepared) {
+                          invocation.cwd = prepared.cwd
+                          finalTimeout = prepared.timeout
+                          if (input.background !== true) invocation.timeout = 0
+                          return
+                        }
                         // Asking for permission can take a while; a stop then ends the call before any command starts.
                         finalTimeout = yield* restore(
                           Effect.raceFirst(
@@ -414,10 +430,12 @@ export const Plugin = {
                             ),
                           ),
                         )
+                        prepared = { cwd: invocation.cwd, timeout: finalTimeout }
                         // A foreground timeout moves the command to the background instead of stopping it.
                         if (input.background !== true) invocation.timeout = 0
                       }),
                   )
+                  pid = info.pid
                   yield* context.progress({ shellID: info.id })
 
                   const { job, settled } = yield* startJob(jobs, shell, {
@@ -479,6 +497,55 @@ export const Plugin = {
                   if (result?.info.status === "cancelled") return yield* Effect.fail(new Error("Command cancelled"))
 
                   return yield* Deferred.await(settled)
+                })
+                return yield* Effect.gen(function* () {
+                  const sandbox = ShellSandbox.options(ShellSandbox.readSettings(global.config), location.directory)
+                  const first = yield* attempt(sandbox)
+                  if (
+                    !sandbox ||
+                    input.background === true ||
+                    !("status" in first) ||
+                    first.status !== "completed" ||
+                    !ShellSandbox.suspicious(first.exit, first.output)
+                  )
+                    return first
+                  // A failure that names no sandbox denial in the system log is an ordinary failure.
+                  const found = yield* Effect.promise(() => ShellSandbox.denials(pid, Math.ceil(first.wallTimeSeconds) + 3))
+                  if (found.length === 0) return first
+                  const blocked = `${first.output ? `${first.output}\n\n` : ""}${ShellSandbox.describe(found)}`
+                  // Auto-approve never answers this one: leaving the sandbox needs a person's yes.
+                  yield* restore(
+                    permission.assert({
+                      action: ShellSandbox.UNSANDBOXED_ACTION,
+                      resources: [input.command],
+                      save: [input.command],
+                      metadata: {
+                        command: input.command,
+                        blocked: found.slice(0, 20).map((item) => `${item.operation} ${item.target}`.trim()),
+                      },
+                      ...Permission.invocation(context),
+                    }),
+                  ).pipe(
+                    Effect.catchCause((cause) => {
+                      const error = Cause.squash(cause)
+                      if (error instanceof Permission.DeclinedError)
+                        return Effect.fail(
+                          new ToolFailure({ message: `${blocked}\n\nThe user declined running it outside the sandbox.` }),
+                        )
+                      if (error instanceof Permission.CorrectedError)
+                        return Effect.fail(
+                          new ToolFailure({
+                            message: `${blocked}\n\nThe user declined running it outside the sandbox: ${error.feedback}`,
+                          }),
+                        )
+                      if (error instanceof Permission.BlockedError)
+                        return Effect.fail(
+                          new ToolFailure({ message: `${blocked}\n\nRunning it outside the sandbox is not allowed.` }),
+                        )
+                      return Effect.failCause(cause) as unknown as Effect.Effect<never, ToolFailure>
+                    }),
+                  )
+                  return yield* attempt(undefined)
                 }).pipe(Effect.ensuring(listener ? Fiber.interrupt(listener) : Effect.void))
               }),
             ).pipe(

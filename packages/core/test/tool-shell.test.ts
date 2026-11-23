@@ -1532,6 +1532,61 @@ describe("ShellTool", () => {
     }),
   )
 
+  const sandboxIt = process.platform === "darwin" ? it.live : it.live.skip
+  const outside = () => `/private/var/tmp/lc-sandbox-flow-${process.pid}-${Math.random().toString(36).slice(2)}`
+
+  sandboxIt("asks before rerunning a sandbox-blocked command outside the sandbox", () =>
+    withTempDir((tmp) => {
+      reset()
+      const target = outside()
+      return withSession(tmp.path, (registry) =>
+        Effect.gen(function* () {
+          const result = yield* executeTool(registry, call({ command: `echo done > ${target} && echo wrote`, timeout: 20_000 }))
+          const asked = assertions.filter((item) => item.action === "shell.unsandboxed")
+          expect(asked).toHaveLength(1)
+          expect(asked[0]?.resources).toEqual([`echo done > ${target} && echo wrote`])
+          expect(result.metadata).toMatchObject({ status: "completed", exit: 0 })
+          expect(existsSync(target)).toBe(true)
+        }),
+      ).pipe(Effect.ensuring(Effect.promise(() => fs.rm(target, { force: true }))))
+    }),
+  )
+
+  sandboxIt("fails with the blocked operations when running outside the sandbox is refused", () =>
+    withTempDir((tmp) => {
+      reset()
+      denyAction = "shell.unsandboxed"
+      const target = outside()
+      return withSession(tmp.path, (registry) =>
+        Effect.gen(function* () {
+          const exit = yield* Effect.exit(
+            executeTool(registry, call({ command: `echo done > ${target}`, timeout: 20_000 })),
+          )
+          expect(exit).toMatchObject({
+            _tag: "Success",
+            value: {
+              status: "error",
+              error: { message: expect.stringContaining("The sandbox blocked these operations") },
+            },
+          })
+          expect(existsSync(target)).toBe(false)
+        }),
+      ).pipe(Effect.ensuring(Effect.promise(() => fs.rm(target, { force: true }))))
+    }),
+  )
+
+  sandboxIt("does not ask when a sandboxed command succeeds or fails for another reason", () =>
+    withTempDir((tmp) => {
+      reset()
+      return withSession(tmp.path, (registry) =>
+        Effect.gen(function* () {
+          yield* executeTool(registry, call({ command: "echo ok > inside.txt && cat inside.txt && false", timeout: 20_000 }))
+          expect(assertions.filter((item) => item.action === "shell.unsandboxed")).toHaveLength(0)
+        }),
+      )
+    }),
+  )
+
   it.live("preserves a timeout-promoted command's eventual failure", () =>
     withTempDir((tmp) => {
       reset()

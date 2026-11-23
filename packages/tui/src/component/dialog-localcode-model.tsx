@@ -56,6 +56,8 @@ type Quant = {
   fit: "fits" | "tight" | "too_big" | "too big"
   tok_s: number | null
   recommended: boolean
+  comfortable?: boolean
+  free_gb?: number
   downloaded: boolean
   current: boolean
   loaded?: boolean
@@ -67,6 +69,16 @@ const FIT_GLYPH: Record<string, string> = { fits: "✓", tight: "~", too_big: "�
 /** The supervisor sends "too_big"; the row shows "too big". */
 const fitLabel = (fit: string) => (fit === "too_big" ? "too big" : fit)
 const tooBig = (fit: string) => fit === "too_big" || fit === "too big"
+/** Headroom note for a quant row: how much RAM stays free, or "tight" when it is under the comfort floor. */
+export function headroomLabel(q: Pick<Quant, "fit" | "comfortable" | "free_gb">) {
+  if (tooBig(q.fit) || q.free_gb == null) return ""
+  const free = `~${q.free_gb} GB free`
+  return q.comfortable === false || q.fit === "tight" ? `tight: ${free}` : `leaves ${free}`
+}
+/** Row marker: the star wins; "max" marks the largest quant that fits when it is not the starred one. */
+export function quantMarker(q: { recommended: boolean }, isMax: boolean) {
+  return q.recommended ? " ★" : isMax ? " max" : ""
+}
 const pctLabel = (pct: number | null | undefined) => (pct != null ? `${Math.round(pct)}%` : "…")
 
 // Esc on the quant list steps back to the model list. The dialog's onClose also fires when we
@@ -273,6 +285,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
       maker: string
       ram_gb: number
       quants: Quant[]
+      largest_fit_idx?: number | null
       listing?: boolean
       vision_size_gb?: number
       error?: string
@@ -298,15 +311,21 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
   const ordered = () =>
     [...(quants()?.quants ?? [])].sort((a, b) => Number(b.downloaded || b.current) - Number(a.downloaded || a.current))
   const active = () => selected() ?? ordered().find((q) => q.current)?.alias ?? ordered()[0]?.alias
+  const showHeadroom = () => dimensions().width >= 96
+  const maxAlias = () => {
+    const i = quants()?.largest_fit_idx
+    return i == null ? undefined : quants()?.quants[i]?.alias
+  }
   const options = () =>
     ordered().map((q) => ({
       value: q.alias,
-      title: `${q.label}${q.recommended ? " ★" : ""}`,
+      title: `${q.label}${quantMarker(q, q.alias === maxAlias())}`,
       titleView: (
         <span>
-          {`${q.label}${q.recommended ? " ★" : ""}`.padEnd(nameWidth())}
+          {`${q.label}${quantMarker(q, q.alias === maxAlias())}`.padEnd(nameWidth())}
           {`${q.size_gb.toFixed(1)} GB`.padEnd(10)}
           {`${FIT_GLYPH[q.fit] ?? "✗"} ${fitLabel(q.fit)}`.padEnd(12)}
+          {showHeadroom() ? headroomLabel(q).padEnd(22) : ""}
           <span
             style={{
               fg:
@@ -518,13 +537,14 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         onFilter={() => setSelected(undefined)}
         footer={
           <box gap={1}>
-            <text fg={theme.text.muted}>★ Recommended · {props.group.hf_repo}</text>
+            <text fg={theme.text.muted}>★ Recommended · max = largest that fits (tight on memory) · {props.group.hf_repo}</text>
             <Show when={quants()?.listing}>
               <text fg={theme.text.muted}>Checking available downloads… Installed models can be loaded now.</text>
             </Show>
             <text fg={theme.text.muted}>
               {"Size".padEnd(10)}
-              {"Memory".padEnd(12)}State {"   "}enter load / download / cancel ⇣{"   "}esc back
+              {"Memory".padEnd(12)}
+              {showHeadroom() ? "Headroom".padEnd(22) : ""}State {"   "}enter load / download / cancel ⇣{"   "}esc back
             </text>
           </box>
         }

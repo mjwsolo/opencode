@@ -4,6 +4,7 @@
  * size, then the supervisor downloads it and restarts the server with it.
  */
 import { DialogConfirm } from "../ui/dialog-confirm"
+import { DialogSelect } from "../ui/dialog-select"
 import type { DialogContext } from "../ui/dialog"
 import { controlUrl, controlFetch } from "../util/localcode"
 
@@ -90,4 +91,54 @@ export async function ensureVision(dialog: DialogContext, toast: Toast): Promise
       }
     }, 1000)
   })
+}
+
+/**
+ * Shown instead of sending when a message carries an image the loaded model cannot see.
+ * The draft and attachments stay put; "Send without image" is only ever an explicit choice.
+ */
+export function DialogNoVision(props: {
+  model: string
+  canDownload: boolean
+  sizeGb?: number
+  onDownload: () => void
+  onSwitch: () => void
+  onSendWithout: () => void
+}) {
+  return (
+    <DialogSelect
+      title={`${props.model} can't see images yet`}
+      current={props.canDownload ? "download" : "switch"}
+      renderFilter={false}
+      footerHints={[{ title: "enter", label: "choose" }]}
+      options={[
+        ...(props.canDownload
+          ? [
+              {
+                value: "download",
+                title: `Download vision support${props.sizeGb != null ? ` (${props.sizeGb} GB)` : ""}`,
+                description: "Adds image reading to this model. Your message stays here until you send it.",
+                onSelect: props.onDownload,
+              },
+            ]
+          : []),
+        {
+          value: "switch",
+          title: "Switch model",
+          description: "Pick a model that reads images.",
+          onSelect: props.onSwitch,
+        },
+        ...(props.canDownload
+          ? []
+          : [
+              {
+                value: "without",
+                title: "Send without image",
+                description: "The image is left out; the model will not see it.",
+                onSelect: props.onSendWithout,
+              },
+            ]),
+      ]}
+    />
+  )
 }

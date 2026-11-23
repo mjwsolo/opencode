@@ -72,8 +72,8 @@ const tooBig = (fit: string) => fit === "too_big" || fit === "too big"
 /** Headroom note for a quant row: how much RAM stays free, or "tight" when it is under the comfort floor. */
 export function headroomLabel(q: Pick<Quant, "fit" | "comfortable" | "free_gb">) {
   if (tooBig(q.fit) || q.free_gb == null) return ""
-  const free = `~${q.free_gb} GB free`
-  return q.comfortable === false || q.fit === "tight" ? `tight: ${free}` : `leaves ${free}`
+  const free = `~${q.free_gb} GB`
+  return q.comfortable === false || q.fit === "tight" ? `${free} tight` : free
 }
 /** Row marker: the star wins; "max" marks the largest quant that fits when it is not the starred one. */
 export function quantMarker(q: { recommended: boolean }, isMax: boolean) {
@@ -311,7 +311,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
   const ordered = () =>
     [...(quants()?.quants ?? [])].sort((a, b) => Number(b.downloaded || b.current) - Number(a.downloaded || a.current))
   const active = () => selected() ?? ordered().find((q) => q.current)?.alias ?? ordered()[0]?.alias
-  const showHeadroom = () => dimensions().width >= 96
+  const showHeadroom = () => dimensions().width >= 110
   const maxAlias = () => {
     const i = quants()?.largest_fit_idx
     return i == null ? undefined : quants()?.quants[i]?.alias
@@ -325,7 +325,7 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
           {`${q.label}${quantMarker(q, q.alias === maxAlias())}`.padEnd(nameWidth())}
           {`${q.size_gb.toFixed(1)} GB`.padEnd(10)}
           {`${FIT_GLYPH[q.fit] ?? "✗"} ${fitLabel(q.fit)}`.padEnd(12)}
-          {showHeadroom() ? headroomLabel(q).padEnd(22) : ""}
+          {showHeadroom() ? headroomLabel(q).padEnd(14) : ""}
           <span
             style={{
               fg:
@@ -537,14 +537,14 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         onFilter={() => setSelected(undefined)}
         footer={
           <box gap={1}>
-            <text fg={theme.text.muted}>★ Recommended · max = largest that fits (tight on memory) · {props.group.hf_repo}</text>
+            <text fg={theme.text.muted}>★ recommended · max = largest that fits</text>
             <Show when={quants()?.listing}>
               <text fg={theme.text.muted}>Checking available downloads… Installed models can be loaded now.</text>
             </Show>
             <text fg={theme.text.muted}>
               {"Size".padEnd(10)}
               {"Memory".padEnd(12)}
-              {showHeadroom() ? "Headroom".padEnd(22) : ""}State {"   "}enter load / download / cancel ⇣{"   "}esc back
+              {showHeadroom() ? "Free".padEnd(14) : ""}State{"   "}enter select · esc back
             </text>
           </box>
         }

@@ -14,7 +14,7 @@ import { useLocation } from "../context/location"
 import { setEnabled, userConfigFile } from "../util/mcp-config"
 
 export const MCP_HINT =
-  "Add: localcode mcp add <name> -- <command>   Import from Claude Code, Codex, Cursor: localcode mcp import"
+  "Add from other agents: /import · Add your own: localcode mcp add <name> -- <command>"
 
 function statusError(status: McpServer["status"]) {
   if (status.status === "failed" || status.status === "needs_auth") return status.error

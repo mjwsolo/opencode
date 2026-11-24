@@ -51,6 +51,7 @@ import { imageGuard } from "./image-guard"
 import { voiceStart, voiceStop, voicePartial, ensureVoiceReady } from "../localcode-voice"
 import {
   backgroundDownload,
+  benchRunning,
   downloadProgress,
   controlFetch,
   controlUrl,
@@ -60,6 +61,7 @@ import {
   queuedModelName,
   supervisorKnown,
 } from "../../util/localcode"
+import { BENCH_BLOCK_NOTE } from "../localcode-bench-math"
 import { useConnected } from "../use-connected"
 import { useToast } from "../../ui/toast"
 import { createFadeIn } from "../../util/signal"
@@ -769,7 +771,7 @@ export function Prompt(props: PromptProps) {
             toast.show({ variant: "warning", title: "Benchmark", message: "Load a model first (/models)", duration: 4000 })
             return
           }
-          await runBench(dialog, st.current)
+          await runBench(dialog, toast, st.current)
         },
       },
       {
@@ -1285,6 +1287,11 @@ export function Prompt(props: PromptProps) {
   let skipImageGuard = false
   async function submit(delivery: SessionInbox.Delivery = "steer") {
     if (disabled()) return false
+    // A running benchmark owns the model: chat would skew it and compete for the GPU.
+    if (benchRunning() && !store.prompt.text.trim().startsWith("/")) {
+      toast.show({ variant: "warning", title: "Benchmark", message: BENCH_BLOCK_NOTE, duration: 4000 })
+      return false
+    }
     // Enter while dictating, or just after release before the last words are in: send once the
     // whole transcript has arrived, not the part that happens to be on screen.
     if (voiceHold.active || voiceHold.finishing) {
@@ -1815,6 +1822,7 @@ export function Prompt(props: PromptProps) {
     if (!controlUrl()) return undefined
     const queued = queuedModelName() ? ` · queued: ${queuedModelName()}` : ""
     if (modelChanging()) return "Model changing…" + queued
+    if (benchRunning()) return BENCH_BLOCK_NOTE
     const dl = backgroundDownload(lastStatus())
     const downloading = dl ? ` · downloading ${dl.model} ${downloadProgress(dl)}` : ""
     if (modelLoaded()) return queued || downloading ? promptDisplay().modelLabel + queued + downloading : undefined
@@ -1844,6 +1852,7 @@ export function Prompt(props: PromptProps) {
 
   const placeholderText = createMemo(() => {
     const value = (() => {
+      if (benchRunning()) return BENCH_BLOCK_NOTE
       const dl = !modelLoaded() ? backgroundDownload(lastStatus()) : undefined
       if (dl && store.mode === "normal")
         return `Downloading ${dl.model}${dl.size_gb ? ` (${dl.size_gb} GB)` : ""}. You can chat once it's loaded.`

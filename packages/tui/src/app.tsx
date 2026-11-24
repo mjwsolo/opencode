@@ -48,7 +48,16 @@ import {
 } from "./context/runtime"
 import { DialogProvider, useDialog } from "./ui/dialog"
 import { DialogLocalcodeModel } from "./component/dialog-localcode-model"
-import { controlUrl, lastStatus, LOCALCODE_PROVIDER_ID, watchSupervisor, type Download } from "./util/localcode"
+import {
+  clearImportHint,
+  controlUrl,
+  lastStatus,
+  LOCALCODE_PROVIDER_ID,
+  pendingImportHint,
+  watchSupervisor,
+  type Download,
+} from "./util/localcode"
+import { DialogImport } from "./component/localcode-import"
 import { ErrorComponent } from "./component/error-component"
 import { PluginRouteMissing } from "./component/plugin-route-missing"
 import { EditorContextProvider } from "./context/editor"
@@ -65,7 +74,6 @@ import { LocalProvider, useLocal } from "./context/local"
 import { PermissionProvider } from "./context/permission"
 import { DialogModel } from "./component/dialog-model"
 import { DialogMcp } from "./component/dialog-mcp"
-import { DialogAlert } from "./ui/dialog-alert"
 import { DialogStatus } from "./component/dialog-status"
 import { DialogConfig } from "./component/dialog-config"
 import { DialogDebug } from "./component/dialog-debug"
@@ -584,6 +592,14 @@ function App() {
     }
   })
 
+  // The supervisor says once, the first time it sees other agents' settings on disk.
+  createEffect(() => {
+    const hint = pendingImportHint()
+    if (!hint) return
+    clearImportHint()
+    toast.show({ variant: "info", title: "Import", message: hint, duration: 12000 })
+  })
+
   const copyOnSelectEnabled = () =>
     (config.data.terminal?.copy ?? (process.platform === "win32" ? "manual" : "select")) === "select"
 
@@ -1001,18 +1017,10 @@ function App() {
         name: "mcp.import",
         title: "Import from other agents",
         category: "Agent",
-        slash: { name: "import-agents" },
+        slash: { name: "import" },
+        enabled: !!controlUrl(),
         run: () => {
-          dialog.replace(() => (
-            <DialogAlert
-              title="Import from other agents"
-              message={
-                "To copy MCP servers and skills from Claude Code, Codex or Cursor, run this in a terminal:\n\n" +
-                "  localcode mcp import\n\n" +
-                "It shows what it found and asks before importing. Imported servers start disabled; enable them in /mcps."
-              }
-            />
-          ))
+          dialog.replace(() => <DialogImport />)
         },
       },
       {

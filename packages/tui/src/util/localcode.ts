@@ -18,6 +18,10 @@ export type Status = {
   vision_size_gb?: number
   ctx?: number
   budget?: number
+  /** A benchmark is running on the loaded model: chat is held until it ends. */
+  bench_running?: boolean
+  /** One-time pointer to /import, set by the supervisor the first time other agents' settings are seen. */
+  import_hint?: string | null
   /** A model download running in the background, apart from the loaded model. */
   download?: Download | null
 }
@@ -84,7 +88,15 @@ export const setQueuedModel = (value: string | undefined) => setQueuedModelSigna
 // Without a control URL (plain config setups) the answer is always "loaded".
 const [status, setStatus] = createSignal<Status>()
 export const lastStatus = status
-export const setLastStatus = (value: Status | undefined) => setStatus(value)
+const [importHint, setImportHint] = createSignal<string>()
+export const pendingImportHint = importHint
+export const clearImportHint = () => setImportHint(undefined)
+const takeStatus = (value: Status | undefined) => {
+  if (value?.import_hint) setImportHint(value.import_hint)
+  setStatus(value)
+}
+export const setLastStatus = (value: Status | undefined) => takeStatus(value)
+export const benchRunning = () => !!status()?.bench_running
 
 let watching = false
 export function watchSupervisor() {
@@ -92,7 +104,7 @@ export function watchSupervisor() {
   watching = true
   const tick = () =>
     getJSON<Status>("/status")
-      .then(setStatus)
+      .then(takeStatus)
       .catch(() => setStatus(undefined))
   void tick()
   setInterval(tick, 2000).unref?.()
@@ -122,6 +134,6 @@ export function supervisorLine() {
 export async function refreshSupervisor() {
   if (!controlUrl()) return
   await getJSON<Status>("/status")
-    .then(setStatus)
+    .then(takeStatus)
     .catch(() => setStatus(undefined))
 }

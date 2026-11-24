@@ -15,6 +15,7 @@ export const LOCALCODE_MENU: ReadonlySet<string> = new Set([
   "exit",
   "export",
   "help",
+  "import",
   "mcps",
   "models",
   "new",

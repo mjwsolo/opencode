@@ -537,14 +537,15 @@ export function DialogLocalcodeQuant(props: { group: Group }) {
         onFilter={() => setSelected(undefined)}
         footer={
           <box gap={1}>
-            <text fg={theme.text.muted}>★ recommended · max = largest that fits</text>
+            <text fg={theme.text.muted}>★ recommended · max = largest that fits · enter select · esc back</text>
             <Show when={quants()?.listing}>
               <text fg={theme.text.muted}>Checking available downloads… Installed models can be loaded now.</text>
             </Show>
             <text fg={theme.text.muted}>
+              {"".padEnd(nameWidth())}
               {"Size".padEnd(10)}
               {"Memory".padEnd(12)}
-              {showHeadroom() ? "Free".padEnd(14) : ""}State{"   "}enter select · esc back
+              {showHeadroom() ? "Free".padEnd(14) : ""}State
             </text>
           </box>
         }

@@ -62,8 +62,8 @@ export function compareLine(r: CompareRow) {
 
 export function historyLine(r: HistoryRun) {
   const when = r.date.slice(0, 16).replace("T", " ")
-  const notes = [r.throttled ? "throttled" : "", r.on_battery ? "battery" : ""].filter(Boolean).join(", ")
-  return `${when}  ${r.model}  gen ${n(r.gen_1k, 1)}/${n(r.gen_8k, 1)}  prompt ${n(r.prefill_1k, 0)}/${n(r.prefill_8k, 0)}  first ${n(r.ttft_s, 2)} s  ${r.peak_memory_mb ? (r.peak_memory_mb / 1024).toFixed(1) + " GB" : "-"}${notes ? "  " + notes : ""}`
+  const flags = [r.throttled ? "[throttled]" : "", r.on_battery ? "[battery]" : ""].filter(Boolean).join(" ")
+  return `${when}${flags ? " " + flags : ""}  ${r.model}  gen ${n(r.gen_1k, 1)}/${n(r.gen_8k, 1)}  prompt ${n(r.prefill_1k, 0)}/${n(r.prefill_8k, 0)}  first ${n(r.ttft_s, 2)} s  ${r.peak_memory_mb ? (r.peak_memory_mb / 1024).toFixed(1) + " GB" : "-"}`
 }
 
 export function sortHistory(runs: HistoryRun[], by: "date" | "gen") {

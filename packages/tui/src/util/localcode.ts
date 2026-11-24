@@ -62,7 +62,7 @@ export function controlFetch(path: string, init: RequestInit = {}) {
 
 export async function getJSON<T>(path: string): Promise<T> {
   // Short: a dead supervisor must surface as an error, not a picker stuck on "loading…".
-  const r = await controlFetch(path, { signal: AbortSignal.timeout(path === "/status" ? 1_500 : 5_000) })
+  const r = await controlFetch(path, { signal: AbortSignal.timeout(path.startsWith("/status") ? 1_500 : 5_000) })
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`)
   return (await r.json()) as T
 }
@@ -103,7 +103,7 @@ export function watchSupervisor() {
   if (watching || !controlUrl()) return
   watching = true
   const tick = () =>
-    getJSON<Status>("/status")
+    getJSON<Status>("/status?hint=1")
       .then(takeStatus)
       .catch(() => setStatus(undefined))
   void tick()
@@ -133,7 +133,7 @@ export function supervisorLine() {
 
 export async function refreshSupervisor() {
   if (!controlUrl()) return
-  await getJSON<Status>("/status")
+  await getJSON<Status>("/status?hint=1")
     .then(takeStatus)
     .catch(() => setStatus(undefined))
 }

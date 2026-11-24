@@ -64,3 +64,21 @@ export function formatContextUsage(tokens: number, percent?: number) {
   const value = Locale.number(tokens)
   return percent === undefined ? value : `${value} (${percent}%)`
 }
+
+const compact = (value: number) => {
+  if (value < 1000) return String(value)
+  const thousands = value / 1000
+  return `${thousands >= 100 ? Math.round(thousands) : thousands.toFixed(1).replace(/\.0$/, "")}K`
+}
+
+/** "ctx 12.4K/131K (9%)": the prompt this reply was answered from, against the context size the model is served with. */
+export function formatContextGauge(tokens: number, limit: number | undefined) {
+  if (tokens <= 0) return undefined
+  if (!limit) return `ctx ${compact(tokens)}`
+  return `ctx ${compact(tokens)}/${compact(limit)} (${Math.round((tokens / limit) * 100)}%)`
+}
+
+/** The tokens one reply's step used as context: its prompt plus what it generated, which the next step re-reads. */
+export function stepContextTokens(tokens: { input: number; output: number; reasoning: number; cache: { read: number; write: number } }) {
+  return tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
+}

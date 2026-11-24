@@ -186,6 +186,9 @@ export const Info = Schema.Struct({
       sandbox_network: Schema.optional(Schema.Boolean).annotate({
         description: "Allow network access inside the shell sandbox (default on)",
       }),
+      disabled_skills: Schema.optional(Schema.Array(Schema.String)).annotate({
+        description: "Skills switched off in /skills: not offered to the model and not loadable",
+      }),
       permissions: Schema.optional(Schema.Literals(["prompt", "autoaccept"])).annotate({
         description: "Prompt for permission requests or accept them automatically",
       }),

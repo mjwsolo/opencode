@@ -908,7 +908,11 @@ const layer = () =>
           timeout: input.timeout ?? 0,
           shell: input.shell ?? (yield* shell.resolve({ priority: "config" })),
           env: {
-            ...baseEnv,
+            // A sandboxed command never sees credentials from LocalCode's own environment. Running outside the sandbox
+            // (the user said yes, or the sandbox is off) keeps the full environment.
+            ...(input.sandbox !== undefined && location.workspaceID === undefined && baseEnv
+              ? ShellSandbox.scrubEnv(baseEnv)
+              : baseEnv),
             TERM: "xterm-256color",
             OPENCODE_TERMINAL: "1",
           },

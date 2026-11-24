@@ -6,6 +6,8 @@ import { Effect, Schema } from "effect"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Skill } from "../../skill.js"
 import { Permission } from "../../permission.js"
+import { SkillDisabled } from "../../skill/disabled.js"
+import { Global } from "@opencode/util/global"
 
 export const name = "skill"
 
@@ -33,6 +35,7 @@ export const Plugin = {
   effect: Effect.fn("SkillTool.Plugin")(function* (ctx: Context) {
     const fs = yield* FSUtil.Service
     const skills = yield* Skill.Service
+    const global = yield* Global.Service
     const permission = yield* Permission.Service
     yield* ctx.tool
       .transform((editor) =>
@@ -45,7 +48,7 @@ export const Plugin = {
           execute: (input, context) =>
             Effect.gen(function* () {
               const skill = yield* skills.get(input.id)
-              if (!skill) return yield* unableToLoad(input.id)
+              if (!skill || SkillDisabled.read(global.config).has(skill.id)) return yield* unableToLoad(input.id)
               return yield* Effect.gen(function* () {
                 yield* permission.assert({
                   action: name,

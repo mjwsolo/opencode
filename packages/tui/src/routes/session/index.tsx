@@ -109,6 +109,7 @@ import {
 import { switchLabel } from "../../util/model"
 import { controlUrl } from "../../util/localcode"
 import { formatStepSpeed, stepSpeed } from "../../util/localcode-speed"
+import { formatContextGauge, stepContextTokens } from "../../util/session"
 import { findMessageBoundary, messageNavigationSlack } from "./message-navigation"
 import { stringWidth } from "../../util/string-width"
 import { useArgs } from "../../context/args"
@@ -1898,6 +1899,15 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
   const speed = createMemo(() =>
     controlUrl() && config.data.session?.tps !== false ? formatStepSpeed(stepSpeed(props.message)) : undefined,
   )
+  // The context gauge, so usage is visible without the sidebar (hidden on narrow terminals).
+  const gauge = createMemo(() => {
+    const model = ctx.models()?.find(
+      (item) => item.providerID === props.message.model.providerID && item.id === props.message.model.id,
+    )
+    return props.message.tokens
+      ? formatContextGauge(stepContextTokens(props.message.tokens), model?.limit.context)
+      : undefined
+  })
   return (
     <>
       <Show when={props.message.error && !interrupted() && !props.message.retry}>
@@ -1912,6 +1922,7 @@ function AssistantFooter(props: { message: SessionMessageAssistant }) {
           <text fg={theme.text.muted}>
             {interrupted() ? "Interrupted" : `Completed in ${Locale.duration(duration())}`}
             <Show when={!interrupted() && speed()}> · {speed()}</Show>
+            <Show when={!interrupted() && gauge()}> · {gauge()}</Show>
           </text>
         </box>
       </Show>

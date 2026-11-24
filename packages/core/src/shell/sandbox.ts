@@ -97,6 +97,18 @@ const HOME_SECRET = [
   "Library/Keychains",
 ] as const
 
+// Under HOME: LocalCode's own settings and the shell's startup files. Nothing a command runs may change them.
+const HOME_PROTECTED = [
+  ".config/localcode-agent",
+  ".zshenv",
+  ".zshrc",
+  ".zprofile",
+  ".zlogin",
+  ".bashrc",
+  ".bash_profile",
+  ".profile",
+] as const
+
 const under = (paths: readonly string[]) =>
   paths.map((item) => `(subpath (string-append (param "HOME") ${JSON.stringify(`/${item}`)}))`).join("\n  ")
 
@@ -128,6 +140,18 @@ export function profile(network: boolean): string {
     // Secrets last: a later rule wins over the allows above.
     "(deny file-read* file-write*",
     `  ${under(HOME_SECRET)})`,
+    // Repository metadata inside the project: hooks run later outside the sandbox, so a hook written here would escape it.
+    // `.git/config` stays writable: git init, branch, remote and fetch all write it.
+    "(deny file-write*",
+    '  (subpath (string-append (param "PROJECT") "/.git/hooks"))',
+    '  (subpath (string-append (param "PROJECT") "/.localcode-agent"))',
+    '  (literal (string-append (param "PROJECT") "/localcode.json"))',
+    '  (literal (string-append (param "PROJECT") "/localcode.jsonc"))',
+    '  (literal (string-append (param "PROJECT") "/.mcp.json"))',
+    `  ${under(HOME_PROTECTED)})`,
+    // The hooks directory and inert `*.sample` files may still be created, so `git init` works. A real hook may not.
+    '(allow file-write* (literal (string-append (param "PROJECT") "/.git/hooks")))',
+    '(allow file-write* (require-all (subpath (string-append (param "PROJECT") "/.git/hooks")) (regex #"[.]sample$")))',
     "(allow mach-lookup",
     '  (global-name "com.apple.system.opendirectoryd.libinfo")',
     '  (global-name "com.apple.system.opendirectoryd.membership")',
@@ -146,6 +170,22 @@ export function profile(network: boolean): string {
         ]),
     "",
   ].join("\n")
+}
+
+const SECRET_SUFFIX = /_(TOKEN|SECRET|KEY|PASSWORD)$/i
+const SECRET_NAME = /^(AWS_.*|GITHUB_TOKEN|GH_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY|HF_TOKEN)$/i
+// Variables LocalCode itself hands to tools (session id, its own server key) are never scrubbed.
+const OWN_NAME = /^(OPENCODE|LOCALCODE)_/i
+
+/** Whether an environment variable name looks like a credential. */
+export function isSecretName(name: string): boolean {
+  if (OWN_NAME.test(name)) return false
+  return SECRET_SUFFIX.test(name) || SECRET_NAME.test(name)
+}
+
+/** The environment of a sandboxed command: `env` without credential-looking variables. */
+export function scrubEnv<T extends Readonly<Record<string, string | undefined>>>(env: T): Record<string, string | undefined> {
+  return Object.fromEntries(Object.entries(env).filter(([name]) => !isSecretName(name)))
 }
 
 const real = (item: string) => {

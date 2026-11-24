@@ -18,6 +18,7 @@ import { it } from "./lib/effect"
 import { imagePassthrough } from "./lib/image"
 import { permissionLayer } from "./lib/permission"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
+import { Global } from "@opencode/util/global"
 import { FSUtil } from "@opencode/util/fs-util"
 import { toolIdentity, executeTool, registerToolPlugin, toolDefinitions, toolNodeReplacements } from "./lib/tool"
 import { registerIntegrationPolicy, setOrganizationPolicy } from "./fixture/policy"
@@ -25,7 +26,7 @@ import { registerIntegrationPolicy, setOrganizationPolicy } from "./fixture/poli
 const skillToolNode = makeLocationNode({
   name: "test/skill-tool-plugin",
   layer: Layer.effectDiscard(registerToolPlugin(SkillTool.Plugin)),
-  deps: [Tool.node, FSUtil.node, Skill.node, Permission.node],
+  deps: [Tool.node, FSUtil.node, Skill.node, Permission.node, Global.node],
 })
 
 const sessionID = Session.ID.make("ses_skill_tool_test")

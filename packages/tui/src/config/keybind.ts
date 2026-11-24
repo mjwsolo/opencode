@@ -282,6 +282,7 @@ export const Definitions = {
   "permission.prompt.fullscreen": keybind("ctrl+f", "Toggle permission prompt fullscreen"),
   "plugins.toggle": keybind("return", "Toggle plugin"),
   "dialog.mcp.toggle": keybind("space", "Toggle MCP server"),
+  "dialog.skill.toggle": keybind("space", "Turn a skill on or off"),
   "dialog.plugins.error": keybind("space", "View plugin error"),
   "dialog.plugins.update": keybind("ctrl+u", "Update plugin from plugin dialog"),
   "dialog.plugins.check": keybind("ctrl+r", "Check for plugin updates from plugin dialog"),

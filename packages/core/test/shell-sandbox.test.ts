@@ -61,6 +61,29 @@ describe("ShellSandbox.profile", () => {
     for (const secret of [".ssh", ".aws", ".gnupg", "Library/Keychains"]) expect(text.slice(secrets)).toContain(secret)
   })
 
+  test("fences repository metadata and LocalCode settings after the project allow", () => {
+    const text = ShellSandbox.profile(true)
+    const allow = text.indexOf("(allow file-read* file-write*")
+    const deny = text.indexOf("(deny file-write*")
+    expect(deny).toBeGreaterThan(allow)
+    const block = text.slice(deny, text.indexOf("(allow mach-lookup"))
+    for (const item of [
+      "/.git/hooks",
+      "/.localcode-agent",
+      "/localcode.json",
+      "/.mcp.json",
+      "/.config/localcode-agent",
+      "/.zshrc",
+      "/.bashrc",
+      "/.profile",
+      "/.zprofile",
+    ])
+      expect(block).toContain(item)
+    expect(block).toContain("[.]sample$")
+    // git config stays writable: init, branch, remote and fetch write it.
+    expect(block).not.toContain(".git/config")
+  })
+
   test("limits the network to this machine when network is off", () => {
     expect(ShellSandbox.profile(true)).toContain("(allow network*)")
     const off = ShellSandbox.profile(false)
@@ -148,5 +171,33 @@ describe("ShellSandbox denials", () => {
     const text = ShellSandbox.describe(ShellSandbox.parseDenials(log, new Set([4242])))
     expect(text).toContain("The sandbox blocked these operations:")
     expect(text).toContain("- cat: file-read-data /Users/x/.ssh/id_rsa")
+  })
+})
+
+describe("ShellSandbox.scrubEnv", () => {
+  test("drops credential-looking variables and keeps the rest", () => {
+    const env = {
+      PATH: "/bin",
+      HOME: "/h",
+      GITHUB_TOKEN: "a",
+      gh_token: "a",
+      MY_SECRET: "a",
+      STRIPE_KEY: "a",
+      DB_PASSWORD: "a",
+      AWS_REGION: "a",
+      AWS_SECRET_ACCESS_KEY: "a",
+      OPENAI_API_KEY: "a",
+      ANTHROPIC_API_KEY: "a",
+      HF_TOKEN: "a",
+      KEYBOARD: "us",
+      TOKENIZERS_PARALLELISM: "false",
+      SSH_AUTH_SOCK: "/s",
+    }
+    expect(Object.keys(ShellSandbox.scrubEnv(env)).sort()).toEqual(["HOME", "KEYBOARD", "PATH", "SSH_AUTH_SOCK", "TOKENIZERS_PARALLELISM"])
+  })
+
+  test("keeps the variables LocalCode passes to its tools", () => {
+    const env = { OPENCODE_SESSION_ID: "s", LOCALCODE_SERVER_KEY: "k", OPENCODE_SERVER_PASSWORD: "p" }
+    expect(ShellSandbox.scrubEnv(env)).toEqual(env)
   })
 })

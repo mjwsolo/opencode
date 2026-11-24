@@ -4,6 +4,8 @@ import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { Context, Effect, Layer, Schema } from "effect"
 import { Permission } from "../permission.js"
 import { Skill } from "../skill.js"
+import { SkillDisabled } from "./disabled.js"
+import { Global } from "@opencode/util/global"
 import { Instructions } from "../instructions/index.js"
 
 const Summary = Schema.Struct({
@@ -56,12 +58,14 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const skills = yield* Skill.Service
+    const global = yield* Global.Service
 
     return Service.of({
       load: Effect.fn("SkillInstructions.load")(function* (permissions) {
+        const off = SkillDisabled.read(global.config)
         const available = Skill.available(yield* skills.list(), permissions)
           .flatMap((skill) =>
-            skill.description === undefined || skill.autoinvoke === false
+            skill.description === undefined || skill.autoinvoke === false || off.has(skill.id)
               ? []
               : [{ id: skill.id, name: skill.name, description: skill.description }],
           )
@@ -81,4 +85,4 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer, deps: [Skill.node] })
+export const node = makeLocationNode({ service: Service, layer, deps: [Skill.node, Global.node] })

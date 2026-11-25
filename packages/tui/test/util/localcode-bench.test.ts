@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { benchMemory, benchRows, type BenchReport } from "../../src/component/localcode-bench"
+import { benchLoad, benchMemory, benchRows, type BenchReport } from "../../src/component/localcode-bench"
 import { LOCALCODE_MENU } from "../../src/util/localcode-menu"
 
 const report: BenchReport = {
@@ -22,6 +22,11 @@ test("bench rows are ordered by prompt size and rounded", () => {
     { size: "8K", ttft: "12.35", prefill: "650", gen: "31.0" },
   ])
   expect(benchMemory(report)).toBe("10.0 GB")
+})
+
+test("load time shows only when the session recorded it", () => {
+  expect(benchLoad(report)).toBe("")
+  expect(benchLoad({ ...report, load_s: 27.04 })).toBe("Loaded in 27.0 s  ")
 })
 
 test("/bench is in the menu allowlist", () => {

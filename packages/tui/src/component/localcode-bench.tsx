@@ -39,6 +39,7 @@ export type BenchReport = {
   sizes: Record<string, Size>
   skipped_sizes: number[]
   peak_memory_mb: number | null
+  load_s?: number | null
   warnings: string[]
 }
 type BenchStatus = {
@@ -62,6 +63,11 @@ export function benchRows(report: BenchReport) {
       prefill: num(s.prefill_tps, 0),
       gen: num(s.gen_tps, 1),
     }))
+}
+
+/** "Loaded in 12.3 s" when the session recorded how long the model took to start. */
+export function benchLoad(report: BenchReport) {
+  return report.load_s == null ? "" : `Loaded in ${report.load_s.toFixed(1)} s  `
 }
 
 export function benchMemory(report: BenchReport) {
@@ -146,7 +152,7 @@ function BenchResult(props: { report: BenchReport; power?: string | null; compar
         )}
       </For>
       <text fg={theme.text.muted}>
-        Memory about {benchMemory(props.report)} Context {props.report.context.toLocaleString("en-US")}
+        {benchLoad(props.report)}Memory about {benchMemory(props.report)} Context {props.report.context.toLocaleString("en-US")}
       </text>
       <For each={[...props.report.warnings, ...(props.power ? [props.power] : [])]}>
         {(w) => (

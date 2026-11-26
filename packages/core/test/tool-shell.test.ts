@@ -149,6 +149,8 @@ const shellPluginSupervisor = makeLocationNode({
     Shell.daemonNode,
     ShellSelect.node,
     Tool.node,
+    Global.node,
+    Location.node,
   ],
 })
 
@@ -1322,6 +1324,8 @@ describe("ShellTool", () => {
             Shell.daemonNode,
             ShellSelect.node,
             Tool.node,
+            Global.node,
+            Location.node,
           ],
         })
         yield* withTempDir((tmp) =>

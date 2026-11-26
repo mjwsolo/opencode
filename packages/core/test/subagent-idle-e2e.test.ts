@@ -73,6 +73,8 @@ const pluginSupervisor = makeLocationNode({
     Session.node,
     Shell.node,
     ShellSelect.node,
+    Global.node,
+    Location.node,
     SubagentJob.node,
     Tool.node,
   ],

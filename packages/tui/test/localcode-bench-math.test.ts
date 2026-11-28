@@ -54,8 +54,8 @@ test("deltas carry a sign and comparison rows say why they may differ", () => {
   expect(formatDelta(null)).toBe("-")
   const row: CompareRow = { ...run({ model: "other" }), relation: "best run", delta: { gen_pct: 12, prefill_pct: null, ttft_pct: -3 }, mismatch: ["LocalCode 0.4.0", "on battery"] }
   const line = compareLine(row)
-  expect(line).toContain("gen 40.0 (+12%)")
-  expect(line).toContain("differs: LocalCode 0.4.0, on battery")
+  expect(line).toBe("vs other: gen +12%, first token -3%  (LocalCode 0.4.0, on battery)")
+  expect(compareLine({ ...row, relation: "previous run", mismatch: [] })).toBe("vs other (previous): gen +12%, first token -3%")
 })
 
 test("history sorts by date or by generation speed", () => {

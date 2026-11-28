@@ -26,7 +26,7 @@ test("bench rows are ordered by prompt size and rounded", () => {
 
 test("load time shows only when the session recorded it", () => {
   expect(benchLoad(report)).toBe("")
-  expect(benchLoad({ ...report, load_s: 27.04 })).toBe("Loaded in 27.0 s  ")
+  expect(benchLoad({ ...report, load_s: 27.04 })).toBe("Load 27.0 s · ")
 })
 
 test("/bench is in the menu allowlist", () => {

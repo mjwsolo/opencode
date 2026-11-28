@@ -67,7 +67,12 @@ export function benchRows(report: BenchReport) {
 
 /** "Loaded in 12.3 s" when the session recorded how long the model took to start. */
 export function benchLoad(report: BenchReport) {
-  return report.load_s == null ? "" : `Loaded in ${report.load_s.toFixed(1)} s  `
+  return report.load_s == null ? "" : `Load ${report.load_s.toFixed(1)} s · `
+}
+
+/** 131072 -> "128K": the context in the same K units as the prompt sizes. */
+export function benchContext(report: BenchReport) {
+  return report.context >= 1024 ? `${Math.round(report.context / 1024)}K` : String(report.context)
 }
 
 export function benchMemory(report: BenchReport) {
@@ -152,18 +157,18 @@ function BenchResult(props: { report: BenchReport; power?: string | null; compar
         )}
       </For>
       <text fg={theme.text.muted}>
-        {benchLoad(props.report)}Memory about {benchMemory(props.report)} Context {props.report.context.toLocaleString("en-US")}
+        {benchLoad(props.report)}Memory {benchMemory(props.report)} · Context {benchContext(props.report)}
       </text>
       <For each={[...props.report.warnings, ...(props.power ? [props.power] : [])]}>
         {(w) => (
           <text fg={theme.text.muted} wrapMode="word">
-            Note: {w}
+            {w.charAt(0).toUpperCase() + w.slice(1)}
           </text>
         )}
       </For>
       <Show when={props.compare?.length}>
-        <text fg={theme.text.base}>Compare (+ means this run is faster)</text>
-        <For each={props.compare}>
+        <text fg={theme.text.base}>Saved runs (+ means this run is faster)</text>
+        <For each={props.compare?.slice(0, 3)}>
           {(r) => (
             <text fg={r.mismatch.length ? theme.text.muted : theme.text.base} wrapMode="word">
               {compareLine(r)}
@@ -171,9 +176,6 @@ function BenchResult(props: { report: BenchReport; power?: string | null; compar
           )}
         </For>
       </Show>
-      <text fg={theme.text.muted} wrapMode="word">
-        Compare several models in a terminal: localcode bench --compare
-      </text>
     </DialogLayout>
   )
 }

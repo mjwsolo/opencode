@@ -54,10 +54,20 @@ export type CompareRow = HistoryRun & { relation: string; delta: Delta; mismatch
 
 const n = (v: number | null | undefined, d: number) => (v == null ? "-" : v.toFixed(d))
 
+/** One short line per saved run: "vs Qwen-Q4 (previous): gen +10%, prompt -3%  (LocalCode 0.5.41)". */
 export function compareLine(r: CompareRow) {
   const label = r.relation === "previous run" ? `${r.model} (previous)` : r.model
-  const flag = r.mismatch.length ? `  differs: ${r.mismatch.join(", ")}` : ""
-  return `${label}: gen ${n(r.gen_1k, 1)} (${formatDelta(r.delta.gen_pct)}), prompt ${n(r.prefill_1k, 0)} (${formatDelta(r.delta.prefill_pct)}), first token ${n(r.ttft_s, 2)} s (${formatDelta(r.delta.ttft_pct)})${flag}`
+  const parts = (
+    [
+      ["gen", r.delta.gen_pct],
+      ["prompt", r.delta.prefill_pct],
+      ["first token", r.delta.ttft_pct],
+    ] as const
+  )
+    .filter(([, v]) => v != null)
+    .map(([k, v]) => `${k} ${formatDelta(v)}`)
+  const flag = r.mismatch.length ? `  (${r.mismatch.join(", ")})` : ""
+  return `vs ${label}: ${parts.join(", ") || "no shared numbers"}${flag}`
 }
 
 export function historyLine(r: HistoryRun) {
